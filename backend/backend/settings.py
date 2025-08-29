@@ -41,7 +41,18 @@ INSTALLED_APPS = [
     # apps
     'rest_framework',
     'accounts',
+    'courses',
 ]
+
+# CORS settings for Vue frontend
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:8080',  # Vue dev server
+    'http://localhost:8000',  # Production URL (adjust as needed)
+]
+
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # For collectstatic
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
