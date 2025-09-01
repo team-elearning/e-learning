@@ -40,8 +40,9 @@ INSTALLED_APPS = [
 
     # apps
     'rest_framework',
-    'accounts',
-    'courses',
+    'account',
+    'collection',
+    'exploration',
 ]
 
 # CORS settings for Vue frontend

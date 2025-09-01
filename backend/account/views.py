@@ -1,8 +1,8 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view
-from .models import AppUser
+from .models import User
 from rest_framework import status
-from .serializers import AppUserSerializer
+from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 
@@ -19,14 +19,14 @@ def register(request):
     role = request.data.get('role', 'student')  # Default role is 'student
     phone = request.data.get('phone')
 
-    if AppUser.objects.filter(email=email).exists():
+    if User.objects.filter(email=email).exists():
         return Response("Email already registered", status = status.HTTP_400_BAD_REQUEST)
     
-    user = AppUser(email=email, first_name=first_name, last_name=last_name, username=username, role=role, phone=phone)
+    user = User(email=email, first_name=first_name, last_name=last_name, username=username, role=role, phone=phone)
     user.set_password(password)
     user.save()
 
-    return Response(AppUserSerializer(user).data, status = status.HTTP_201_CREATED)
+    return Response(UserSerializer(user).data, status = status.HTTP_201_CREATED)
 
 # Login View
 @api_view(['POST'])
@@ -35,8 +35,8 @@ def login(request):
     password = request.data.get('password')
 
     try:
-        user = AppUser.objects.get(email=email)
-    except AppUser.DoesNotExist:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
         return Response("Invalid email or password", status = status.HTTP_400_BAD_REQUEST)
     
     if not user.check_password(password):
@@ -47,5 +47,5 @@ def login(request):
     return Response({
         'refresh': str(refresh),
         'access': str(refresh.access_token),
-        'user': AppUserSerializer(user).data
+        'user': UserSerializer(user).data
     }, status = status.HTTP_200_OK)
