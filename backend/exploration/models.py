@@ -1,0 +1,21 @@
+from django.db import models
+from account.models import User
+
+# Create your models here.
+class Exploration(models.Model):
+    # What this exploration is called.
+    title = models.CharField(max_length=200)
+    # The category this exploration belongs to.
+    category = models.CharField(max_length=200, index = True, required = True)
+    # The objective of this exploration.
+    objective = models.TextField(default='')
+    # The ISO 639-1 code for the language this exploration is written in.
+    language_code = models.CharField(max_length=10, default='en')
+    # Tags (topics, skills, concepts, etc.) associated with this
+    # exploration.
+    tags = models.ArrayField(models.CharField(max_length=50), default=list, index = True)
+    # The version of the exploration.
+    version = models.IntegerField(default=1)
+    
+    # Reference to the custom User model
+    owners = models.ManyToManyField(User, related_name='exploration_owners')
