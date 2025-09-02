@@ -1,15 +1,14 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
-from django.contrib.postgres.fields import ArrayField
 
 # Create your models here.
-class User(models.Model):
+class UserModel(models.Model):
     username = models.CharField(max_length=150, unique=True)
     password = models.CharField(max_length=128)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30, blank=True, null=True)
     last_name = models.CharField(max_length=30, blank=True, null=True)
-    date_joined = models.DateTimeField(auto_now_add=True)
+    created_on = models.DateTimeField(auto_now_add=True)
     role = models.CharField(max_length=20, choices=[('student', 'Student'), ('instructor', 'Instructor'), ('admin', 'Admin')], default='student')
     phone = models.CharField(max_length=15, blank=True, null=True)
 

@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view
-from .models import User
+from .models import UserModel
 from rest_framework import status
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,10 +19,10 @@ def register(request):
     role = request.data.get('role', 'student')  # Default role is 'student
     phone = request.data.get('phone')
 
-    if User.objects.filter(email=email).exists():
+    if UserModel.objects.filter(email=email).exists():
         return Response("Email already registered", status = status.HTTP_400_BAD_REQUEST)
     
-    user = User(email=email, first_name=first_name, last_name=last_name, username=username, role=role, phone=phone)
+    user = UserModel(email=email, first_name=first_name, last_name=last_name, username=username, role=role, phone=phone)
     user.set_password(password)
     user.save()
 
@@ -35,8 +35,8 @@ def login(request):
     password = request.data.get('password')
 
     try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
+        user = UserModel.objects.get(email=email)
+    except UserModel.DoesNotExist:
         return Response("Invalid email or password", status = status.HTTP_400_BAD_REQUEST)
     
     if not user.check_password(password):
