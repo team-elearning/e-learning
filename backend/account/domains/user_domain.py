@@ -1,19 +1,19 @@
-from typing import Optional
+from typing import TypedDict, Optional
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
 import re
 
-@dataclass
-class UserDict():
+
+class UserDict(TypedDict):
     """Dataclass representing the UserSettings object."""
     username: str
     password: str
     email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    created_on: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    role: str = 'student'
-    phone: Optional[str] = None
+    first_name: Optional[str]
+    last_name: Optional[str] 
+    created_on: datetime
+    role: str 
+    phone: Optional[str]
+
 
 class UserDomain:
     """Value object representing a user's settings.
@@ -35,9 +35,11 @@ class UserDomain:
         self.email = email
         self.first_name = first_name
         self.last_name = last_name
-        self.created_on = created_on
+        self.created_on = created_on or datetime.now(timezone.utc)
         self.role = role
         self.phone = phone
+        self.validate()
+
 
     def validate(self) -> None:
         """Validate the UserDomain object.
@@ -63,21 +65,22 @@ class UserDomain:
         if self.role not in ['student', 'instructor', 'admin']:
             raise ValueError("Role must be one of 'student', 'instructor', or 'admin'.")
 
+
     def to_dict(self) -> UserDict:
         """Convert the UserDomain object to a dictionary.
         Returns:
             dict. The dictionary representation of the UserDomain object.
         """
-        return UserDict(
-            username=self.user_name,
-            password=self.password,
-            email=self.email,
-            first_name=self.first_name,
-            last_name=self.last_name,
-            created_on=self.created_on,
-            role=self.role,
-            phone=self.phone
-        )
+        return {
+            'username':self.user_name,
+            'password':self.password,
+            'email':self.email,
+            'first_name':self.first_name,
+            'last_name':self.last_name,
+            'created_on':self.created_on,
+            'role':self.role,
+            'phone':self.phone
+        }
     
     @classmethod
     def from_dict(cls, data: UserDict) -> 'UserDomain':
@@ -113,7 +116,7 @@ class UserDomain:
         else:
             return ""
     
-    @property
+
     def change_password(self, new_password: str) -> None:
         """Change the user's password.
         Args:

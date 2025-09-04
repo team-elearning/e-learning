@@ -3,6 +3,21 @@ from backend.account.models import UserModel
 from typing import Optional
 from django.contrib.auth.hashers import check_password, make_password
 
+def to_domain(user: UserModel) -> UserDomain:
+    """Converts a UserModel instance to a UserDomain instance."""
+    return UserDomain(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        phone=user.phone,
+        role=user.role,
+        is_active=user.is_active,
+        created_on=user.created_on,
+    )
+
+
 def create_new_user(username: str, email: str, raw_password: str, role="student", **extra) -> UserDomain:
     """Creates a new user and commits it to the DB."""
     if UserModel.objects.filter(username=username).exists():
@@ -19,8 +34,8 @@ def create_new_user(username: str, email: str, raw_password: str, role="student"
         last_name=extra.get('last_name'),
         phone=extra.get('phone'),
     )
-
     return user.to_domain()
+
 
 def get_user_by_username(username: str) -> Optional[UserDomain]:
     """Fetches a user by username."""
@@ -30,6 +45,7 @@ def get_user_by_username(username: str) -> Optional[UserDomain]:
     except UserModel.DoesNotExist:
         return None
     
+
 def get_user_by_email(email: str) -> Optional[UserDomain]:
     """Fetches a user by email."""
     try:
@@ -38,6 +54,7 @@ def get_user_by_email(email: str) -> Optional[UserDomain]:
     except UserModel.DoesNotExist:
         return None
     
+
 def get_user_by_id(user_id: int) -> Optional[UserDomain]:
     """Fetches a user by ID."""
     try:
@@ -46,6 +63,7 @@ def get_user_by_id(user_id: int) -> Optional[UserDomain]:
     except UserModel.DoesNotExist:
         return None
     
+
 def authenticate_user(username_or_email: str, raw_password: str) -> Optional[UserDomain]:
     """Authenticates a user by username/email and password."""
     try:
@@ -59,6 +77,7 @@ def authenticate_user(username_or_email: str, raw_password: str) -> Optional[Use
     if check_password(raw_password, user.password):
         return user.to_domain()
     return None
+
 
 def update_user(user_id: int, **updates) -> Optional[UserDomain]:
     """Update user attributes and return updated domain object."""
