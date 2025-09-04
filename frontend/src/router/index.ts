@@ -3,7 +3,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
-	
 	{
 		path: '/login',
 		name: 'Login',
@@ -39,6 +38,21 @@ const routes: RouteRecordRaw[] = [
 		path: '/admin/users',
 		name: 'AdminUsers',
 		component: () => import('../views/admin/Users.vue'),
+	},
+	{
+		path: '/teacher/dashboard',
+		name: 'TeacherDashboard',
+		component: () => import('../views/teacher/TeacherDashboard.vue'),
+	},
+	{
+		path: '/403',
+		name: 'Forbidden',
+		component: () => import('../views/Forbidden.vue'),
+	},
+	{
+		path: '/:pathMatch(.*)*',
+		name: 'NotFound',
+		component: () => import('../views/NotFound.vue'),
 	},
 ];
 
