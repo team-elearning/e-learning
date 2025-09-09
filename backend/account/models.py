@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from account.domains.user_domain import UserDomain
 
 # Create your models here.
 class UserModel(models.Model):
@@ -15,6 +16,21 @@ class UserModel(models.Model):
                                      ('admin', 'Admin')], 
                             default='student')
     phone = models.CharField(max_length=15, blank=True, null=True)
+
+    # model -> domain
+    def to_domain(self) -> UserDomain:
+        """Convert a DJango model to a domain object"""
+        return UserDomain(
+            id=self.id,
+            username=self.username,
+            password=self.password,
+            email=self.email,
+            first_name=self.first_name,
+            last_name=self.last_name,
+            created_on=self.created_on,
+            role=self.role,
+            phone=self.phone,
+        )
 
     def set_password(self, raw_password):  
         self.password = make_password(raw_password)

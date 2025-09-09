@@ -1,5 +1,5 @@
-from backend.account.domains.user_domain import UserDomain
-from backend.account.models import UserModel
+from account.domains.user_domain import UserDomain
+from account.models import UserModel
 from typing import Optional
 from django.contrib.auth.hashers import check_password, make_password
 
