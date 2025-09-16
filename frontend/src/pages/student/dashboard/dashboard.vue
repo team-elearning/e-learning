@@ -1,5 +1,5 @@
 <template>
-  <div>Teacher Dashboard</div>
+  <div>Student Dashboard</div>
 </template>
 <script setup lang="ts">
 // Dashboard logic here
