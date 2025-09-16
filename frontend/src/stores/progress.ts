@@ -1,2 +1,0 @@
-// Progress store
-export {};

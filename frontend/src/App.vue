@@ -1,20 +1,29 @@
+<!-- src/App.vue -->
 <template>
-  <div id="app">
-    <router-view />
-  </div>
+  <!-- Element Plus config (tùy chọn, nhưng hữu ích) -->
+  <el-config-provider namespace="el" :z-index="3000">
+    <!-- Route outlet -->
+    <RouterView v-slot="{ Component }">
+      <Transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
+  </el-config-provider>
 </template>
 
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+<script setup lang="ts">
+import { RouterView } from 'vue-router'
+import { ElConfigProvider } from 'element-plus'
+</script>
+
+<style>
+/* Transition nhẹ nhàng khi đổi page */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

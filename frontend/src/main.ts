@@ -1,16 +1,36 @@
+// import { createApp } from 'vue'
+// import { createPinia } from 'pinia'
+// import ElementPlus from 'element-plus'
+
+
+// import App from './App.vue'
+// import router from './router'
+// import "@/styles/tailwind.css"
+
+// const app = createApp(App)
+
+// app.use(createPinia())
+// app.use(router)
+// app.use(ElementPlus)
+
+
+// app.mount('#app')
+
+
 import { createApp } from 'vue'
-import App from './App.vue'
-import router from './router'
 import { createPinia } from 'pinia'
-import i18n from './plugins/i18n'
-import ElementPlus from './plugins/element-plus'
-import './styles/index.scss'
+import App from './App.vue'
+import router from '@/router'
+import 'element-plus/dist/index.css'
+import '@/styles/tailwind.css'
+import { useAuthStore } from '@/store/auth.store'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+
 
 const app = createApp(App)
-
-app.use(createPinia())
-app.use(router)
+const pinia = createPinia()
+app.use(pinia)
 app.use(ElementPlus)
-app.use(i18n)
-
-app.mount('#app')
+useAuthStore().hydrateFromStorage()
+app.use(router).mount('#app')
