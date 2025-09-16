@@ -1,21 +1,10 @@
-from account.domains.user_domain import UserDomain
-from account.models import UserModel
 from typing import Optional
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import make_password
 
-def to_domain(user_model: UserModel) -> UserDomain:
-    """Converts a UserModel instance to a UserDomain instance."""
-    return UserDomain(
-        id=user_model.id,
-        username=user_model.username,
-        email=user_model.email,
-        first_name=user_model.first_name,
-        last_name=user_model.last_name,
-        phone=user_model.phone,
-        role=user_model.role,
-        is_active=user_model.is_active,
-        created_on=user_model.created_on,
-    )
+from account.domains.user_domain import UserDomain, LoginDomain
+from account.models import UserModel
+from account.mappers import user_mapper
 
 
 # Create
@@ -49,20 +38,18 @@ def create_new_user(username: str, email: str, raw_password: str, role="student"
     return user_model.to_domain()
 
 
-# Authenticate
-def authenticate_user(username_or_email: str, raw_password: str) -> Optional[UserDomain]:
+# Authenticate - check and return if user exists
+def authenticate_user(login_domain: LoginDomain) -> Optional[UserDomain]:
     """Authenticates a user by username/email and password."""
-    try:
-        user = UserModel.objects.get(username=username_or_email)
-    except UserModel.DoesNotExist:
-        try:
-            user = UserModel.objects.get(email=username_or_email)
-        except UserModel.DoesNotExist:
-            return None
-    
-    if not check_password(raw_password, user.password):
+    username_or_email = login_domain.username_or_email
+    raw_password = login_domain.raw_password
+
+    user_model = authenticate(username=username_or_email,
+                              password=raw_password)
+
+    if not user_model:
         return None
-    return user.to_domain()
+    return user_mapper.to_domain(user_model)
 
 
 # Get
@@ -77,21 +64,9 @@ def get_user_domain(*, user_id: int = None, username: str = None, email: str = N
             user = UserModel.objects.get(email=email)
         else:
             return None
-        return user.to_domain()
+        return user_mapper.to_domain(user)
     except UserModel.DoesNotExist:
         return None
-
-
-# def get_user_domain_for_token(*, user_id: int = None, username: str = None) -> Optional[UserModel]:
-#     """Fetches the UserModel instance for JWT token generation."""
-#     try:
-#         if user_id is not None:
-#             return UserModel.objects.get(id=user_id).to_domain()
-#         elif username is not None:
-#             return UserModel.objects.get(username=username).to_domain()
-#         return None
-#     except UserModel.DoesNotExist:
-#         return None
 
 
 # Update
@@ -121,5 +96,12 @@ def update_user(user_id: int, **updates) -> Optional[UserDomain]:
         return user_model.to_domain()
     except UserModel.DoesNotExist:
         return None
+    
+
+# login 
+def login_user(username_or_email: str, password: str) -> Optional[UserDomain]:
+    """High-level login use case"""
+    return authenticate_user(username_or_email, password)
+    
     
 

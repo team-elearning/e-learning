@@ -167,3 +167,5 @@ PASSWORD_RESET_TIMEOUT = 600  # Token expiry in seconds (10 minutes default).
 # Email settings (example for console testing):
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'admin@example.com'
+
+AUTH_USER_MODEL = "account.UserModel"
