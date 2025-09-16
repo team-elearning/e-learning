@@ -1,70 +1,39 @@
-# E-Learning Frontend
+# frontend
 
-## Giới thiệu
-Đây là dự án frontend cho hệ thống e-learning, sử dụng Vue 3 + Vite. Dự án hỗ trợ nhiều vai trò: học sinh, phụ huynh, admin.
+This template should help get you started developing with Vue 3 in Vite.
 
-## Cài đặt
-```bash
+## Recommended IDE Setup
+
+[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+
+## Type Support for `.vue` Imports in TS
+
+TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+
+## Customize configuration
+
+See [Vite Configuration Reference](https://vite.dev/config/).
+
+## Project Setup
+
+```sh
 npm install
 ```
 
-## Chạy dự án
-```bash
+### Compile and Hot-Reload for Development
+
+```sh
 npm run dev
 ```
 
-## Cấu trúc thư mục
-```
-src/
-├─ router/                # Quản lý định tuyến
-│  ├─ index.ts            # Khởi tạo router
-│  └─ guards.ts           # Định nghĩa các guard cho route
-├─ stores/                # Quản lý trạng thái
-│  ├─ index.ts            # Store chính
-│  ├─ user.ts             # Store người dùng
-│  └─ progress.ts         # Store tiến trình học tập
-├─ views/                 # Các trang giao diện
-│  ├─ auth/               # Trang xác thực
-│  │  ├─ LoginPage.vue
-│  │  └─ RegisterPage.vue
-│  ├─ student/            # Trang học sinh
-│  │  ├─ Dashboard.vue
-│  │  └─ LessonDetail.vue
-│  ├─ parent/             # Trang phụ huynh
-│  │  └─ Reports.vue
-│  └─ admin/              # Trang admin
-│     ├─ ContentManager.vue
-│     └─ Users.vue
-├─ components/            # Các component dùng chung
-│  ├─ common/
-│  ├─ student/
-│  └─ charts/
-├─ services/              # Các service dùng chung
-│  ├─ http.ts
-│  └─ storage.ts
-├─ api/                   # Định nghĩa các API
-│  ├─ auth.api.ts
-│  ├─ lessons.api.ts
-│  └─ reports.api.ts
-├─ plugins/               # Các plugin
-│  ├─ element-plus.ts
-│  └─ i18n.ts
-├─ locales/               # Đa ngôn ngữ
-│  ├─ vi.json
-│  └─ en.json
-├─ styles/                # Style chung
-│  ├─ index.scss
-│  └─ variables.scss
-└─ directives/            # Directive tuỳ chỉnh
-   └─ permission.ts
+### Type-Check, Compile and Minify for Production
+
+```sh
+npm run build
 ```
 
-## Ghi chú
-- Sử dụng Vite để phát triển, build nhanh.
-- Sử dụng Vue Router cho điều hướng.
-- Sử dụng Pinia/Vuex cho quản lý trạng thái.
-- Đa ngôn ngữ qua plugin i18n.
-- UI sử dụng Element Plus.
+### Lint with [ESLint](https://eslint.org/)
 
-## Liên hệ
-Nếu có vấn đề hoặc cần hỗ trợ, vui lòng liên hệ nhóm phát triển.
+```sh
+npm run lint
+```

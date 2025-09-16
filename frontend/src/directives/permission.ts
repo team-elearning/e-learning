@@ -1,2 +1,0 @@
-// Permission directive
-export {};
