@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from account.services import user_service
-from account.serializers import UserSerializer
-from account.permissions import IsAdminOrSelf
+from account.api.serializers import UserSerializer
+from account.api.permissions import IsAdminOrSelf
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSelf]
@@ -14,6 +14,7 @@ class UserProfileView(APIView):
     def get(self, request):
         # Determine target user
         target_user_id = request.query_params.get('user_id', request.user.id)
+        
         user_domain = user_service.get_user_domain(user_id=target_user_id)
 
         if not user_domain:

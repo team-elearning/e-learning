@@ -33,7 +33,7 @@ class UserModel(AbstractBaseUser, PermissionsMixin):
                             default='student')
     phone = models.CharField(max_length=15, blank=True, null=True)
     is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
 
     objects = UserManager()
 

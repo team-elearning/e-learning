@@ -45,7 +45,7 @@ class LoginSerializer(serializers.Serializer):
     username_or_email = serializers.CharField()
     raw_password = serializers.CharField(write_only=True)
 
-    def to_main(self) -> "LoginDomain":
+    def to_domain(self) -> "LoginDomain":
         """Convert validated data into a LoginDomain object"""
         return LoginDomain(username_or_email=self.validated_data["username_or_email"],
                            raw_password=self.validated_data["raw_password"],)

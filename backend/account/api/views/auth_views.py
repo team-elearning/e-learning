@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from account.mappers import user_mapper
+from account.api.serializers import UserSerializer, RegisterSerializer, LoginSerializer
 from account.services import user_service
-from account.serializers import UserSerializer, RegisterSerializer, LoginSerializer
+from account.models import UserModel
 
 
 
@@ -27,7 +27,7 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data) # Call LoginSerializer
         serializer.is_valid(raise_exception=True)
 
-        login_domain = serializer.to_main()
+        login_domain = serializer.to_domain()
         user_domain = user_service.authenticate_user(login_domain)
 
         if not user_domain:
@@ -35,7 +35,7 @@ class LoginView(APIView):
 
         # convert domain -> model for JWT
         try:
-            user_model = user_mapper.to_model(user_domain)
+            user_model = UserModel.objects.get(id=user_domain.id)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         

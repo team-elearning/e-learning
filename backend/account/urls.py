@@ -1,9 +1,9 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView  # For token refresh endpoint
 
-from account.views.auth_views import RegisterView, LoginView
-from account.views.password_views import ForgotPasswordView, ResetPasswordView
-from account.views.user_profile_view import UserProfileView
+from account.api.views.auth_views import RegisterView, LoginView
+from account.api.views.password_views import ForgotPasswordView, ResetPasswordView
+from account.api.views.user_profile_view import UserProfileView
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),

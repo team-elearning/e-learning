@@ -37,11 +37,12 @@ class IsAdminOrSelf(BasePermission):
     
     def has_object_permission(self, request, view, obj):
         """
-        obj here is the target UserDomain (or UserModel).
+        Custom permission to allow access if the user is an admin or accessing their own data.
         """
 
-        if request.user.role == "admin":
+        if request.user.is_staff:  # OR: if request.user.role == "admin":
             return True
        
+       # Allow users accessing their own data
         return obj.id == request.user.id
 

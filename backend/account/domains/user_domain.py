@@ -1,6 +1,8 @@
+import re
 from typing import TypedDict, Optional
 from datetime import datetime, timezone
-import re
+
+from account.models import UserModel
 
 
 class UserDict(TypedDict):
@@ -13,7 +15,6 @@ class UserDict(TypedDict):
     created_on: datetime
     role: str 
     phone: Optional[str]
-
 
 
 class UserDomain:
@@ -104,6 +105,22 @@ class UserDomain:
             created_on=data.get('created_on'),
             role=data.get('role', 'student'),
             phone=data.get('phone')
+        )
+    
+
+    # --- Mapping methods ---
+    @classmethod
+    def from_model(cls, user_model:UserModel) -> "UserDomain": # model -> domain
+        """Convert a UserModel instance → UserDomain."""
+        return cls(
+            id=user_model.id,
+            username=user_model.username,
+            email=user_model.email,
+            first_name=user_model.first_name,
+            last_name=user_model.last_name,
+            phone=user_model.phone,
+            role=user_model.role,
+            created_on=user_model.created_on,
         )
     
 

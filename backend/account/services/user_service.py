@@ -4,11 +4,11 @@ from django.contrib.auth.hashers import make_password
 
 from account.domains.user_domain import UserDomain, LoginDomain
 from account.models import UserModel
-from account.mappers import user_mapper
+
 
 
 # Create
-def create_new_user(username: str, email: str, raw_password: str, role="student", **extra) -> UserDomain:
+def create_new_user(username: str, email: str, password: str, role="student", **extra) -> UserDomain:
     """Creates a new user and commits it to the DB."""
     if UserModel.objects.filter(username=username).exists():
         raise ValueError(f"Username {username} already exists.")
@@ -19,23 +19,27 @@ def create_new_user(username: str, email: str, raw_password: str, role="student"
     user_domain = UserDomain(
         username=username,
         email=email,
-        password=raw_password,
+        # password=password,
         role=role,
         first_name=extra.get('first_name'),
         last_name=extra.get('last_name'),
         phone=extra.get('phone')
     )
+    user_domain.validate()
 
+    # Save to DB
     user_model = UserModel.objects.create(
         username=username,
         email=email,
         role=role,
-        password=make_password(raw_password),
+        password=make_password(password),
         first_name=extra.get('first_name'),
         last_name=extra.get('last_name'),
         phone=extra.get('phone'),
     )
-    return user_model.to_domain()
+
+    return UserDomain.from_model(user_model)
+    # return user_mapper.to_domain(user_model)
 
 
 # Authenticate - check and return if user exists
@@ -49,7 +53,7 @@ def authenticate_user(login_domain: LoginDomain) -> Optional[UserDomain]:
 
     if not user_model:
         return None
-    return user_mapper.to_domain(user_model)
+    return UserDomain.from_model(user_model)
 
 
 # Get
@@ -57,22 +61,31 @@ def get_user_domain(*, user_id: int = None, username: str = None, email: str = N
     """Fetches a user by ID, username, or email."""
     try:
         if user_id is not None:
-            user = UserModel.objects.get(id=user_id)
+            user_model = UserModel.objects.get(id=user_id)
         elif username is not None:
-            user = UserModel.objects.get(username=username)
+            user_model = UserModel.objects.get(username=username)
         elif email is not None:
-            user = UserModel.objects.get(email=email)
+            user_model = UserModel.objects.get(email=email)
         else:
             return None
-        return user_mapper.to_domain(user)
+        return UserDomain.from_model(user_model)
     except UserModel.DoesNotExist:
         return None
 
 
 # Update
-def update_user(user_id: int, **updates) -> Optional[UserDomain]:
+def update_user(user_id: int = None, user_domain: UserDomain = None, **updates) -> Optional[UserDomain]:
     """Update user attributes and return updated domain object."""
     try:
+        if user_domain:
+            user_id = user_domain.id
+            updates = {
+                "username": user_domain.username,
+                "email": user_domain.email,
+                "role": user_domain.role,
+                "is_staff": user_domain.is_staff,
+            }
+
         user_model = UserModel.objects.get(id=user_id)
 
         if "username" in updates:
@@ -93,7 +106,8 @@ def update_user(user_id: int, **updates) -> Optional[UserDomain]:
             if hasattr(user_model, key):
                 setattr(user_model, key, value)
         user_model.save()
-        return user_model.to_domain()
+        return UserDomain.from_model(user_model)
+    
     except UserModel.DoesNotExist:
         return None
     
