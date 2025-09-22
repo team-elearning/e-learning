@@ -39,7 +39,6 @@ def create_new_user(username: str, email: str, password: str, role="student", **
     )
 
     return UserDomain.from_model(user_model)
-    # return user_mapper.to_domain(user_model)
 
 
 # Authenticate - check and return if user exists

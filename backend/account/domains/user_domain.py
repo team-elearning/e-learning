@@ -55,12 +55,6 @@ class UserDomain:
         if not self.username:
             raise ValueError("Username is required.")
         
-        # if not self.password:
-        #     raise ValueError("Password is required.")
-        # # Basic password complexity check: at least 8 characters, one uppercase, one lowercase, one digit
-        # if not re.match(self.PASSWORD_PATTERN, self.password):
-        #     raise ValueError("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, and one digit.")
-
         if not self.email:
             raise ValueError("Email is required.")
         # Basic email format check

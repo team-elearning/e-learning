@@ -55,28 +55,6 @@ class TokenTests(BaseAPITestCase):
     #     res_invalid = self.client.get(protected_url, HTTP_AUTHORIZATION="Bearer fake.token")
     #     self.assertEqual(res_invalid.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    # def test_student_view_own_profile(self):
-    #     url = reverse("user-profile")
-    #     res = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {self.student_access}")
-    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(res.data["username"], "student")
-
-    # def test_student_cannot_view_others_profile(self):
-    #     admin_domain = user_service.get_user_domain(username="admin")
-    #     admin_id = admin_domain.id
-
-    #     url = reverse("user-profile") + f"?user_id={admin_id}" 
-    #     res = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {self.student_access}")
-    #     pretty = json.dumps(res.json(), indent = 2)
-    #     print(pretty)
-    #     self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
-
-    # def test_admin_can_view_any_profile(self):
-    #     url = reverse("user-profile") + f"?user_id={self.student_id}"
-    #     res = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {self.admin_access}")
-    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(res.data["username"], "student")
-
     def test_student_permissions_with_helper(self):
         # Student cannot view admin's profile
         self.assert_user_can_access_profile(self.student_access, "admin", should_success=False)
