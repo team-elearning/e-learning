@@ -34,34 +34,36 @@ const routes: RouteRecordRaw[] = [
     meta: { role: "admin" },
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "dashboard", component: () => import("@/pages/admin/dashboard/Dashboard.vue") },
+
+      { path: "dashboard", component: () => import("@/pages/admin/dashboard/Dashboard.vue"), meta: { title: "Trang chủ" } },
 
       // Users
-      { path: "users", component: () => import("@/pages/admin/users/Users.vue") },
-      { path: "users/:id", component: () => import("@/pages/admin/users/UserDetail.vue") },
+      { path: "users", component: () => import("@/pages/admin/users/Users.vue"), meta: { title: "Quản lý người dùng" } },
+      { path: "users/:id", component: () => import("@/pages/admin/users/UserDetail.vue"), meta: { title: "Chi tiết người dùng" } },
 
       // Courses
-      { path: "courses", component: () => import("@/pages/admin/courses/Courses.vue") },
-      { path: "courses/approval", component: () => import("@/pages/admin/courses/CourseApproval.vue") },
-      { path: "courses/:id", component: () => import("@/pages/admin/courses/CourseDetail.vue") },
+      { path: "courses", component: () => import("@/pages/admin/courses/Courses.vue"), meta: { title: "Quản lý khóa học" } },
+      { path: "courses/approval", component: () => import("@/pages/admin/courses/CourseApproval.vue"), meta: { title: "Duyệt khóa học" } },
+      { path: "courses/:id", component: () => import("@/pages/admin/courses/CourseDetail.vue"), meta: { title: "Chi tiết khóa học" } },
 
       // System
-      { path: "system", component: () => import("@/pages/admin/system/SystemConfig.vue") },
-      { path: "system/activity", component: () => import("@/pages/admin/system/ActivityLogs.vue") },
-      { path: "system/security", component: () => import("@/pages/admin/system/SecuritySettings.vue") },
+      { path: "system", component: () => import("@/pages/admin/system/SystemConfig.vue"), meta: { title: "Cấu hình hệ thống" } },
+      { path: "system/activity", component: () => import("@/pages/admin/system/ActivityLogs.vue"), meta: { title: "Log hoạt động" } },
+      { path: "system/security", component: () => import("@/pages/admin/system/SecuritySettings.vue"), meta: { title: "Bảo mật hệ thống" } },
 
       // Reports
-      { path: "reports/revenue", component: () => import("@/pages/admin/reports/RevenueReports.vue") },
-      { path: "reports/users", component: () => import("@/pages/admin/reports/UserAnalytics.vue") },
-      { path: "reports/learning", component: () => import("@/pages/admin/reports/LearningAnalytics.vue") },
-      { path: "reports/content", component: () => import("@/pages/admin/reports/ContentAnalytics.vue") },
-      { path: "reports/export", component: () => import("@/pages/admin/reports/ReportsExport.vue") },
+      { path: "reports/revenue", component: () => import("@/pages/admin/reports/RevenueReports.vue"), meta: { title: "Báo cáo doanh thu" } },
+      { path: "reports/users", component: () => import("@/pages/admin/reports/UserAnalytics.vue"), meta: { title: "Phân tích người dùng" } },
+      { path: "reports/learning", component: () => import("@/pages/admin/reports/LearningAnalytics.vue"), meta: { title: "Phân tích học tập" } },
+      { path: "reports/content", component: () => import("@/pages/admin/reports/ContentAnalytics.vue"), meta: { title: "Phân tích nội dung" } },
+      { path: "reports/export", component: () => import("@/pages/admin/reports/ReportsExport.vue"), meta: { title: "Xuất báo cáo" } },
 
       // Transactions
-      { path: "transactions", component: () => import("@/pages/admin/transactions/Transactions.vue") },
-      { path: "transactions/:id", component: () => import("@/pages/admin/transactions/TransactionDetail.vue") },
+      { path: "transactions", component: () => import("@/pages/admin/transactions/Transactions.vue"), meta: { title: "Giao dịch" } },
+      { path: "transactions/:id", component: () => import("@/pages/admin/transactions/TransactionDetail.vue"), meta: { title: "Chi tiết giao dịch" } },
     ],
   },
+
 
   // Teacher
   {
