@@ -34,7 +34,10 @@
     <main v-else-if="!cls" class="mx-auto max-w-screen-md px-6 py-16 text-center">
       <h1 class="text-xl font-semibold">Không tìm thấy lớp học</h1>
       <p class="mt-2 text-slate-500">Vui lòng quay lại danh sách lớp.</p>
-      <button class="mt-4 rounded-xl border px-4 py-2" @click="router.push({ path:'/teacher/classes' })">
+      <button
+        class="mt-4 rounded-xl border px-4 py-2"
+        @click="router.push({ path: '/teacher/classes' })"
+      >
         ← Danh sách lớp
       </button>
     </main>
@@ -60,15 +63,21 @@
         <div class="rounded-2xl border border-slate-200 bg-white p-4 md:col-span-2">
           <h2 class="mb-3 text-base font-semibold">Thông tin lớp</h2>
           <ul class="space-y-2 text-sm">
-            <li>• Mã lớp: <span class="font-medium text-slate-700">{{ cls.code }}</span></li>
-            <li>• Sĩ số: <span class="font-medium text-slate-700">{{ cls.students }}</span></li>
+            <li>
+              • Mã lớp: <span class="font-medium text-slate-700">{{ cls.code }}</span>
+            </li>
+            <li>
+              • Sĩ số: <span class="font-medium text-slate-700">{{ cls.students }}</span>
+            </li>
             <li>
               • Lịch học:
               <span class="font-medium text-slate-700">
                 {{ (cls.scheduleDays || []).join(', ') }} · {{ cls.time }}
               </span>
             </li>
-            <li>• Phòng học: <span class="font-medium text-slate-700">{{ cls.room || '—' }}</span></li>
+            <li>
+              • Phòng học: <span class="font-medium text-slate-700">{{ cls.room || '—' }}</span>
+            </li>
             <li>
               • Cập nhật:
               <span class="font-medium text-slate-700">{{ fmtDate(cls.updatedAt) }}</span>
@@ -76,7 +85,10 @@
           </ul>
 
           <div class="mt-5 flex flex-wrap gap-2">
-            <button class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="toAssignments">
+            <button
+              class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50"
+              @click="toAssignments"
+            >
               Bài tập
             </button>
             <button
@@ -91,10 +103,16 @@
         <div class="rounded-2xl border border-slate-200 bg-white p-4">
           <h2 class="mb-3 text-base font-semibold">Tác vụ nhanh</h2>
           <div class="space-y-2">
-            <button class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="toAssignments">
+            <button
+              class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50"
+              @click="toAssignments"
+            >
               Giao bài tập
             </button>
-            <button class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="toLive">
+            <button
+              class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50"
+              @click="toLive"
+            >
               Bắt đầu buổi học
             </button>
           </div>
@@ -132,18 +150,7 @@ const id = ref<number>(Number(route.params.id))
 const loading = ref(true)
 const cls = ref<TeacherClass | null>(null)
 
-/** ===== Service shim (tự phát hiện) =====
- * Ưu tiên dùng services/class.service nếu có:
- *  - classService.detail(id): Promise<TeacherClass>
- * Nếu không, dùng mockDetail() dưới.
- */
 let classDetail: undefined | ((id: number) => Promise<TeacherClass | null>)
-try {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore – dynamic import optional
-  const mod = await import('@/services/class.service')
-  if (mod?.classService?.detail) classDetail = mod.classService.detail as (id: number) => Promise<TeacherClass>
-} catch { /* fallback to mock */ }
 
 /** ===== Mock fallback ===== */
 async function mockDetail(cid: number): Promise<TeacherClass | null> {
@@ -155,11 +162,11 @@ async function mockDetail(cid: number): Promise<TeacherClass | null> {
     code: 'CL' + String(1000 + cid),
     course: `Khoá học #${Math.max(1, cid % 7)}`,
     students: 18 + (cid % 10),
-    scheduleDays: (cid % 2 ? ['Thứ 3', 'Thứ 5'] : ['Thứ 2', 'Thứ 4', 'Thứ 6']),
+    scheduleDays: cid % 2 ? ['Thứ 3', 'Thứ 5'] : ['Thứ 2', 'Thứ 4', 'Thứ 6'],
     time: cid % 2 ? '18:30–20:00' : '19:00–20:30',
     room: cid % 3 ? `P${100 + (cid % 5)}` : 'Online',
     status: statuses[cid % statuses.length],
-    updatedAt: new Date(Date.now() - cid * 36e5).toISOString()
+    updatedAt: new Date(Date.now() - cid * 36e5).toISOString(),
   }
 }
 
@@ -179,17 +186,23 @@ async function fetchDetail() {
 }
 
 onMounted(fetchDetail)
-watch(() => route.params.id, (v) => {
-  id.value = Number(v)
-  fetchDetail()
-})
+watch(
+  () => route.params.id,
+  (v) => {
+    id.value = Number(v)
+    fetchDetail()
+  },
+)
 
 /** ===== UI helpers ===== */
 function badgeClass(s: ClassStatus) {
   switch (s) {
-    case 'active':   return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-    case 'draft':    return 'bg-amber-50 text-amber-700 border-amber-200'
-    case 'archived': return 'bg-slate-100 text-slate-700 border-slate-200'
+    case 'active':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'draft':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'archived':
+      return 'bg-slate-100 text-slate-700 border-slate-200'
   }
 }
 const statusText = (s: ClassStatus) =>
@@ -200,17 +213,22 @@ function fmtDate(iso: string) {
   try {
     const d = new Date(iso)
     return d.toLocaleString()
-  } catch { return iso }
+  } catch {
+    return iso
+  }
 }
 
 /** ===== Nav actions ===== */
 const toAssignments = () => router.push({ path: `/teacher/classes/${id.value}/assignments` })
-const toLive        = () => router.push({ path: `/teacher/classes/${id.value}/live` })
+const toLive = () => router.push({ path: `/teacher/classes/${id.value}/live` })
 
 /** Expose router for template (not found back button) */
 defineExpose({ router })
 </script>
 
 <style scoped>
-:host, .min-h-screen { overflow-x: hidden; }
+:host,
+.min-h-screen {
+  overflow-x: hidden;
+}
 </style>

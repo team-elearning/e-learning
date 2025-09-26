@@ -669,4 +669,18 @@ watch(
   () => route.params.id,
   () => load(),
 )
+async function addNote() {
+  if (!newNote.value.trim()) return
+  act.addNote = true
+  try {
+    await userService.addNote(detail.id, newNote.value)
+    ElMessage.success('Đã thêm ghi chú')
+    newNote.value = ''
+    fetchNotes()
+  } catch {
+    ElMessage.error('Thêm ghi chú thất bại')
+  } finally {
+    act.addNote = false
+  }
+}
 </script>

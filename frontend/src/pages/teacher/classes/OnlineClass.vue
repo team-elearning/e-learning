@@ -6,7 +6,9 @@
       <div class="h-7 w-72 rounded bg-slate-200 animate-pulse mb-2"></div>
       <div class="h-4 w-96 rounded bg-slate-100 animate-pulse mb-6"></div>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div class="rounded-2xl border border-slate-200 bg-black/60 aspect-video md:col-span-2"></div>
+        <div
+          class="rounded-2xl border border-slate-200 bg-black/60 aspect-video md:col-span-2"
+        ></div>
         <div class="rounded-2xl border border-slate-200 bg-white p-4">
           <div class="h-5 w-1/3 rounded bg-slate-200 mb-3"></div>
           <div class="space-y-2">
@@ -28,13 +30,10 @@
     <!-- Content -->
     <main v-else class="w-full mx-auto max-w-screen-xl px-6 py-8 md:px-10">
       <div class="mb-5">
-        <h1 class="text-2xl font-semibold">
-          Lớp trực tuyến · {{ headerTitle }}
-        </h1>
+        <h1 class="text-2xl font-semibold">Lớp trực tuyến · {{ headerTitle }}</h1>
         <p class="mt-1 text-sm text-slate-500">
-          Phòng: {{ cls.room || '—' }}
-          · Lịch: {{ (cls.scheduleDays || []).join(', ') || '—' }}
-          · {{ cls.time || '—' }}
+          Phòng: {{ cls.room || '—' }} · Lịch: {{ (cls.scheduleDays || []).join(', ') || '—' }} ·
+          {{ cls.time || '—' }}
         </p>
       </div>
 
@@ -53,7 +52,9 @@
         <div class="rounded-2xl border border-slate-200 bg-white p-4">
           <h2 class="mb-3 text-base font-semibold">Điều khiển</h2>
           <div class="space-y-2">
-            <button class="w-full rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+            <button
+              class="w-full rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+            >
               Bắt đầu buổi học
             </button>
             <button class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50">
@@ -97,19 +98,7 @@ const id = ref<number>(Number(route.params.id))
 const loading = ref(true)
 const cls = ref<TeacherClass | null>(null)
 
-/* ===== Service shim (optional) =====
- * Nếu có @/services/class.service với classService.detail(id)
- * sẽ dùng; nếu không, dùng mockDetail().
- */
 let classDetail: undefined | ((id: number) => Promise<TeacherClass | null>)
-try {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  const mod = await import('@/services/class.service')
-  if (mod?.classService?.detail) {
-    classDetail = mod.classService.detail as (id: number) => Promise<TeacherClass>
-  }
-} catch { /* fallback */ }
 
 /* ===== Mock fallback ===== */
 async function mockDetail(cid: number): Promise<TeacherClass | null> {
@@ -125,7 +114,7 @@ async function mockDetail(cid: number): Promise<TeacherClass | null> {
     time: cid % 2 ? '18:30–20:00' : '19:00–20:30',
     room: cid % 3 ? `P${100 + (cid % 5)}` : 'Online',
     status: statuses[cid % statuses.length],
-    updatedAt: new Date(Date.now() - cid * 36e5).toISOString()
+    updatedAt: new Date(Date.now() - cid * 36e5).toISOString(),
   }
 }
 
@@ -145,15 +134,21 @@ async function fetchDetail() {
 }
 
 onMounted(fetchDetail)
-watch(() => route.params.id, (v) => {
-  id.value = Number(v)
-  fetchDetail()
-})
+watch(
+  () => route.params.id,
+  (v) => {
+    id.value = Number(v)
+    fetchDetail()
+  },
+)
 
 /* ===== UI ===== */
 const headerTitle = computed(() => cls.value?.name ?? `Lớp #${id.value}`)
 </script>
 
 <style scoped>
-:host, .min-h-screen { overflow-x: hidden; }
+:host,
+.min-h-screen {
+  overflow-x: hidden;
+}
 </style>

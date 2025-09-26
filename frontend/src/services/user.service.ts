@@ -153,7 +153,7 @@ export const userService = {
             name: `User ${id}`,
             username: `user${id}`,
             email: `user${id}@example.com`,
-            emailVerified: id % 2 === 0,
+            emailVerified: Number(id) % 2 === 0,
             phone: '0901234567',
             role: (['admin', 'teacher', 'student'] as Role[])[Number(id) % 3],
             status: (['active', 'locked', 'banned', 'pending_approval'] as UserStatus[])[Number(id) % 4],
