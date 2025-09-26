@@ -42,9 +42,7 @@ INSTALLED_APPS = [
     # apps
     "rest_framework",
     "account",
-    "classroom",
-    "collection",
-    "exploration",
+    "school",
 ]
 
 # CORS settings for Vue frontend
