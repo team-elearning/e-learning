@@ -1,10 +1,10 @@
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from django.db import transaction
 
 from account.models import UserModel
 from school.models import ClassroomModel, MembershipModel, InvitationModel
 from school.domains.class_domain import MembershipDomain, InvitationDomain
-from school.apis.permissions import PermissionDenied, ConflictError, NotFoundError, InvalidOperation, ensure_is_admin_or_instructor
+from school.api.permissions import PermissionDenied, ConflictError, NotFoundError, InvalidOperation, ensure_is_admin_or_instructor
 
 
 
@@ -261,4 +261,73 @@ def change_member_role(requesting: UserModel, classroom_id: int, member_id: int,
     membership_model.role = new_role
     membership_model.save(update_fields=["role"])
     return MembershipDomain.from_model(membership_model)
+
+
+# def add_member(domain: MembershipDomain) -> MembershipDomain:
+#     """Add membership record (teacher adds instructor/co-instructor/student)."""
+#     _call_validate(domain)
+
+#     # verify classroom exists
+#     try:
+#         ClassroomModel.objects.get(pk=domain.classroom_id)
+#     except ClassroomModel.DoesNotExist:
+#         raise NotFoundError("Classroom not found")
+
+#     try:
+#         with transaction.atomic():
+#             m, created = MembershipModel.objects.get_or_create(
+#                 classroom_id=domain.classroom_id,
+#                 student_id=domain.student_id,
+#                 defaults={
+#                     "role": domain.role,
+#                     "joined_on": getattr(domain, "joined_on", timezone.now()),
+#                     "is_active": getattr(domain, "is_active", True),
+#                 }
+#             )
+#             if not created:
+#                 # update record if different
+#                 changed = False
+#                 if m.role != domain.role:
+#                     m.role = domain.role
+#                     changed = True
+#                 if not m.is_active and domain.is_active:
+#                     m.is_active = True
+#                     changed = True
+#                 if changed:
+#                     m.save()
+#     except IntegrityError as e:
+#         raise DuplicateError("Member already exists") from e
+
+#     return MembershipDomain.from_model(m)
+
+
+# def remove_member(classroom_id: Any, student_id: Any) -> None:
+#     """Remove membership record (permanent delete)."""
+#     try:
+#         m = MembershipModel.objects.get(classroom_id=classroom_id, student_id=student_id)
+#     except MembershipModel.DoesNotExist:
+#         raise NotFoundError("Membership not found")
+#     m.delete()
+
+
+# def change_member_role(domain: MembershipDomain) -> MembershipDomain:
+#     """Change existing member role."""
+#     if not domain.classroom_id or not domain.student_id:
+#         raise DomainValidationError("classroom_id and student_id required")
+#     try:
+#         m = MembershipModel.objects.get(classroom_id=domain.classroom_id, student_id=domain.student_id)
+#     except MembershipModel.DoesNotExist:
+#         raise NotFoundError("Membership not found")
+
+#     _call_validate(domain)
+#     m.role = domain.role
+#     m.save()
+#     return MembershipDomain.from_model(m)
+
+
+def list_members(classroom_id: id, active_only: bool = True) -> List[MembershipDomain]:
+    qs = MembershipModel.objects.filter(classroom_id=classroom_id)
+    if active_only:
+        qs = qs.filter(is_active=True)
+    return [MembershipDomain.from_model(m) for m in qs.order_by("joined_on")]
 

@@ -3,7 +3,7 @@ from typing import Optional, List
 from account.models import UserModel
 from school.models import MembershipModel, ClassroomModel
 from school.domains.class_domain import ClassroomDomain
-from school.apis.permissions import NotFoundError
+from school.api.permissions import NotFoundError
 
 
 
