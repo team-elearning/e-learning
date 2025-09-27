@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
-from acitivities.models import ExerciseAttempt
+from activities.models import ExerciseAttempt
 
 
 

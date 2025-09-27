@@ -16,7 +16,7 @@
 
 
 # account/tests/factories.py
-from factories import factory
+import factory
 from datetime import date
 from django.utils import timezone
 from account.models import UserModel, Profile, ParentalConsent
