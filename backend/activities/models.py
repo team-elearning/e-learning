@@ -76,3 +76,48 @@ class ExerciseAnswer(models.Model):
 
     def __str__(self):
         return f"Answer for {self.question}"
+    
+
+class ExerciseSettings(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exercise = models.OneToOneField('Exercise', on_delete=models.CASCADE, related_name='settings')
+    time_limit_seconds = models.IntegerField(null=True, blank=True)  # None => no limit
+    max_attempts = models.IntegerField(null=True, blank=True)  # None => unlimited
+    shuffle_questions = models.BooleanField(default=True)
+    shuffle_choices = models.BooleanField(default=True)
+    pass_score = models.FloatField(default=50.0, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    negative_marking = models.BooleanField(default=False)  # penalize wrong answers
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class Hint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey('Question', on_delete=models.CASCADE, related_name='hints')
+    text = models.TextField()
+    order = models.IntegerField(default=0)
+
+class Tag(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=64, unique=True)
+
+class Skill(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=128, unique=True)
+
+class QuestionStat(models.Model):
+    question = models.OneToOneField('Question', on_delete=models.CASCADE, related_name='stats')
+    times_shown = models.IntegerField(default=0)
+    times_correct = models.IntegerField(default=0)
+    average_time_seconds = models.FloatField(default=0.0)
+
+class MatchingPair(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    question = models.ForeignKey('Question', on_delete=models.CASCADE, related_name='matching_pairs')
+    left_text = models.TextField()
+    right_text = models.TextField()
+    correct_right_index = models.IntegerField()  # index into the right list to mark correct pairing
+
+class FileUploadAnswer(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    attempt_answer = models.OneToOneField('ExerciseAnswer', on_delete=models.CASCADE, related_name='file_upload')
+    file = models.FileField(upload_to='exercise_answers/')
