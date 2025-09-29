@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+# import os
 from pathlib import Path
 from datetime import timedelta
 
@@ -42,9 +43,16 @@ INSTALLED_APPS = [
     # apps
     "rest_framework",
     "account",
-    "classroom",
-    "collection",
-    "exploration",
+    "school",
+    "content",
+    "activities",
+    "assignments",
+    "progress",
+    "media",
+    "gamification",
+    "ai_personalization",
+    "events",
+    "payments",
 ]
 
 # CORS settings for Vue frontend
@@ -60,7 +68,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # For collectstatic
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    )
+    ),
+    "TEST_REQUEST_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.MultiPartRenderer",
+    ],
+    "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
 
 SIMPLE_JWT = {
@@ -119,6 +132,17 @@ DATABASES = {
         "PORT": "5432",
     }
 }
+
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": os.getenv("POSTGRES_DB", "e-learning"),
+#         "USER": os.getenv("POSTGRES_USER", "postgres"),
+#         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "123456"),
+#         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+#         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+#     }
+# }
 
 
 # Password validation

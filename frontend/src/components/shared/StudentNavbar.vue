@@ -73,7 +73,7 @@
           class="rounded p-2 hover:bg-gray-100 md:hidden"
           @click="open = !open"
           aria-label="Open menu"
-          aria-expanded="open"
+          aria-expanded="true"
         >
           ☰
         </button>
