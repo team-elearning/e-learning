@@ -1,9 +1,10 @@
+```yaml
 name: Deploy Frontend to S3 and CloudFront
 
 on:
   push:
     branches:
-      - main
+      - main   # hoặc develop nếu bạn muốn deploy từ nhánh develop
 
 jobs:
   deploy:
@@ -16,34 +17,34 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 20   # Vite yêu cầu Node >=20.19
 
       - name: Install dependencies
-        run: |
-          cd frontend
-          npm install
+        run: npm install
+        working-directory: frontend
 
       - name: Build project
-        run: |
-          cd frontend
-          npm run build
+        run: npm run build
+        working-directory: frontend
 
       - name: Deploy to S3
-        uses: reggionick/s3-deploy@v3
+        uses: jakejarvis/s3-sync-action@master
         with:
-          folder: frontend/dist
-          bucket: e-learning-vue-2025
-          bucket-region: ap-southeast-2
-          delete-removed: true
+          args: --delete
         env:
+          AWS_S3_BUCKET: e-learning-vue-2025
+          AWS_REGION: ap-southeast-2
+          SOURCE_DIR: frontend/dist
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Invalidate CloudFront cache
         uses: chetan/invalidate-cloudfront-action@v2
         with:
-          distribution-id: E2UVQPRWJWHRT
+          distribution: E2UVQPRWJWHRT
           paths: "/*"
+          aws-region: ap-southeast-2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
