@@ -3,7 +3,7 @@ name: Deploy Frontend to S3 and CloudFront
 on:
   push:
     branches:
-      - main # hoặc develop nếu muốn deploy từ nhánh develop
+      - main
 
 jobs:
   deploy:
@@ -29,17 +29,18 @@ jobs:
           npm run build
 
       - name: Deploy to S3
-        uses: aws-actions/s3-sync@v2
+        uses: reggionick/s3-deploy@v3
         with:
+          folder: frontend/dist
           bucket: e-learning-vue-2025
-          region: ap-southeast-2
-          source-dir: frontend/dist   # 👈 chú ý: thêm frontend/
+          bucket-region: ap-southeast-2
+          delete-removed: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Invalidate CloudFront cache
-        uses: aws-actions/cloudfront-invalidate@v1
+        uses: chetan/invalidate-cloudfront-action@v2
         with:
           distribution-id: E2UVQPRWJWHRT
           paths: "/*"
