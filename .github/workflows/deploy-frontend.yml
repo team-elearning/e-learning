@@ -1,9 +1,10 @@
+
 name: Deploy Frontend to S3 and CloudFront
 
 on:
   push:
     branches:
-      - main   
+      - main
 
 jobs:
   deploy:
@@ -16,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20   # Vite yêu cầu Node >=20.19
+          node-version: 20
 
       - name: Install dependencies
         run: npm install
@@ -26,7 +27,7 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-      - name: Deploy to S3
+      - name: Deploy to S3 (Sydney)
         uses: jakejarvis/s3-sync-action@master
         with:
           args: --delete
@@ -37,12 +38,12 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache (Global)
         uses: chetan/invalidate-cloudfront-action@v2
         with:
           distribution: E2UVQPRWJWHRT
           paths: "/*"
-          aws-region: ap-southeast-2
+          aws-region: us-east-1
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
