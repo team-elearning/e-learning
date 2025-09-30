@@ -3,7 +3,7 @@ name: Deploy Frontend to S3 and CloudFront
 on:
   push:
     branches:
-      - main # hoặc develop nếu bạn muốn deploy từ nhánh develop
+      - main # hoặc develop nếu muốn deploy từ nhánh develop
 
 jobs:
   deploy:
@@ -19,17 +19,21 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          cd frontend
+          npm install
 
       - name: Build project
-        run: npm run build
+        run: |
+          cd frontend
+          npm run build
 
       - name: Deploy to S3
         uses: aws-actions/s3-sync@v2
         with:
           bucket: e-learning-vue-2025
           region: ap-southeast-2
-          source-dir: dist
+          source-dir: frontend/dist   # 👈 chú ý: thêm frontend/
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
