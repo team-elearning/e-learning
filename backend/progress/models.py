@@ -1,12 +1,13 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 # Create your models here.
 class Progress(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='progresses')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='progresses')
     lesson = models.ForeignKey('content.Lesson', on_delete=models.CASCADE, related_name='progresses')
     lesson_version = models.ForeignKey('content.LessonVersion', on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(
@@ -28,7 +29,7 @@ class Progress(models.Model):
 class Event(models.Model):
     # Analytics events (Oppia-style logging).
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
     event_type = models.CharField(max_length=128)  # e.g., 'lesson_view', 'exercise_complete'
     object_type = models.CharField(max_length=64)  # e.g., 'lesson', 'exploration'
     object_id = models.UUIDField(null=True, blank=True)

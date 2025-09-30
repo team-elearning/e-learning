@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
 from account.models import UserModel, Profile, ParentalConsent
-from account.api.permissions import IsOwnerOrAdmin
+from account.domains.change_password_domain import ChangePasswordDomain
+from account.api.permissions import IsAdminOrSelf
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -16,7 +17,7 @@ from account.serializers import (
     ProfileSerializer,
     ParentalConsentSerializer,
 )
-from account.services import user_service, auth_service
+from account.services import user_service, exceptions
 
 
 
@@ -28,19 +29,34 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
     """
     queryset = UserModel.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrSelf]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_service = user_service  # Khởi tạo service
 
     def update(self, request, *args, **kwargs):
-        # validate via serializer then call service update_user to ensure business rules applied in service/domain
         partial = kwargs.pop('partial', True)
         instance = self.get_object()
+
+        # Validate input qua serializer
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        updates = serializer.validated_data
 
-        # call service layer
-        updated_domain = user_service.update_user(user_id=instance.id, user_domain=None, **updates)
-        return Response(UserSerializer.from_domain(updated_domain))
+        try:
+            # Gọi service với validated data (dict)
+            updated_domain = user_service.update_user(user_id=instance.id, updates=serializer.validated_data)
+
+            # Serialize domain object thành response
+            response_serializer = self.get_serializer(updated_domain)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+        except ValidationError as e:
+            # Handle domain validation errors
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Handle unexpected errors
+            return Response({"detail": "An error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ---------- List users (admin) ----------
@@ -59,12 +75,18 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        # call service
-        success = user_service.change_password(
+
+        domain = ChangePasswordDomain(
             user_id=request.user.id,
             old_password=data["old_password"],
             new_password=data["new_password"],
         )
-        if not success:
-            return Response({"detail": "Old password incorrect"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            success = user_service.change_password(domain)
+        except exceptions.UserNotFoundError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except exceptions.IncorrectPasswordError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({"success": True}, status=status.HTTP_200_OK)

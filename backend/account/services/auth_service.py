@@ -1,4 +1,6 @@
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
 
 from account.models import UserModel
 from infrastructure.email_service import get_email_service
@@ -34,10 +36,23 @@ def reset_password_confirm(email: str, token: str, new_password: str) -> bool:
     except UserModel.DoesNotExist:
         return False
 
-    # TODO: verify token properly
-    if token != "RANDOM-TOKEN":
+    # Verify token properly
+    if not default_token_generator.check_token(user, token):
         return False
 
     user.set_password(new_password)
     user.save()
     return True
+
+
+def authenticate_user(username_or_email: str, password: str) -> UserModel:
+    """
+    Authenticate a user by username or email and password.
+    Raises ValidationError if authentication fails.
+    Returns the authenticated User object.
+    """
+    user = UserModel.objects.filter(username=username_or_email).first() or \
+            UserModel.objects.filter(email=username_or_email).first()
+    if user is None or not user.check_password(password) or not user.is_active:
+        raise ValidationError("No active account found with the given credentials")
+    return user

@@ -1,26 +1,3 @@
-# from rest_framework import status
-# from rest_framework.response import Response
-# from rest_framework.views import APIView
-# from rest_framework_simplejwt.tokens import RefreshToken
-
-# from account.api.serializers import UserSerializer, RegisterSerializer, LoginSerializer
-# from account.services import user_service
-# from account.models import UserModel
-
-
-
-# class RegisterView(APIView):
-#     def post(self, request):
-#         serializer = RegisterSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         try:
-#             user_domain = user_service.create_new_user(**serializer.validated_data)
-#             return Response(UserSerializer(user_domain.to_dict()).data, status=status.HTTP_201_CREATED)
-            
-#         except Exception as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 
 # class LoginView(APIView):
 #     def post(self, request):
@@ -56,9 +33,13 @@ from rest_framework import status, generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from account.models import UserModel, Profile, ParentalConsent
-from account.api.permissions import IsOwnerOrAdmin
+from account.domains.register_domain import RegisterDomain
+from account.api.permissions import IsAdminOrSelf
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -69,6 +50,7 @@ from account.serializers import (
     ParentalConsentSerializer,
 )
 from account.services import user_service, auth_service
+from account.serializers import CustomTokenObtainPairSerializer
 
 
 
@@ -80,20 +62,24 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        # call your service function (function-based)
-        user_domain = user_service.register_user(
+        register_domain = RegisterDomain(
             username=data["username"],
             email=data["email"],
-            password=data["password"],  # assume serializer uses 'password'
+            password=data["password"],
             role=data.get("role", "student"),
-            phone=data.get("phone"),
         )
+
+        # call service with domain object
+        user_domain = user_service.register_user(register_domain)
 
         # map domain -> response dict (use UserSerializer.from_domain or usual serializer)
         return Response(UserSerializer.from_domain(user_domain), status=status.HTTP_201_CREATED)
     
 
 # ---------- Login (token-based) ----------
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -121,7 +107,7 @@ class LoginView(APIView):
         token, _ = Token.objects.get_or_create(user=user)
 
         # return token + user data (use domain mapping)
-        user_domain = user_service.get_user_domain(user_id=user.id)
+        user_domain = user_service.get_user_by_id(user.id)
         return Response({
             "token": token.key,
             "user": UserSerializer.from_domain(user_domain),
@@ -133,10 +119,22 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        # if using TokenAuth: simply delete the token
-        if hasattr(request.auth, "delete"):
-            request.auth.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            # Get the refresh token from the request body
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response(
+                    {"detail": "Refresh token is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # Add the refresh token to the blacklist
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except (InvalidToken, TokenError) as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
 
 # ---------- Reset password request (send email) ----------

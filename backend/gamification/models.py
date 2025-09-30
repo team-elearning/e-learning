@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator
 
 
@@ -21,7 +22,7 @@ class Badge(models.Model):
 
 class UserBadge(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='badges')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='badges')
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name='user_badges')
     awarded_at = models.DateTimeField(auto_now_add=True)
     metadata = models.JSONField(default=dict)  # e.g., {'reason': 'Completed course'}
@@ -37,7 +38,7 @@ class UserBadge(models.Model):
 class Reward(models.Model):
     # e.g., stars, points.
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='rewards')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='rewards')
     type = models.CharField(max_length=32, choices=[('star', ('Star')), ('point', ('Point')), ('level_up', ('Level Up'))])
     value = models.IntegerField(validators=[MinValueValidator(1)])
     awarded_at = models.DateTimeField(auto_now_add=True)

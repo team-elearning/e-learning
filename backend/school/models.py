@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -27,7 +28,7 @@ class ClassroomModel(models.Model):
     school = models.ForeignKey(SchoolModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms')
     class_name = models.CharField(max_length=100, unique=True)
     grade = models.CharField(max_length=16, blank=True, null=True)
-    teacher = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms_taught')
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms_taught')
     created_by = models.IntegerField()
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
@@ -41,16 +42,16 @@ class ClassroomModel(models.Model):
         indexes = [models.Index(fields=['school'])]
         verbose_name = ('Classroom')
         verbose_name_plural = ('Classrooms')
-        ordering = ['name']
+        ordering = ['class_name']
 
     def __str__(self):
-        return self.name
+        return self.class_name
 
 
 class Enrollment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name='enrollments')
-    student = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='enrollments')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
     role = models.CharField(max_length=32, default='student')
     enrolled_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(

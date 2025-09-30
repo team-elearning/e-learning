@@ -116,7 +116,7 @@ import pytest
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
-from account.tests.factories import UserFactory
+from backend.account.tests.factories import UserFactory
 from school.tests.factories import (
     SchoolFactory, ClassroomFactory, EnrollmentFactory,
     TeacherAssignmentFactory, SchoolYearFactory

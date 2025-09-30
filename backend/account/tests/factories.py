@@ -17,20 +17,44 @@
 
 # account/tests/factories.py
 import factory
+import random
 from datetime import date
+from faker import Faker
 from django.utils import timezone
+
 from account.models import UserModel, Profile, ParentalConsent
+
+
+
+class VietnamPhoneProvider:
+    def __init__(self, generator):
+        self.generator = generator  # Store the Faker generator instance
+
+    def vietnam_mobile_number(self):
+        fake = Faker()
+        prefixes = [
+            '032', '033', '034', '035', '036', '037', '038', '039',
+            '070', '079', '077', '076', '078',
+            '083', '084', '085', '081', '082',
+            '088', '091', '094', '096', '097', '098', '099'
+        ]
+        prefix = random.choice(prefixes)
+        suffix = fake.numerify(text='#######')
+        return f'{prefix}{suffix}'
+factory.Faker.add_provider(VietnamPhoneProvider)
 
 
 class UserFactory(factory.django.DjangoModelFactory):
     """Factory for UserModel."""
     class Meta:
         model = UserModel
+        skip_postgeneration_save = True
 
     username = factory.Sequence(lambda n: f"user{n}")
     email = factory.LazyAttribute(lambda o: f"{o.username}@example.com")
     role = "student"
-    phone = factory.Faker("phone_number")
+    # phone = factory.Faker('vietnam_mobile_number')
+    phone = factory.LazyAttribute(lambda o: ''.join(filter(str.isdigit, factory.Faker('phone_number', locale='vi_VN').evaluate(None, None, {'locale': 'vi_VN'})))[:10])
     is_active = True
     is_staff = False
     created_on = factory.LazyFunction(timezone.now)
