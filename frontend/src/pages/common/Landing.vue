@@ -347,13 +347,13 @@
             <h4 class="font-bold text-lg mb-4">Kết nối với chúng tôi</h4>
             <div class="flex space-x-4 mb-4">
               <a
-                href="#"
+                href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
                 class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center"
               >
                 <i data-feather="facebook" class="w-5 h-5"></i>
               </a>
               <a
-                href="#"
+                href="https://www.instagram.com/tustar.k72/"
                 class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center"
               >
                 <i data-feather="instagram" class="w-5 h-5"></i>
@@ -365,7 +365,7 @@
                 <i data-feather="twitter" class="w-5 h-5"></i>
               </a>
               <a
-                href="#"
+                href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
                 class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center"
               >
                 <i data-feather="youtube" class="w-5 h-5"></i>
