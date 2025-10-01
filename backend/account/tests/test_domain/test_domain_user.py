@@ -28,16 +28,8 @@ def test_userdomain_invalid_role():
         u.validate()
 
 def test_userdomain_to_dict_and_back():
-    u = UserDomain(username="dana", email="dana@ex.com", first_name="Dana", last_name="Smith", role="student")
+    u = UserDomain(username="dana", email="dana@ex.com", role="student")
     d = u.to_dict()
     u2 = UserDomain.from_dict(d)
     assert u2.username == "dana"
-    assert u2.full_name == "Dana Smith"
 
-def test_userdomain_full_name_logic():
-    u1 = UserDomain(username="x", email="x@x.com", first_name="John", last_name="Doe")
-    assert u1.full_name == "John Doe"
-    u2 = UserDomain(username="y", email="y@y.com", first_name="Jane")
-    assert u2.full_name == "Jane"
-    u3 = UserDomain(username="z", email="z@z.com", last_name="Solo")
-    assert u3.full_name == "Solo"

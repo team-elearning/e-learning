@@ -6,13 +6,13 @@ from account.models import ParentalConsent
 
 
 
-def grant_consent(domain: ParentalConsentDomain) -> ParentalConsentDomain:
+def grant_consent(parent_id: int, child_id: int, data: dict) -> ParentalConsentDomain:
     consent, _ = ParentalConsent.objects.update_or_create(
-        parent_id=domain.parent_id,
-        child_id=domain.child_id,
+        parent_id=parent_id,
+        child_id=child_id,
         defaults={
-            "scopes": domain.scopes,
-            "metadata": domain.metadata,
+            "scopes": data.get("scopes", []),
+            "metadata": data.get("metadata", {}),
             "revoked_at": None,
         },
     )

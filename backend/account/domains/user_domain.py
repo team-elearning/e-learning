@@ -4,6 +4,7 @@ from datetime import datetime
 from dataclasses import fields, dataclass
 
 from account.models import UserModel
+from account.domains.profile_domain import ProfileDomain
 
 
 class UserDict(TypedDict):
@@ -136,6 +137,12 @@ class UserDomain:
     #         raise ValueError("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, and one digit.")
         
     #     self.password = new_password
+
+
+    def create_profile(self):
+        profile_domain = ProfileDomain(user_id=self.id)
+        profile_domain.validate()
+        return profile_domain
 
 
 

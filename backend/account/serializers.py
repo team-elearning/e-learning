@@ -7,7 +7,6 @@ from django.core.exceptions import ValidationError
 from account.models import UserModel, Profile, ParentalConsent
 from account.domains.user_domain import UserDomain
 from account.domains.profile_domain import ProfileDomain
-from account.domains.login_domain import LoginDomain
 from account.domains.parental_consent_domain import ParentalConsentDomain
 from account.domains.change_password_domain import ChangePasswordDomain
 from account.domains.reset_password_domain import ResetPasswordDomain
@@ -112,8 +111,6 @@ class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     role = serializers.ChoiceField(choices=["student", "instructor", "admin"], default="student")
-    first_name = serializers.CharField(max_length=30, required=False)
-    last_name = serializers.CharField(max_length=30, required=False)
     phone = serializers.CharField(max_length=15, required=False)
 
     def to_domain(self):
@@ -121,15 +118,15 @@ class RegisterSerializer(serializers.Serializer):
         return UserDomain(**self.validated_data)
     
 
-"""Serializer for login requests (input only)."""
-class LoginSerializer(serializers.Serializer):
-    username_or_email = serializers.CharField()
-    raw_password = serializers.CharField(write_only=True)
+# """Serializer for login requests (input only)."""
+# class LoginSerializer(serializers.Serializer):
+#     username_or_email = serializers.CharField()
+#     raw_password = serializers.CharField(write_only=True)
 
-    def to_domain(self) -> "LoginDomain":
-        """Convert validated data into a LoginDomain object"""
-        return LoginDomain(username_or_email=self.validated_data["username_or_email"],
-                           raw_password=self.validated_data["raw_password"],)
+#     def to_domain(self) -> "LoginDomain":
+#         """Convert validated data into a LoginDomain object"""
+#         return LoginDomain(username_or_email=self.validated_data["username_or_email"],
+#                            raw_password=self.validated_data["raw_password"],)
     
     
 class ChangePasswordSerializer(serializers.Serializer):

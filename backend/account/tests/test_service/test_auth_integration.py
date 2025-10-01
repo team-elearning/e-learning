@@ -5,27 +5,20 @@ from django.utils import timezone
 
 from account.models import UserModel, Profile, ParentalConsent
 from account.services import user_service, auth_service
+from account.tests.factories import UserFactory, ProfileFactory, ParentalConsentFactory
 from infrastructure import email_service as email_infra
-from backend.account.tests.factories import UserFactory, ProfileFactory, ParentalConsentFactory
 
 
 
 @pytest.mark.django_db
-def test_reset_password_request_calls_email(monkeypatch, user_factory):
+def test_reset_password_request_calls_email(user_factory, dummy_email):
     user = user_factory(email="parent@example.com")
-    calls = []
-
-    class Dummy:
-        def send(self, to, subject, body, from_email=None):
-            calls.append({"to": to, "subject": subject, "body": body})
-
-    monkeypatch.setattr(email_infra, "get_email_service", lambda: Dummy())
 
     # auth_service should call adapter
     auth_service.reset_password_request(user.email)
-    assert len(calls) == 1
-    assert calls[0]["to"] == user.email
-    assert "reset-password" in calls[0]["body"].lower() or "reset" in calls[0]["body"].lower()
+    assert len(dummy_email) == 1
+    assert dummy_email[0]["to"] == user.email
+    assert "reset-password" in dummy_email[0]["body"].lower() or "reset" in dummy_email[0]["body"].lower()
 
 
 @pytest.mark.django_db

@@ -10,7 +10,6 @@ from account.domains.parental_consent_domain import ParentalConsentDomain
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
-    LoginSerializer,
     ChangePasswordSerializer,
     ResetPasswordSerializer,
     ProfileSerializer,
@@ -27,15 +26,7 @@ class ParentalConsentCreateView(APIView):
         parent_id = request.user.id
         data = request.data
 
-        domain = ParentalConsentDomain(
-            parent_id=parent_id,
-            child_id=data["child_id"],
-            scopes=data.get("scopes", []),
-            metadata=data.get("metadata", {}),
-        )
-        domain.validate()
-
-        saved = parental_consent_service.grant_consent(domain)
+        saved = parental_consent_service.grant_consent(parent_id=parent_id, child_id=data["child_id"], data=data)
         return Response(
             ParentalConsentSerializer.from_domain(saved),
             status=status.HTTP_201_CREATED,

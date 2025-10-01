@@ -11,7 +11,6 @@ from account.api.permissions import IsAdminOrSelf
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
-    LoginSerializer,
     ChangePasswordSerializer,
     ResetPasswordSerializer,
     ProfileSerializer,
@@ -76,14 +75,10 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        domain = ChangePasswordDomain(
-            user_id=request.user.id,
-            old_password=data["old_password"],
-            new_password=data["new_password"],
-        )
-
         try:
-            success = user_service.change_password(domain)
+            success = user_service.change_password(user_id=request.user.id, 
+                                                   old_password=data["old_password"], 
+                                                   new_password=data["new_password"])
         except exceptions.UserNotFoundError as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except exceptions.IncorrectPasswordError as e:

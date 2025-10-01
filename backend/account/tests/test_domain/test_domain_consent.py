@@ -1,7 +1,10 @@
 # account/tests/test_domain_consent.py
 import pytest
 from datetime import datetime
+
 from account.domains.parental_consent_domain import ParentalConsentDomain
+
+
 
 def test_consentdomain_valid_data():
     c = ParentalConsentDomain(parent_id=1, child_id=2, scopes=["data_sharing"])
@@ -10,12 +13,13 @@ def test_consentdomain_valid_data():
 
 def test_consentdomain_missing_parent_or_child():
     c1 = ParentalConsentDomain(parent_id=None, child_id=2, scopes=["x"])
-    with pytest.raises(ValueError, match="parent_id is required"):
+    with pytest.raises(ValueError, match="Both parent and child are required"):
         c1.validate()
 
     c2 = ParentalConsentDomain(parent_id=1, child_id=None, scopes=["x"])
-    with pytest.raises(ValueError, match="child_id is required"):
+    with pytest.raises(ValueError, match="Both parent and child are required"):
         c2.validate()
+
 
 def test_consentdomain_empty_scopes_invalid():
     c = ParentalConsentDomain(parent_id=1, child_id=2, scopes=[])

@@ -1,6 +1,6 @@
 import re
 from typing import TypedDict, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 
 from account.models import Profile
 
@@ -39,7 +39,10 @@ class ProfileDomain:
 
 
     def validate(self):
-        if self.dob and self.dob > datetime.date.today():
+        if self.user_id is None:
+            raise ValueError("user_id is required")
+
+        if self.dob and self.dob > date.today():
             raise ValueError("Date of birth cannot be in the future.")
 
         if self.language not in ["vi", "en"]:

@@ -1,32 +1,3 @@
-
-# class LoginView(APIView):
-#     def post(self, request):
-#         serializer = LoginSerializer(data=request.data) # Call LoginSerializer
-#         serializer.is_valid(raise_exception=True)
-
-#         login_domain = serializer.to_domain()
-#         user_domain = user_service.authenticate_user(login_domain)
-
-#         if not user_domain:
-#             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
-#         # convert domain -> model for JWT
-#         try:
-#             user_model = UserModel.objects.get(id=user_domain.id)
-#         except ValueError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        
-#         # Generate tokens    
-#         refresh = RefreshToken.for_user(user_model)
-
-#         return Response({
-#             'refresh': str(refresh),
-#             'access': str(refresh.access_token),
-#             'user': UserSerializer(user_domain.to_dict()).data
-#         }, status=status.HTTP_200_OK)
-
-
-
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from rest_framework import status, generics, permissions
@@ -43,7 +14,6 @@ from account.api.permissions import IsAdminOrSelf
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
-    LoginSerializer,
     ChangePasswordSerializer,
     ResetPasswordSerializer,
     ProfileSerializer,
@@ -62,15 +32,8 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        register_domain = RegisterDomain(
-            username=data["username"],
-            email=data["email"],
-            password=data["password"],
-            role=data.get("role", "student"),
-        )
-
         # call service with domain object
-        user_domain = user_service.register_user(register_domain)
+        user_domain = user_service.register_user(data=data)
 
         # map domain -> response dict (use UserSerializer.from_domain or usual serializer)
         return Response(UserSerializer.from_domain(user_domain), status=status.HTTP_201_CREATED)
@@ -80,38 +43,38 @@ class RegisterView(APIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
+# class LoginView(APIView):
+#     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        identifier = data["username_or_email"]
-        raw_password = data["raw_password"]
+#     def post(self, request):
+#         serializer = LoginSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         data = serializer.validated_data
+#         identifier = data["username_or_email"]
+#         raw_password = data["raw_password"]
 
-        # authenticate by username or email (robust)
-        user = None
-        try:
-            user = UserModel.objects.get(username=identifier)
-        except UserModel.DoesNotExist:
-            try:
-                user = UserModel.objects.get(email=identifier)
-            except UserModel.DoesNotExist:
-                user = None
+#         # authenticate by username or email (robust)
+#         user = None
+#         try:
+#             user = UserModel.objects.get(username=identifier)
+#         except UserModel.DoesNotExist:
+#             try:
+#                 user = UserModel.objects.get(email=identifier)
+#             except UserModel.DoesNotExist:
+#                 user = None
 
-        if not user or not user.check_password(raw_password):
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+#         if not user or not user.check_password(raw_password):
+#             return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # create or return token (DRF TokenAuth)
-        token, _ = Token.objects.get_or_create(user=user)
+#         # create or return token (DRF TokenAuth)
+#         token, _ = Token.objects.get_or_create(user=user)
 
-        # return token + user data (use domain mapping)
-        user_domain = user_service.get_user_by_id(user.id)
-        return Response({
-            "token": token.key,
-            "user": UserSerializer.from_domain(user_domain),
-        })
+#         # return token + user data (use domain mapping)
+#         user_domain = user_service.get_user_by_id(user.id)
+#         return Response({
+#             "token": token.key,
+#             "user": UserSerializer.from_domain(user_domain),
+#         })
     
 
 # ---------- Logout ----------

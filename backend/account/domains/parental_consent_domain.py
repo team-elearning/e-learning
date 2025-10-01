@@ -43,11 +43,20 @@ class ParentalConsentDomain:
 
         if self.parent_id == self.child_id:
             raise ValueError("Parent and child cannot be the same user.")
+        
+        if not self.scopes or len(self.scopes) == 0:
+            raise ValueError("At least one scope must be provided")
+
 
     def revoke(self):
         if self.revoked_at:
             raise ValueError("Consent already revoked.")
         self.revoked_at = timezone.now()
+
+    @property
+    def is_revoked(self) -> bool:
+        """Returns True if consent has been revoked (revoked_at is set)"""
+        return self.revoked_at is not None
 
     def is_active(self) -> bool:
         return self.revoked_at is None

@@ -11,7 +11,6 @@ from account.api.permissions import IsAdminOrSelf
 from account.serializers import (
     UserSerializer,
     RegisterSerializer,
-    LoginSerializer,
     ChangePasswordSerializer,
     ResetPasswordSerializer,
     ProfileSerializer,
