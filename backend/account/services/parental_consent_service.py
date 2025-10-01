@@ -1,17 +1,18 @@
-from datetime import datetime
+from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
 from account.domains.parental_consent_domain import ParentalConsentDomain
 from account.models import ParentalConsent
 
 
-def grant_consent(domain: ParentalConsentDomain) -> ParentalConsentDomain:
+
+def grant_consent(parent_id: int, child_id: int, data: dict) -> ParentalConsentDomain:
     consent, _ = ParentalConsent.objects.update_or_create(
-        parent_id=domain.parent_id,
-        child_id=domain.child_id,
+        parent_id=parent_id,
+        child_id=child_id,
         defaults={
-            "scopes": domain.scopes,
-            "metadata": domain.metadata,
+            "scopes": data.get("scopes", []),
+            "metadata": data.get("metadata", {}),
             "revoked_at": None,
         },
     )
@@ -21,7 +22,7 @@ def grant_consent(domain: ParentalConsentDomain) -> ParentalConsentDomain:
 def revoke_consent(parent_id: int, child_id: int) -> bool:
     try:
         consent = ParentalConsent.objects.get(parent_id=parent_id, child_id=child_id)
-        consent.revoked_at = datetime.now()
+        consent.revoked_at = timezone.now()
         consent.save()
         return True
     except ObjectDoesNotExist:

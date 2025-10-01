@@ -1,159 +1,90 @@
-from typing import Optional
+from typing import Optional, Any, Dict
+from dataclasses import fields
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
 from django.core.exceptions import ObjectDoesNotExist
 
-from account.domains.user_domain import UserDomain, LoginDomain
+from account.domains.user_domain import UserDomain
 from account.domains.register_domain import RegisterDomain
+from account.domains.profile_domain import ProfileDomain
 from account.domains.change_password_domain import ChangePasswordDomain
 from account.domains.reset_password_domain import ResetPasswordDomain
 from account.models import UserModel
+from account.models import Profile
+from account.services.exceptions import DomainError, UserNotFoundError, IncorrectPasswordError
 
 
 
-# # Create
-# def create_new_user(username: str, email: str, password: str, role="student", **extra) -> UserDomain:
-#     """Creates a new user and commits it to the DB."""
-#     if UserModel.objects.filter(username=username).exists():
-#         raise ValueError(f"Username {username} already exists.")
-#     if UserModel.objects.filter(email=email).exists():
-#         raise ValueError(f"Email {email} already exists.")
-    
-#     # Create domain first → validate business rules
-#     user_domain = UserDomain(
-#         username=username,
-#         email=email,
-#         role=role,
-#         first_name=extra.get('first_name'),
-#         last_name=extra.get('last_name'),
-#         phone=extra.get('phone')
-#     )
-#     user_domain.validate()
+# def register_user(domain: RegisterDomain) -> UserDomain:
+#     """Register a new user and its profile (aggregate root = User)."""
+#     domain.validate()
 
-#     # Save to DB
-#     user_model = UserModel.objects.create(
-#         username=username,
-#         email=email,
-#         role=role,
-#         password=make_password(password),
-#         first_name=extra.get('first_name'),
-#         last_name=extra.get('last_name'),
-#         phone=extra.get('phone'),
-#     )
+#     # enforce business invariants (uniqueness)
+#     if UserModel.objects.filter(username=domain.username).exists():
+#         raise DomainError("Username already taken")
+#     if UserModel.objects.filter(email=domain.email).exists():
+#         raise DomainError("Email already taken")
 
-#     return UserDomain.from_model(user_model)
+#     user_domain = UserDomain(username=domain.username,
+#                              email=domain.email,
+#                              raw_password=domain.password)
+
+#     user = user_domain.to_model()
+#     user.save()
+
+#     # create profile aggregate part
+#     profile_domain = ProfileDomain(user_id=user.id)
+#     profile_domain.validate()
+#     Profile.objects.create(**profile_domain.to_dict())
+
+#     return UserDomain.from_model(user)
 
 
-# # Authenticate - check and return if user exists
-# def authenticate_user(login_domain: LoginDomain) -> Optional[UserDomain]:
-#     """Authenticates a user by username/email and password."""
-#     username_or_email = login_domain.username_or_email
-#     raw_password = login_domain.raw_password
+def register_user(data: dict) -> UserDomain:
+    """Register a new user and its profile (aggregate root = User)."""
 
-#     user_model = authenticate(username=username_or_email,
-#                               password=raw_password)
+    # enforce business invariants (uniqueness)
+    if UserModel.objects.filter(username=data['username']).exists():
+        raise DomainError("Username already taken")
+    if UserModel.objects.filter(email=data['email']).exists():
+        raise DomainError("Email already taken")
 
-#     if not user_model:
-#         return None
-#     return UserDomain.from_model(user_model)
+    user_domain = UserDomain(username=data['username'],
+                             email=data['email'],
+                             raw_password=data['password'],
+                             role=data['role'])
 
+    user = user_domain.to_model()
+    user.save()
 
-# # Get
-# def get_user_domain(*, user_id: int = None, username: str = None, email: str = None) -> Optional[UserDomain]:
-#     """Fetches a user by ID, username, or email."""
-#     try:
-#         if user_id is not None:
-#             user_model = UserModel.objects.get(id=user_id)
-#         elif username is not None:
-#             user_model = UserModel.objects.get(username=username)
-#         elif email is not None:
-#             user_model = UserModel.objects.get(email=email)
-#         else:
-#             return None
-#         return UserDomain.from_model(user_model)
-#     except UserModel.DoesNotExist:
-#         return None
-
-
-# # Update
-# def update_user(user_id: int = None, user_domain: UserDomain = None, **updates) -> Optional[UserDomain]:
-#     """Update user attributes and return updated domain object."""
-#     try:
-#         if user_domain:
-#             user_id = user_domain.id
-#             updates = {
-#                 "username": user_domain.username,
-#                 "email": user_domain.email,
-#                 "role": user_domain.role,
-#                 "is_staff": user_domain.is_staff,
-#             }
-
-#         user_model = UserModel.objects.get(id=user_id)
-
-#         if "username" in updates:
-#             if UserModel.objects.filter(username=updates["username"]).exclude(id=user_id).exists():
-#                 raise ValueError(f"Username {updates['username']} already exists.")
-#         if "email" in updates:
-#             if UserModel.objects.filter(email=updates["email"]).exclude(id=user_id).exists():
-#                 raise ValueError(f"Email {updates['email']} already exists.")
-#         if "password" in updates:
-#             temp_domain = user_model.to_domain()
-#             temp_domain.change_password(updates["password"])
-#             user_model.password = make_password(updates["password"])
-#             del updates["password"]  # Remove to avoid setting it again below
-
-#         for key, value in updates.items():
-#             if key == 'password':
-#                 value = make_password(value)
-#             if hasattr(user_model, key):
-#                 setattr(user_model, key, value)
-#         user_model.save()
-#         return UserDomain.from_model(user_model)
-    
-#     except UserModel.DoesNotExist:
-#         return None
-    
-
-# # login 
-# def login_user(username_or_email: str, password: str) -> Optional[UserDomain]:
-#     """High-level login use case"""
-#     return authenticate_user(username_or_email, password)
-
-
-
-def register_user(domain: RegisterDomain) -> UserDomain:
-    """Register a new user."""
-    domain.validate()
-    user = UserModel.objects.create_user(
-        username=domain.username,
-        email=domain.email,
-        password=domain.password,
-        role=domain.role,
-        phone=domain.phone,
-    )
+    # create profile aggregate part
+    user_domain.id = user.id
+    profile_domain = user_domain.create_profile()
+    profile_data = data.get('profile', {})
+    Profile.objects.create(user=user, **profile_data)
     return UserDomain.from_model(user)
 
 
-def login_user(domain: LoginDomain) -> UserDomain:
-    """Authenticate user by username/email + password."""
-    user = authenticate(username=domain.username_or_email,
-                        password=domain.raw_password)
-    if not user:
-        raise ValueError("Invalid credentials")
-    return UserDomain.from_model(user)
+# def login_user(username_or_email: str, raw_password: str) -> UserDomain:
+#     """Authenticate user by username/email + password."""
+#     user = authenticate(username=username_or_email,
+#                         password=raw_password)
+#     if not user:
+#         raise ValueError("Invalid credentials")
+#     return UserDomain.from_model(user)
 
 
-def change_password(domain: ChangePasswordDomain) -> bool:
+def change_password(user_id: int, old_password: str, new_password: str) -> bool:
     """Change password for a given user."""
     try:
-        user = UserModel.objects.get(pk=domain.user_id)
+        user = UserModel.objects.get(pk=user_id)
     except ObjectDoesNotExist:
-        raise ValueError("User not found")
+        raise UserNotFoundError("User not found")
 
-    if not user.check_password(domain.old_password):
-        raise ValueError("Old password is incorrect")
+    if not user.check_password(old_password):
+        raise IncorrectPasswordError("Old password is incorrect")
 
-    user.set_password(domain.new_password)
+    user.set_password(new_password)
     user.save()
     return True
 
@@ -179,13 +110,29 @@ def get_user_by_id(user_id: int) -> UserDomain:
     return UserDomain.from_model(user)
 
 
-def update_user(user_id: int, data: dict) -> UserDomain:
-    """Update user fields."""
-    user = UserModel.objects.get(pk=user_id)
-    for field, value in data.items():
-        setattr(user, field, value)
-    user.save()
+def get_user_by_username(username: str) -> UserDomain:
+    user = UserModel.objects.get(username=username)
     return UserDomain.from_model(user)
+
+def get_user_by_email(email: str) -> UserDomain:
+    User = UserModel.objects.get(email=email)
+    return UserDomain.from_model(User)
+
+
+def update_user(user_id: int, updates: Dict[str, Any]) -> UserDomain:
+    """Update user from domain object."""
+    user = UserModel.objects.get(pk=user_id)
+    domain = UserDomain.from_model(user)
+
+    # Áp dụng updates và validate
+    domain.apply_updates(updates)
+
+    # Lưu vào database
+    for key, value in updates.items():
+        if hasattr(user, key):
+            setattr(user, key, value)
+    user.save()
+    return domain
 
 
 def deactivate_user(user_id: int) -> bool:

@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
@@ -9,12 +10,12 @@ from account.services import user_service
 class AuthTestMixin:
     def register_user(self, username="bob", password="Secure123", email="bob@example.com", **extra):
         data = {"username": username, "password": password, "email": email, **extra}
-        url = reverse("register")
+        url = reverse("account-register")
         return self.client.post(url, data, format="json")
     
     def login_user(self, username_or_email="bob", password="Secure123"):
-        data = {"username_or_email": username_or_email, "raw_password": password}
-        url = reverse("login")
+        data = {"username_or_email": username_or_email, "password": password}
+        url = reverse("token_obtain_pair")
         return self.client.post(url, data, format="json")
     
     def get_authenticated_client(self, access_token):
@@ -60,15 +61,15 @@ class AuthTestMixin:
     
     def assert_user_can_access_profile(self, access_token, target_username, should_success=True):
         """Helper to test if a user can access another user's profile"""
-        target_domain = user_service.get_user_domain(username=target_username)
-        url = reverse("user-profile") + f"?user_id={target_domain.id}"
+        target_domain = user_service.get_user_by_username(target_username)
+        url = reverse("account-profile") + f"?user_id={target_domain.id}"
         response = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {access_token}")
 
         if should_success:
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(response.data["username"], target_username)
         else:
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class BaseAPITestCase(APITestCase, AuthTestMixin):
     """Base test case with common helpers."""

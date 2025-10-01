@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 from activities.models import ExerciseAttempt
@@ -9,9 +10,9 @@ from activities.models import ExerciseAttempt
 # Create your models here.
 class Assignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    classroom = models.ForeignKey('school.Classroom', on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments')
+    classroom = models.ForeignKey('school.ClassroomModel', on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments')
     lesson = models.ForeignKey('content.Lesson', on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments')
-    teacher = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments_given')
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments_given')
     title = models.CharField(max_length=255)
     due_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -26,7 +27,7 @@ class Assignment(models.Model):
 class Submission(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
-    student = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='submissions')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='submissions')
     attempt = models.ForeignKey(ExerciseAttempt, on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(
         max_length=32,

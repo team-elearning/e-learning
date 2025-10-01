@@ -1,6 +1,6 @@
 import re
 from typing import TypedDict, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 
 from account.models import Profile
 
@@ -37,12 +37,17 @@ class ProfileDomain:
         self.language = language
         self.metadata = metadata or {}
 
+
     def validate(self):
-        if self.dob and self.dob > datetime.date.today():
+        if self.user_id is None:
+            raise ValueError("user_id is required")
+
+        if self.dob and self.dob > date.today():
             raise ValueError("Date of birth cannot be in the future.")
 
         if self.language not in ["vi", "en"]:
             raise ValueError("Unsupported language.")
+
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,7 +57,7 @@ class ProfileDomain:
             "dob": self.dob,
             "gender": self.gender,
             "language": self.language,
-            "metadata": self.metadata,
+            "metadata": self.metadata or {},
         }
 
     @classmethod
@@ -78,3 +83,6 @@ class ProfileDomain:
             language=model.language,
             metadata=model.metadata,
         )
+    
+    
+    

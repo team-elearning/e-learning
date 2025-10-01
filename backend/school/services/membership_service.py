@@ -3,9 +3,10 @@ from django.db import transaction
 
 from account.models import UserModel
 from school.models import ClassroomModel, MembershipModel, InvitationModel
-from school.domains.class_domain import MembershipDomain, InvitationDomain
-from school.api.permissions import PermissionDenied, ConflictError, NotFoundError, InvalidOperation, ensure_is_admin_or_instructor
-
+from school.domains.membership_domain import MembershipDomain
+from school.domains.invitation_domain import InvitationDomain
+from school.services.exceptions import NotFoundError, PermissionDenied, ConflictError, InvalidOperation
+from school.services.validators import ensure_is_admin_or_instructor
 
 
 # --- Helpers ---

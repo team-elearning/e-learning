@@ -1,8 +1,10 @@
 import re
-from typing import TypedDict, Optional
-from datetime import datetime, timezone
+from typing import TypedDict, Optional, Any
+from datetime import datetime
+from dataclasses import fields, dataclass
 
 from account.models import UserModel
+from account.domains.profile_domain import ProfileDomain
 
 
 class UserDict(TypedDict):
@@ -10,21 +12,18 @@ class UserDict(TypedDict):
     id: int
     username: str
     email: str
-    first_name: Optional[str]
-    last_name: Optional[str] 
     created_on: datetime
     role: str 
     phone: Optional[str]
 
 
+@dataclass
 class UserDomain:
     """Value object representing a user's settings.
     Attributes:
         id: int | None. Unique identifier of the user (from DB).
         username: str. The unique of the user. Identifiable username to display in the UI.
         email: str. The user email.
-        first_name: str. The first name of the user.
-        last_name: str. The last name of the user.
         created_on: datetime. The date and time when the user was created.
         role: str. Role of the user.
         phone: str. The phone number of the user.
@@ -32,18 +31,13 @@ class UserDomain:
 
     PASSWORD_PATTERN = re.compile(r'^(?=.*[a-z])(?=.[A-Z])(?=.*\d).{8,}$')
 
-    def __init__(self, username: str, email: str, id: int | None= None, 
-                 first_name: Optional[str] = None, last_name: Optional[str] = None, 
-                 created_on: Optional[datetime] = None,
-                 role: str = "student", phone: Optional[str] = None):
-        self.id = id
-        self.username = username
-        self.email = email
-        self.first_name = first_name
-        self.last_name = last_name
-        self.created_on = created_on 
-        self.role = role
-        self.phone = phone
+    id: Optional[int] = None
+    username: str = ""
+    email: str = ""
+    raw_password: Optional[str] = None
+    created_on: Optional[datetime] = None
+    role: str = "student"
+    phone: Optional[str] = None
 
 
     # --- Validation ---
@@ -75,8 +69,6 @@ class UserDomain:
             'id': self.id,
             'username':self.username,
             'email':self.email,
-            'first_name':self.first_name,
-            'last_name':self.last_name,
             'created_on':self.created_on,
             'role':self.role,
             'phone':self.phone
@@ -94,8 +86,6 @@ class UserDomain:
             id=data.get('id'),
             username=data['username'],
             email=data['email'],
-            first_name=data.get('first_name'),
-            last_name=data.get('last_name'),
             created_on=data.get('created_on'),
             role=data.get('role', 'student'),
             phone=data.get('phone')
@@ -110,25 +100,31 @@ class UserDomain:
             id=user_model.id,
             username=user_model.username,
             email=user_model.email,
-            first_name=user_model.first_name,
-            last_name=user_model.last_name,
+            raw_password='***',
             phone=user_model.phone,
             role=user_model.role,
             created_on=user_model.created_on,
         )
     
-
-    # --- Helpers ---
-    @property
-    def full_name(self) -> str:
-        """Get the full name of the user.
-        Returns:
-            str. The full name of the user.
-        """
-        if self.first_name and self.last_name:
-            return f"{self.first_name} {self.last_name}"
-        return self.first_name or self.last_name or ""
+    def to_model(self) -> UserModel:
+        user = UserModel(
+            username=self.username,
+            email=self.email,
+            role=self.role,
+        )
+        user.set_password(self.raw_password)  # hash ở đây
+        return user
     
+    
+    def apply_updates(self, updates: dict[str, Any]) -> None:
+        """Apply updates from a dict and validate."""
+        for field in fields(self):
+            field_name = field.name
+            if field_name in updates and updates[field_name] is not None:
+                setattr(self, field_name, updates[field_name])
+        self.validate()
+    
+
     # def update_password(self, new_password: str) -> None:
     #     """Change the user's password.
     #     Args:
@@ -141,6 +137,12 @@ class UserDomain:
     #         raise ValueError("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, and one digit.")
         
     #     self.password = new_password
+
+
+    def create_profile(self):
+        profile_domain = ProfileDomain(user_id=self.id)
+        profile_domain.validate()
+        return profile_domain
 
 
 

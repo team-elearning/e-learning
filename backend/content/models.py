@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator
 
 # Create your models here.
@@ -23,7 +24,7 @@ class Course(models.Model):
     description = models.TextField(blank=True, null=True)
     grade = models.CharField(max_length=16, blank=True, null=True)
     published = models.BooleanField(default=False)
-    owner = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='courses_owned')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='courses_owned')
 
     class Meta:
         verbose_name = ('Course')
@@ -76,7 +77,7 @@ class LessonVersion(models.Model):
         default='draft',
         choices=[('draft', ('Draft')), ('review', ('Review')), ('published', ('Published'))]
     )
-    author = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='lesson_versions_authored')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='lesson_versions_authored')
     content = models.JSONField(default=dict, blank=True)  # Overall content structure
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -114,7 +115,7 @@ class Exploration(models.Model):
     # Oppia-style: Interactive state-based lessons.
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
-    owner = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='explorations_owned')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='explorations_owned')
     language = models.CharField(max_length=8, default='vi')
     published = models.BooleanField(default=False)
 

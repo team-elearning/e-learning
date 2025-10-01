@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -27,7 +28,7 @@ class ClassroomModel(models.Model):
     school = models.ForeignKey(SchoolModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms')
     class_name = models.CharField(max_length=100, unique=True)
     grade = models.CharField(max_length=16, blank=True, null=True)
-    teacher = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms_taught')
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='classrooms_taught')
     created_by = models.IntegerField()
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
@@ -41,16 +42,16 @@ class ClassroomModel(models.Model):
         indexes = [models.Index(fields=['school'])]
         verbose_name = ('Classroom')
         verbose_name_plural = ('Classrooms')
-        ordering = ['name']
+        ordering = ['class_name']
 
     def __str__(self):
-        return self.name
+        return self.class_name
 
 
 class Enrollment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name='enrollments')
-    student = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='enrollments')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
     role = models.CharField(max_length=32, default='student')
     enrolled_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
@@ -108,3 +109,37 @@ class InvitationModel(models.Model):
             models.Index(fields=["email"]),
         ]
         
+
+class TeacherAssignment(models.Model):
+    teacher = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name="teacher_assignments")
+    classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name="teacher_assignments")
+    assigned_on = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ["teacher", "classroom"]  # Prevent duplicate assignments
+
+    def __str__(self):
+        return f"{self.teacher.username} assigned to {self.classroom.class_name}"
+    
+
+class SchoolYear(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = ('School Year')
+        verbose_name_plural = ('School Years')
+        ordering = ['-start_date']
+
+    def clean(self):
+        if self.start_date >= self.end_date:
+            raise ValidationError("Start date must be before end date.")
+        if self.is_active:
+            # Ensure only one active school year
+            SchoolYear.objects.filter(is_active=True).exclude(id=self.id).update(is_active=False)
+
+    def __str__(self):
+        return self.name

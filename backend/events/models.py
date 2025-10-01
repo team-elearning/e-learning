@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Create your models here.
@@ -31,7 +32,7 @@ class PlatformEvent(models.Model):
 class EventParticipation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(PlatformEvent, on_delete=models.CASCADE, related_name='participations')
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='event_participations')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='event_participations')
     joined_at = models.DateTimeField(auto_now_add=True)
     score = models.FloatField(default=0, validators=[MinValueValidator(0)])
     rank = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(1)])
@@ -49,7 +50,7 @@ class Leaderboard(models.Model):
     # Aggregate leaderboard for events.
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(PlatformEvent, on_delete=models.CASCADE, related_name='leaderboards')
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='leaderboard_entries')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leaderboard_entries')
     score = models.FloatField(validators=[MinValueValidator(0)])
     rank = models.IntegerField(validators=[MinValueValidator(1)])
     updated_at = models.DateTimeField(auto_now=True)

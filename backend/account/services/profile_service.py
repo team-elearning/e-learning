@@ -17,10 +17,18 @@ def create_profile(domain: ProfileDomain) -> ProfileDomain:
 
 
 def update_profile(user_id: int, data: dict) -> ProfileDomain:
+    """Update profile fields via domain validation."""
     profile = Profile.objects.get(user_id=user_id)
+    domain = ProfileDomain.from_model(profile)
+
     for field, value in data.items():
+        setattr(domain, field, value)
+
+    domain.validate()
+    for field, value in domain.to_dict().items():
         setattr(profile, field, value)
     profile.save()
+
     return ProfileDomain.from_model(profile)
 
 

@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
@@ -7,7 +8,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 # Create your models here.
 class LearningPath(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='learning_paths')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='learning_paths')
     course = models.ForeignKey('content.Course', on_delete=models.CASCADE, related_name='learning_paths')
     path = models.JSONField(default=list)  # e.g., [{'lesson_id': 'uuid', 'order': 1}, ...]
     generated_at = models.DateTimeField(auto_now_add=True)
@@ -24,7 +25,7 @@ class LearningPath(models.Model):
 
 class Recommendation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='recommendations')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recommendations')
     recommended_lesson = models.ForeignKey('content.Lesson', on_delete=models.CASCADE, related_name='recommendations')
     score = models.FloatField(validators=[MinValueValidator(0), MaxValueValidator(1)])
     reason = models.TextField()

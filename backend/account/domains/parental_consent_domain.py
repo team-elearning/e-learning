@@ -1,6 +1,6 @@
 import uuid
 from typing import TypedDict, Optional, Dict, Any
-from datetime import datetime
+from django.utils import timezone
 
 from account.models import ParentalConsent
 
@@ -10,9 +10,9 @@ class ParentalConsentDict(TypedDict):
     parent_id: int
     child_id: str
     id: Optional[uuid.UUID]
-    consented_at: Optional[datetime.datetime] 
+    consented_at: Optional[timezone.datetime] 
     scopes: Optional[list[str]] 
-    revoked_at: Optional[datetime.datetime] 
+    revoked_at: Optional[timezone.datetime] 
     metadata: Optional[Dict[str, Any]] 
 
 
@@ -24,15 +24,15 @@ class ParentalConsentDomain:
         parent_id: int,
         child_id: int,
         id: Optional[uuid.UUID] = None,
-        consented_at: Optional[datetime.datetime] = None,
+        consented_at: Optional[timezone.datetime] = None,
         scopes: Optional[list[str]] = None,
-        revoked_at: Optional[datetime.datetime] = None,
+        revoked_at: Optional[timezone.datetime] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         self.id = id or uuid.uuid4()
         self.parent_id = parent_id
         self.child_id = child_id
-        self.consented_at = consented_at or datetime.datetime.utcnow()
+        self.consented_at = consented_at or timezone.now()
         self.scopes = scopes or []
         self.revoked_at = revoked_at
         self.metadata = metadata or {}
@@ -43,11 +43,20 @@ class ParentalConsentDomain:
 
         if self.parent_id == self.child_id:
             raise ValueError("Parent and child cannot be the same user.")
+        
+        if not self.scopes or len(self.scopes) == 0:
+            raise ValueError("At least one scope must be provided")
+
 
     def revoke(self):
         if self.revoked_at:
             raise ValueError("Consent already revoked.")
-        self.revoked_at = datetime.datetime.utcnow()
+        self.revoked_at = timezone.now()
+
+    @property
+    def is_revoked(self) -> bool:
+        """Returns True if consent has been revoked (revoked_at is set)"""
+        return self.revoked_at is not None
 
     def is_active(self) -> bool:
         return self.revoked_at is None
