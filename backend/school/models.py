@@ -109,3 +109,37 @@ class InvitationModel(models.Model):
             models.Index(fields=["email"]),
         ]
         
+
+class TeacherAssignment(models.Model):
+    teacher = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name="teacher_assignments")
+    classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name="teacher_assignments")
+    assigned_on = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ["teacher", "classroom"]  # Prevent duplicate assignments
+
+    def __str__(self):
+        return f"{self.teacher.username} assigned to {self.classroom.class_name}"
+    
+
+class SchoolYear(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = ('School Year')
+        verbose_name_plural = ('School Years')
+        ordering = ['-start_date']
+
+    def clean(self):
+        if self.start_date >= self.end_date:
+            raise ValidationError("Start date must be before end date.")
+        if self.is_active:
+            # Ensure only one active school year
+            SchoolYear.objects.filter(is_active=True).exclude(id=self.id).update(is_active=False)
+
+    def __str__(self):
+        return self.name

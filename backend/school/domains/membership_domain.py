@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import TypedDict, Optional
 
 from school.models import MembershipModel
-from school.domains.membership_domain import MembershipDomain
 from school.services.exceptions import InvalidOperation
 
 
