@@ -34,11 +34,51 @@
       </div>
 
       <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <img
-          :src="c.thumbnail"
-          alt="cover"
-          class="md:col-span-1 w-full rounded-2xl object-cover"
-        />
+        <!-- Ảnh cover tối ưu + spinner loading + fallback lỗi -->
+        <div class="md:col-span-1">
+          <div class="relative w-full overflow-hidden rounded-2xl" style="aspect-ratio: 16 / 9">
+            <!-- Overlay: LOADING -->
+            <div
+              v-if="!imgLoaded && !imgError"
+              class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-200/60"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div class="h-8 w-8 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" />
+              <span class="text-xs font-medium text-slate-600 tracking-wide">Loading…</span>
+            </div>
+
+            <!-- Overlay: ERROR -->
+            <div
+              v-if="imgError"
+              class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100"
+              role="alert"
+            >
+              <div class="text-sm text-slate-600">Không tải được ảnh</div>
+              <button
+                class="rounded-lg border px-3 py-1.5 text-xs text-slate-700 hover:bg-white"
+                @click="retryLoad"
+              >
+                Thử lại
+              </button>
+            </div>
+
+            <!-- Ảnh chính -->
+            <img
+              v-if="c?.thumbnail"
+              :key="imgKey"
+              :src="c.thumbnail"
+              :alt="c.title || 'cover'"
+              class="absolute inset-0 h-full w-full object-cover"
+              width="1280" height="720"
+              decoding="async"
+              loading="eager"
+              fetchpriority="high"
+              @load="onImgLoad"
+              @error="onImgError"
+            />
+          </div>
+        </div>
 
         <div class="md:col-span-2 rounded-2xl border bg-white p-4">
           <div class="mb-2 text-sm text-slate-500">
@@ -117,16 +157,47 @@ const c = ref<CourseDetail | null>(null)
 const loading = ref(true)
 const err = ref('')
 
+// trạng thái ảnh
+const imgLoaded = ref(false)
+const imgError = ref(false)
+const imgKey = ref(0)
+
 onMounted(async () => {
   try {
     const detail = await courseService.detail(id)
     c.value = detail
+
+    // Preload ảnh cover để ưu tiên tải sớm (giảm trễ hiển thị)
+    if (detail?.thumbnail) {
+      const link = document.createElement('link')
+      link.rel = 'preload'
+      link.as = 'image'
+      link.href = detail.thumbnail
+      document.head.appendChild(link)
+    }
   } catch (e: any) {
     err.value = e?.message || 'Không tải được dữ liệu khoá học.'
   } finally {
     loading.value = false
   }
 })
+
+function onImgLoad() {
+  imgLoaded.value = true
+  imgError.value = false
+}
+
+function onImgError() {
+  imgLoaded.value = false
+  imgError.value = true
+}
+
+function retryLoad() {
+  // Reset trạng thái và buộc <img> render lại
+  imgLoaded.value = false
+  imgError.value = false
+  imgKey.value++
+}
 
 function goEdit(cid: number | string) {
   router.push({ path: `/teacher/courses/${cid}/edit` })
