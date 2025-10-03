@@ -93,6 +93,31 @@
         </div>
       </main>
     </div>
+
+    <!-- Popup xác nhận nộp bài -->
+    <transition name="fade">
+      <div v-if="showSubmitModal" class="modal-backdrop" @click.self="showSubmitModal=false">
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <header class="modal-header">
+            <h3 class="modal-title">Xác nhận nộp bài</h3>
+            <button class="modal-close" aria-label="Đóng" @click="showSubmitModal=false">×</button>
+          </header>
+
+          <section class="modal-body">
+            <p v-html="submitMsg"></p>
+          </section>
+
+          <footer class="modal-footer">
+            <button class="btn btn-secondary" :disabled="submitting" @click="showSubmitModal=false">
+              Tiếp tục làm
+            </button>
+            <button class="btn btn-danger" :disabled="submitting" @click="confirmSubmit">
+              {{ submitting ? 'Đang nộp…' : 'Nộp bài' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -132,13 +157,55 @@ const answeredCount = computed(() => answers.value.filter(v => (v ?? '').toStrin
 function labelLevel(l?: 'basic' | 'advanced') { return l === 'advanced' ? 'Nâng cao' : 'Cơ bản' }
 function fmtTime(s: number) { const m = Math.floor(s / 60); const ss = s % 60; return `${m.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}` }
 
-// SỬA ĐỔI TẠI ĐÂY
+// ===== Popup nộp bài =====
+const showSubmitModal = ref(false);
+const submitMsg = computed(() => {
+  const unanswered = questions.value.length - answeredCount.value;
+  return unanswered > 0
+    ? `Bạn còn <b>${unanswered}</b> câu chưa trả lời. Bạn có chắc chắn muốn nộp bài không?`
+    : 'Bạn đã trả lời hết các câu hỏi. Xác nhận nộp bài?';
+});
+
+// Mở popup khi ấn nút "Nộp bài"
+function submit() {
+  showSubmitModal.value = true;
+}
+
+// Thực sự nộp bài khi người dùng xác nhận trong popup
+async function confirmSubmit() {
+  if (submitting.value) return; 
+  submitting.value = true; 
+  stopTimer(); 
+  await nextTick();
+  
+  const userAnswersData = questions.value.map((question, index) => {
+    return {
+      questionText: question.text,
+      userAnswer: (answers.value[index] ?? 'Chưa trả lời').toString().trim(),
+      correctAnswer: question.answer,
+      explanation: `Đây là giải thích cho câu ${index + 1}.` 
+    };
+  });
+
+  showSubmitModal.value = false;
+  
+  router.push({ 
+    name: 'student-exam-result',
+    params: { id: route.params.id },
+    state: {
+      userAnswers: userAnswersData
+    }
+  });
+
+  submitting.value = false;
+}
+
+// ===== Các hàm sẵn có =====
 function goBack() { 
   if (window.confirm('Bạn có chắc chắn muốn thoát không? Mọi tiến trình làm bài sẽ không được lưu lại.')) {
     router.back();
   }
 }
-
 function go(i: number) { if (i >= 0 && i < questions.value.length) idx.value = i }
 function next() { if (idx.value < questions.value.length - 1) idx.value++ }
 function prev() { if (idx.value > 0) idx.value-- }
@@ -172,42 +239,6 @@ async function buildQuestions(total = 60, chunk = 20) {
   }
 }
 
-async function submit() {
-  const unanswered = questions.value.length - answeredCount.value;
-  if (unanswered > 0) { 
-    if (!window.confirm(`Bạn còn ${unanswered} câu chưa trả lời. Bạn có chắc chắn muốn nộp bài không?`)) { 
-      return 
-    }
-  } else { 
-    if (!window.confirm(`Bạn đã trả lời hết các câu hỏi. Xác nhận nộp bài?`)) { 
-      return 
-    } 
-  }
-  if (submitting.value) return; 
-  submitting.value = true; 
-  stopTimer(); 
-  await nextTick();
-  
-  const userAnswersData = questions.value.map((question, index) => {
-    return {
-      questionText: question.text,
-      userAnswer: (answers.value[index] ?? 'Chưa trả lời').toString().trim(),
-      correctAnswer: question.answer,
-      explanation: `Đây là giải thích cho câu ${index + 1}.` 
-    };
-  });
-  
-  router.push({ 
-    name: 'student-exam-result',
-    params: { id: route.params.id },
-    state: {
-      userAnswers: userAnswersData
-    }
-  });
-
-  submitting.value = false;
-}
-
 onMounted(async () => {
   const numberOfQuestions = exam.value?.passCount ? exam.value.passCount + 10 : 60;
   await buildQuestions(numberOfQuestions, 20);
@@ -218,9 +249,9 @@ onMounted(async () => {
   timer = window.setInterval(() => {
     timeLeft.value--;
     if (timeLeft.value <= 0) {
-      alert("Đã hết giờ làm bài! Hệ thống sẽ tự động nộp bài của bạn.");
       clearInterval(timer!);
-      submit();
+      // Hết giờ: tự động nộp (giữ đúng hành vi cũ, không hiện alert)
+      confirmSubmit();
     }
   }, 1000) as unknown as number;
 });
@@ -297,4 +328,16 @@ onBeforeUnmount(() => {
 .btn-primary:hover:not(:disabled) { background-color: #15803d; }
 .btn-danger { background-color: #dc2626; color: #fff; }
 .btn-danger:hover:not(:disabled) { background-color: #b91c1c; }
+
+/* ===== Modal styles ===== */
+.fade-enter-active, .fade-leave-active { transition: opacity .15s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: grid; place-items: center; z-index: 50; }
+.modal-card { width: 100%; max-width: 520px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 20px 50px rgba(2,6,23,.15); overflow: hidden; animation: pop .15s ease-out; }
+@keyframes pop { from { transform: translateY(8px); opacity: .9 } to { transform: translateY(0); opacity: 1 } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+.modal-title { margin: 0; font-size: 18px; font-weight: 800; color: #0f172a; }
+.modal-close { background: transparent; border: 0; font-size: 24px; line-height: 1; cursor: pointer; color: #64748b; }
+.modal-body { padding: 20px; color: #334155; font-size: 16px; }
+.modal-footer { display: flex; gap: 12px; justify-content: flex-end; padding: 16px 20px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
 </style>
