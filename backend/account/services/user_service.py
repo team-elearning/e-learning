@@ -52,7 +52,8 @@ def register_user(data: dict) -> UserDomain:
     user_domain = UserDomain(username=data['username'],
                              email=data['email'],
                              raw_password=data['password'],
-                             role=data['role'])
+                             role=data['role'],
+                             phone=data['phone'])
 
     user = user_domain.to_model()
     user.save()
