@@ -3,16 +3,36 @@
   <aside class="h-full flex flex-col">
     <!-- Brand -->
     <div class="h-14 flex items-center gap-2 border-b px-4">
-      <!-- <div class="grid h-8 w-8 place-items-center rounded bg-blue-600 text-white font-bold">A</div> -->
+      <button
+        class="mr-2 flex md:hidden items-center justify-center rounded p-2 hover:bg-gray-100"
+        aria-label="Đóng menu"
+        @click="$emit('close')"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
       <RouterLink
         to="/admin/dashboard"
         class="font-semibold text-gray-800 hover:text-gray-900"
         style="display: flex; margin-right: 8px; align-items: center; gap: 8px"
       >
-        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600/10">
+        <!-- <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600/10">
           <span class="text-lg">🎓</span>
         </div>
-        <span class="hidden text-base font-semibold text-emerald-700 sm:inline"> My Learning </span>
+        <span class="hidden text-base font-semibold text-emerald-700 sm:inline"> My Learning </span> -->
+        <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
       </RouterLink>
     </div>
 
@@ -58,6 +78,7 @@ import {
   FileText,
   History,
 } from 'lucide-vue-next'
+import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 
 const year = new Date().getFullYear()
 

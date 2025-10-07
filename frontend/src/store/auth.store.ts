@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', {
             this.token = null
             this.user = null
             localStorage.removeItem('auth')
-            router.push('/auth/login')
+            router.push('/')
         },
 
         redirectByRole(role: Role) {

@@ -111,6 +111,7 @@ class UserDomain:
             username=self.username,
             email=self.email,
             role=self.role,
+            phone=self.phone,
         )
         user.set_password(self.raw_password)  # hash ở đây
         return user
