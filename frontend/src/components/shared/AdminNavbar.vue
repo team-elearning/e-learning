@@ -1,8 +1,29 @@
 <!-- src/components/shared/AdminNavbar.vue -->
 <template>
   <header class="flex h-full items-center justify-between px-4">
-    <!-- Left: dynamic title -->
-    <div class="min-w-0">
+    <!-- Left: Hamburger + dynamic title -->
+    <div class="flex items-center min-w-0 gap-2">
+      <!-- Hamburger menu, chỉ hiện trên mobile -->
+      <button
+        class="mr-2 flex md:hidden items-center justify-center rounded p-2 hover:bg-gray-100"
+        aria-label="Mở menu"
+        @click="$emit('toggle-sidebar')"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
       <h1 class="truncate text-base font-semibold text-gray-800">
         {{ pageTitle }}
       </h1>
@@ -38,10 +59,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineEmits } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { Bell, LogOut } from 'lucide-vue-next'
+
+const emit = defineEmits(['toggle-sidebar'])
 
 const auth = useAuthStore()
 const user = computed(() => auth.user)

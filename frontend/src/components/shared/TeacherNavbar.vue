@@ -1,14 +1,11 @@
 <template>
   <nav class="sticky top-0 z-50 h-16 bg-white/80 backdrop-blur-md border-b border-gray-200/80">
-    <div class="mx-auto flex h-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div
+      class="mx-auto flex h-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8"
+    >
       <div class="flex items-center gap-4">
-        <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 005.5 16c1.255 0 2.443-.29 3.5-.804V4.804zM14.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 0014.5 16c1.255 0 2.443-.29 3.5-.804v-10A7.968 7.968 0 0014.5 4z" />
-          </svg>
-        </div>
         <RouterLink to="/teacher/dashboard" class="text-xl font-bold tracking-tight text-gray-800">
-          <span class="hidden sm:inline">Teacher Center</span>
+          <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
         </RouterLink>
       </div>
 
@@ -17,9 +14,11 @@
           <RouterLink
             :to="item.path"
             class="relative rounded-md px-3 py-2 text-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            :class="isActive(item.path)
-              ? 'font-semibold text-blue-600'
-              : 'text-gray-500 hover:text-gray-900'"
+            :class="
+              isActive(item.path)
+                ? 'font-semibold text-blue-600'
+                : 'text-gray-500 hover:text-gray-900'
+            "
           >
             <span>{{ item.label }}</span>
             <Transition
@@ -30,16 +29,33 @@
               leave-from-class="w-1/2 opacity-100"
               leave-to-class="w-0 opacity-0"
             >
-              <span v-if="isActive(item.path)" class="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 bg-blue-600 rounded-full"></span>
+              <span
+                v-if="isActive(item.path)"
+                class="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 bg-blue-600 rounded-full"
+              ></span>
             </Transition>
           </RouterLink>
         </li>
       </ul>
 
       <div class="flex items-center gap-3">
-        <button class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Notifications">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        <button
+          class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          aria-label="Notifications"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+            />
           </svg>
         </button>
 
@@ -50,7 +66,11 @@
             aria-label="User menu"
             :aria-expanded="avatarOpen"
           >
-            <img class="h-9 w-9 rounded-full object-cover" src="https://i.pravatar.cc/80?img=5" alt="User avatar" />
+            <img
+              class="h-9 w-9 rounded-full object-cover"
+              src="https://i.pravatar.cc/80?img=5"
+              alt="User avatar"
+            />
           </button>
 
           <Transition
@@ -67,20 +87,25 @@
             >
               <div class="px-2 py-2 border-b">
                 <p class="text-sm font-semibold text-gray-800">{{ user?.name || 'Giáo viên' }}</p>
-                <p class="text-xs text-gray-500 truncate">{{ user?.email || 'teacher@example.com' }}</p>
+                <p class="text-xs text-gray-500 truncate">
+                  {{ user?.email || 'teacher@example.com' }}
+                </p>
               </div>
               <div class="py-1">
                 <RouterLink
                   to="/teacher/account/profile"
                   class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   @click="avatarOpen = false"
-                >Tài khoản</RouterLink>
+                  >Tài khoản</RouterLink
+                >
               </div>
               <div class="py-1">
                 <button
                   @click="onLogout"
                   class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                >Đăng xuất</button>
+                >
+                  Đăng xuất
+                </button>
               </div>
             </div>
           </Transition>
@@ -94,9 +119,18 @@
             :aria-expanded="open"
           >
             <div class="space-y-1.5">
-              <span class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out" :class="{ 'rotate-45 translate-y-2': open }"></span>
-              <span class="block w-5 h-0.5 bg-gray-600 transition-opacity duration-300 ease-out" :class="{ 'opacity-0': open }"></span>
-              <span class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out" :class="{ '-rotate-45 -translate-y-2': open }"></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out"
+                :class="{ 'rotate-45 translate-y-2': open }"
+              ></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-opacity duration-300 ease-out"
+                :class="{ 'opacity-0': open }"
+              ></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out"
+                :class="{ '-rotate-45 -translate-y-2': open }"
+              ></span>
             </div>
           </button>
         </div>
@@ -118,7 +152,9 @@
             :key="item.path"
             :to="item.path"
             class="block rounded-md px-3 py-2 text-base font-medium"
-            :class="isActive(item.path) ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'"
+            :class="
+              isActive(item.path) ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+            "
             @click="open = false"
           >
             {{ item.label }}
@@ -134,6 +170,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
+import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 
 const auth = useAuthStore()
 const user = computed(() => auth.user)
@@ -147,7 +184,8 @@ const menu = [
 ]
 
 const route = useRoute()
-const isActive = (path: string) => route.path === path || (path !== '/teacher/dashboard' && route.path.startsWith(path + '/'))
+const isActive = (path: string) =>
+  route.path === path || (path !== '/teacher/dashboard' && route.path.startsWith(path + '/'))
 
 // States for menus
 const open = ref(false)

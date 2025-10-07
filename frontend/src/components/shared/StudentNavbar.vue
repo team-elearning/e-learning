@@ -3,12 +3,13 @@
     <div class="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
       <div class="flex items-center gap-3">
         <RouterLink to="/student/dashboard" class="flex items-center gap-2">
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600/10">
+          <!-- <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600/10">
             <span class="text-lg">🎓</span>
           </div>
           <span class="hidden text-base font-semibold text-emerald-700 sm:inline">
             My Learning
-          </span>
+          </span> -->
+          <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
         </RouterLink>
       </div>
 
@@ -18,10 +19,14 @@
             :to="item.path"
             @click="handleClick(item.path)"
             class="relative rounded-md px-3 py-2 text-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-            :class="isActive(item.path) ? 'font-semibold text-emerald-600' : 'text-gray-500 hover:text-gray-900'"
+            :class="
+              isActive(item.path)
+                ? 'font-semibold text-emerald-600'
+                : 'text-gray-500 hover:text-gray-900'
+            "
           >
             <span>{{ item.label }}</span>
-            
+
             <span
               v-if="clickedItem === item.path"
               class="absolute bottom-0 left-0 h-0.5 w-full origin-center bg-emerald-500 animate-expand-shrink"
@@ -31,14 +36,35 @@
       </ul>
 
       <div class="flex items-center gap-3">
-        <button class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Thông báo">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        <button
+          class="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          aria-label="Thông báo"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+            />
           </svg>
         </button>
         <div class="relative" ref="avatarWrapper">
-          <button @click="avatarOpen = !avatarOpen" class="flex items-center gap-2 rounded-full transition-shadow duration-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-            <img class="h-9 w-9 rounded-full object-cover" src="https://i.pravatar.cc/80?img=10" alt="avatar" />
+          <button
+            @click="avatarOpen = !avatarOpen"
+            class="flex items-center gap-2 rounded-full transition-shadow duration-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            <img
+              class="h-9 w-9 rounded-full object-cover"
+              src="https://i.pravatar.cc/80?img=10"
+              alt="avatar"
+            />
           </button>
           <Transition
             enter-active-class="transition ease-out duration-100"
@@ -48,16 +74,26 @@
             leave-from-class="transform opacity-100 scale-100"
             leave-to-class="transform opacity-0 scale-95"
           >
-            <div v-if="avatarOpen" class="absolute right-0 z-30 mt-2 w-48 origin-top-right rounded-xl border bg-white p-2 shadow-xl shadow-gray-400/10 ring-1 ring-black ring-opacity-5">
+            <div
+              v-if="avatarOpen"
+              class="absolute right-0 z-30 mt-2 w-48 origin-top-right rounded-xl border bg-white p-2 shadow-xl shadow-gray-400/10 ring-1 ring-black ring-opacity-5"
+            >
               <div class="px-2 py-2 border-b">
                 <p class="text-sm font-semibold text-gray-800">Học sinh A</p>
                 <p class="text-xs text-gray-500 truncate">student.a@example.com</p>
               </div>
               <div class="py-1 mt-1">
-                <RouterLink to="/student/account/profile" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100" @click="avatarOpen = false">
+                <RouterLink
+                  to="/student/account/profile"
+                  class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  @click="avatarOpen = false"
+                >
                   Tài khoản
                 </RouterLink>
-                <button @click="onLogout" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                <button
+                  @click="onLogout"
+                  class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
                   Đăng xuất
                 </button>
               </div>
@@ -65,11 +101,24 @@
           </Transition>
         </div>
         <div class="md:hidden">
-          <button @click="open = !open" class="relative h-10 w-10 flex items-center justify-center rounded-full hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Mở menu">
+          <button
+            @click="open = !open"
+            class="relative h-10 w-10 flex items-center justify-center rounded-full hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            aria-label="Mở menu"
+          >
             <div class="space-y-1.5">
-              <span class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out" :class="{ 'rotate-45 translate-y-2': open }"></span>
-              <span class="block w-5 h-0.5 bg-gray-600 transition-opacity duration-300 ease-out" :class="{ 'opacity-0': open }"></span>
-              <span class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out" :class="{ '-rotate-45 -translate-y-2': open }"></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out"
+                :class="{ 'rotate-45 translate-y-2': open }"
+              ></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-opacity duration-300 ease-out"
+                :class="{ 'opacity-0': open }"
+              ></span>
+              <span
+                class="block w-5 h-0.5 bg-gray-600 transition-transform duration-300 ease-out"
+                :class="{ '-rotate-45 -translate-y-2': open }"
+              ></span>
             </div>
           </button>
         </div>
@@ -90,7 +139,11 @@
             :key="item.path"
             :to="item.path"
             class="block rounded-md px-3 py-2 text-base font-medium"
-            :class="isActive(item.path) ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'"
+            :class="
+              isActive(item.path)
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            "
             @click="open = false"
           >
             {{ item.label }}
@@ -106,6 +159,7 @@ import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
+import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 
 const auth = useAuthStore()
 const route = useRoute()

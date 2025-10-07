@@ -3,9 +3,9 @@
   <div class="h-screen w-screen overflow-hidden bg-gray-100">
     <div class="flex h-full">
       <!-- Sidebar (ẩn trên mobile) -->
-      <aside class="hidden md:flex w-64 shrink-0 flex-col border-r bg-white">
+      <!-- <aside class="hidden md:flex w-64 shrink-0 flex-col border-r bg-white">
         <TeacherSidebar />
-      </aside>
+      </aside> -->
 
       <!-- Cột phải -->
       <div class="flex min-w-0 flex-1 flex-col">

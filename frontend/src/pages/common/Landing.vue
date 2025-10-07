@@ -4,12 +4,7 @@
       <div class="container mx-auto px-4 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <img
-              src="http://static.photos/education/200x200/1"
-              alt="Logo"
-              class="w-12 h-12 rounded-full"
-            />
-            <h1 class="text-2xl font-bold text-white">Học Vui</h1>
+            <LogoEduriot :size="30" primary="#E0E7FF" accent="#FFD166" />
           </div>
           <nav class="hidden md:flex space-x-6">
             <a href="#" class="text-white hover:text-yellow-200 font-medium">Trang chủ</a>
@@ -389,6 +384,7 @@ import { onMounted, nextTick, ref } from 'vue'
 import AOS from 'aos'
 import feather from 'feather-icons'
 import 'aos/dist/aos.css'
+import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 
 // Reactive data for dynamic content
 const subjects = ref([
