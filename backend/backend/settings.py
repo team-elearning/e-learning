@@ -191,11 +191,18 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-FRONTEND_URL = 'http://your-frontend-domain.com'  # Used for reset link.
+FRONTEND_URL = 'https://eduriot.fit/'  # Used for reset link.
 PASSWORD_RESET_TIMEOUT = 600  # Token expiry in seconds (10 minutes default).
-# Email settings (example for console testing):
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'admin@example.com'
+
+# Gửi qua Gmail SMTP
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = "xt828440@gmail.com"
+EMAIL_HOST_PASSWORD = "myge xwkk foyx dqkj"
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 AUTH_USER_MODEL = 'account.UserModel'
 
