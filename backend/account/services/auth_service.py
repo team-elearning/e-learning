@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
@@ -20,14 +21,21 @@ def reset_password_request(email: str) -> None:
         raise ValueError("User not found")
 
     token = token_generator.make_token(user)
-    reset_link = f"https://frontend-app/reset-password?email={user.email}&token={token}"
+    # reset_link = f"{settings.FRONTEND_URL}/account/password/reset/confirm/?email={user.email}&token={token}"
+    reset_link = f"http://127.0.0.1:8000/api/account/password/reset/confirm/?email={user.email}&token={token}"
+
+
     
-    email_service = get_email_service()
-    email_service.send(
-        to=email,
-        subject="Password Reset Request",
-        body=f"Click the link to reset your password: {reset_link}"
-    )
+    try: 
+        email_service = get_email_service()
+        email_service.send(
+            to=email,
+            subject="Password Reset Request",
+            body=f"Click the link to reset your password: {reset_link}"
+        )
+        return True
+    except Exception as e:
+        return False
 
 
 def reset_password_confirm(email: str, token: str, new_password: str) -> bool:

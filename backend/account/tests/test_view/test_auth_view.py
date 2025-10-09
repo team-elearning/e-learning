@@ -19,12 +19,14 @@ def test_register_success(api_client):
         "username": "alice",
         "email": "alice@example.com",
         "password": "Password123!",
-        "role": "student"
+        "role": "student",
+        "phone": "1234567890",
     }
     response = api_client.post(f"{BASE}register/", payload, format="json")
     assert response.status_code == 201
     assert response.data["username"] == "alice"
     assert response.data["email"] == "alice@example.com"
+    assert response.data["phone"] == "1234567890"
     # user exists in DB
     assert UserModel.objects.filter(username="alice").exists()
 
@@ -32,8 +34,8 @@ def test_register_success(api_client):
 @pytest.mark.django_db
 def test_login_success(api_client, user_factory):
     # create user with known password
-    user = user_factory(username="bob", set_password="Secret123!")
-    payload = {"username_or_email": "bob", "password": "Secret123!"}
+    user = user_factory(username="bob", email="bob@gmail.com", set_password="Secret123!")
+    payload = {"username_or_email": "bob@gmail.com", "password": "Secret123!"}
     response = api_client.post(f"{BASE}login/", payload, format="json")
     # print(response.json())  
     assert response.status_code == 200

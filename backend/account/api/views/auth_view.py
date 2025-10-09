@@ -113,10 +113,19 @@ class ResetPasswordRequestView(APIView):
         if not email:
             return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # call auth service: it will generate token and call email adapter
-        auth_service.reset_password_request(email=email)
-        # don't reveal whether email exists (security): respond 204
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            # call auth service: it will generate token and call email adapter
+            success = auth_service.reset_password_request(email=email)
+
+            if success:
+                return Response({"detail": "Password reset email sent successfully"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"detail": "Email not found or failed to send"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": f"Error sending email: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # # don't reveal whether email exists (security): respond 204
+        # return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ---------- Reset password confirm ----------
