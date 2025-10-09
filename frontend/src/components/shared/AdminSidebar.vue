@@ -26,13 +26,24 @@
       <RouterLink
         to="/admin/dashboard"
         class="font-semibold text-gray-800 hover:text-gray-900"
-        style="display: flex; margin-right: 8px; align-items: center; gap: 8px"
+        style="
+          display: flex;
+          margin-right: 8px;
+          align-items: center;
+          gap: 8px;
+          justify-content: center;
+        "
       >
         <!-- <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600/10">
           <span class="text-lg">🎓</span>
         </div>
         <span class="hidden text-base font-semibold text-emerald-700 sm:inline"> My Learning </span> -->
-        <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
+        <LogoEduriot
+          :size="90"
+          primary="#3B82F6"
+          accent="#14B8A6"
+          style="justify-content: center; margin-left: 55px"
+        />
       </RouterLink>
     </div>
 
