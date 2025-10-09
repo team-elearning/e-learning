@@ -71,6 +71,72 @@
       </div>
     </section>
 
+    <section id="featured-lessons" class="py-16 px-6 md:px-20">
+      <div class="flex justify-between items-center mb-10">
+        <h3 class="text-3xl font-bold text-blue-700">Bài học nổi bật</h3>
+        <a href="#" class="text-pink-500 font-semibold hover:underline">Xem tất cả</a>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div
+          v-for="lesson in featuredLessons"
+          :key="lesson.title"
+          class="bg-white rounded-2xl shadow-lg overflow-hidden transform hover:-translate-y-2 transition-transform duration-300"
+        >
+          <div class="relative">
+            <img :src="lesson.image" :alt="lesson.title" class="w-full h-48 object-cover" />
+            <span
+              v-if="lesson.tag"
+              class="absolute top-3 right-3 px-3 py-1 text-sm font-semibold text-white rounded-full"
+              :class="lesson.tag.bg"
+            >
+              {{ lesson.tag.text }}
+            </span>
+          </div>
+          <div class="p-6">
+            <div class="flex items-center text-sm text-gray-500 mb-3">
+              <span class="px-2 py-1 bg-blue-100 text-blue-600 rounded-md font-semibold text-xs">{{
+                lesson.grade
+              }}</span>
+              <span class="ml-4 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                {{ lesson.duration }}
+              </span>
+            </div>
+            <h4 class="text-xl font-bold text-gray-800 mb-2 truncate">{{ lesson.title }}</h4>
+            <p class="text-gray-600 text-sm mb-4 h-10">{{ lesson.description }}</p>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center">
+                <span v-for="star in 5" :key="star" class="text-xl">
+                  <template v-if="star <= lesson.rating">⭐</template>
+                  <template v-else>
+                    <span class="text-gray-300">⭐</span>
+                  </template>
+                </span>
+              </div>
+              <button
+                class="bg-purple-100 text-purple-700 px-5 py-2 rounded-lg font-semibold hover:bg-purple-200 transition-colors"
+              >
+                Học ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Benefits Section -->
     <section class="py-16 px-6 md:px-20">
       <h3 class="text-3xl font-bold text-center text-blue-700 mb-10">
@@ -269,6 +335,40 @@ const aboutItems = ref([
     title: 'Phụ huynh dễ theo dõi',
     description: 'Xem tiến độ, thành tích và thời gian học của con chỉ với vài thao tác.',
     color: 'text-yellow-500',
+  },
+])
+// ... (bên dưới const reviews = ref([...]))
+
+const featuredLessons = ref([
+  {
+    image:
+      'https://images.pexels.com/photos/4145190/pexels-photo-4145190.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    tag: { text: 'Mới', bg: 'bg-yellow-400' },
+    grade: 'Lớp 1',
+    duration: '5 phút',
+    title: 'Học đếm từ 1 đến 10',
+    description: 'Cùng chú gấu dễ thương học đếm qua bài hát vui nhộn.',
+    rating: 3,
+  },
+  {
+    image:
+      'https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    tag: null,
+    grade: 'Lớp 2',
+    duration: '7 phút',
+    title: 'Bảng chữ cái vui nhộn',
+    description: 'Học 29 chữ cái qua các bài hát và hình ảnh sinh động.',
+    rating: 4,
+  },
+  {
+    image:
+      'https://images.pexels.com/photos/4056461/pexels-photo-4056461.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    tag: { text: 'Phổ biến', bg: 'bg-pink-500' },
+    grade: 'Lớp 3',
+    duration: '6 phút',
+    title: 'Khám phá hệ mặt trời',
+    description: 'Hành trình thú vị qua 8 hành tinh trong hệ mặt trời.',
+    rating: 3,
   },
 ])
 
