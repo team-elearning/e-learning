@@ -1,627 +1,455 @@
 <template>
-  <div class="min-h-screen">
-    <header class="bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg">
-      <div class="container mx-auto px-4 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <LogoEduriot :size="70" primary="#E0E7FF" accent="#FFD166" />
-          </div>
-          <nav class="hidden md:flex space-x-6">
-            <a href="#" class="text-white hover:text-yellow-200 font-medium">Trang chủ</a>
-            <a href="#" class="text-white hover:text-yellow-200 font-medium">Bài học</a>
-            <a href="#" class="text-white hover:text-yellow-200 font-medium">Trò chơi</a>
-            <a href="#" class="text-white hover:text-yellow-200 font-medium">Hồ sơ</a>
-            <a href="#" class="text-white hover:text-yellow-200 font-medium">Phụ huynh</a>
-          </nav>
-          <div class="flex items-center space-x-4">
-            <button
-              class="bg-white text-purple-600 px-4 py-2 rounded-full font-bold hover:bg-yellow-200 transition"
-            >
-              <router-link to="/auth/login">Đăng nhập</router-link>
-            </button>
-            <button class="md:hidden text-white" @click="toggleMobileMenu">
-              <i data-feather="menu"></i>
-            </button>
-          </div>
-        </div>
-      </div>
+  <div class="font-sans text-gray-800 bg-gradient-to-b from-pink-50 via-blue-50 to-green-50">
+    <!-- Header -->
+    <header
+      class="flex justify-between items-center px-8 py-4 bg-white shadow-md sticky top-0 z-50"
+      style="height: 80px"
+    >
+      <LogoEduriot :size="90" />
+      <nav class="hidden md:flex space-x-6">
+        <a href="#" class="hover:text-pink-500">Trang chủ</a>
+        <a href="#about" class="hover:text-blue-500">Giới thiệu</a>
+        <a href="#courses" class="hover:text-green-500">Khóa học</a>
+        <a href="#reviews" class="hover:text-yellow-500">Cảm nhận</a>
+        <a href="#contact" class="hover:text-purple-500">Liên hệ</a>
+      </nav>
+      <button class="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition">
+        <router-link to="/auth/login">Đăng nhập</router-link>
+      </button>
     </header>
 
-    <section class="bg-gradient-to-br from-blue-100 to-purple-100 py-12">
-      <div class="container mx-auto px-4">
-        <div class="flex flex-col md:flex-row items-center">
-          <div class="md:w-1/2 mb-8 md:mb-0" data-aos="fade-right">
-            <h2 class="text-4xl font-bold text-purple-800 mb-4">
-              Học tập vui vẻ, Khám phá thế giới!
-            </h2>
-            <p class="text-lg text-gray-700 mb-6">
-              Nơi bé từ lớp 1 đến lớp 5 học tập qua những bài giảng sinh động và trò chơi thú vị.
-            </p>
-            <div class="flex space-x-4">
-              <button
-                class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full font-bold shadow-lg transition"
-              >
-                <router-link to="/auth/login">Bắt đầu học ngay</router-link>
-              </button>
-              <button
-                class="bg-white hover:bg-gray-100 text-purple-600 px-6 py-3 rounded-full font-bold shadow-lg transition"
-              >
-                <i data-feather="play-circle" class="inline mr-2"></i> Xem video
-              </button>
-            </div>
-          </div>
-          <div class="md:w-1/2" data-aos="fade-left">
-            <img
-              src="http://static.photos/education/640x360/2"
-              alt="Kids learning"
-              class="w-full rounded-lg shadow-xl bounce"
-            />
-          </div>
+    <!-- Hero Section -->
+    <section class="text-center py-20">
+      <h2 class="text-4xl md:text-5xl font-extrabold text-blue-700 mb-4 animate-fade-in">
+        Học mà chơi – Chơi mà học mỗi ngày!
+      </h2>
+      <p class="text-lg text-gray-700 mb-8 max-w-2xl mx-auto">
+        Cùng EDURIOT, bé sẽ được khám phá thế giới kiến thức qua trò chơi, video hoạt hình và bài
+        tập tương tác đầy thú vị.
+      </p>
+      <button
+        class="bg-gradient-to-r from-pink-400 to-yellow-400 text-white px-8 py-3 rounded-full font-semibold shadow hover:scale-105 transition"
+      >
+        <router-link to="/auth/login"> Bắt đầu học thử ngay </router-link>
+      </button>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="py-16 px-6 md:px-20 text-center">
+      <h3 class="text-3xl font-bold text-blue-700 mb-10">Tại sao chọn EDURIOT?</h3>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div
+          v-for="item in aboutItems"
+          :key="item.title"
+          class="bg-white p-6 rounded-2xl shadow hover:shadow-lg transition"
+        >
+          <div class="text-5xl mb-4" :class="item.color">{{ item.icon }}</div>
+          <h4 class="text-xl font-semibold mb-2 text-blue-600">{{ item.title }}</h4>
+          <p class="text-gray-700">{{ item.description }}</p>
         </div>
       </div>
     </section>
 
-    <section class="py-16 bg-white">
-      <div class="container mx-auto px-4">
-        <h2 class="text-3xl font-bold text-center text-purple-800 mb-12">Các Môn Học</h2>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
-          <div
-            v-for="(subject, index) in subjects"
-            :key="subject.name"
-            class="subject-card rounded-xl p-6 text-center cursor-pointer transition"
-            :class="subject.bgColor"
-            :data-aos-delay="index * 100"
-            data-aos="zoom-in"
-            @click="selectSubject(subject.name)"
-          >
-            <div
-              class="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4"
-              :class="subject.iconBgColor"
-            >
-              <i :data-feather="subject.icon" class="w-10 h-10" :class="subject.iconTextColor"></i>
-            </div>
-            <h3 class="font-bold text-xl mb-2" :class="subject.textColor">
-              {{ subject.name }}
-            </h3>
-            <p class="text-gray-600">{{ subject.description }}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="py-16 bg-gray-50">
-      <div class="container mx-auto px-4">
-        <div class="flex justify-between items-center mb-12">
-          <h2 class="text-3xl font-bold text-purple-800">Bài học nổi bật</h2>
-          <a href="#" class="text-purple-600 font-medium hover:underline">Xem tất cả</a>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div
-            v-for="(lesson, index) in featuredLessons"
-            :key="lesson.title"
-            class="bg-white rounded-xl overflow-hidden shadow-lg"
-            data-aos="fade-up"
-            :data-aos-delay="index * 100"
-          >
-            <div class="relative">
-              <img :src="lesson.image" alt="Lesson" class="w-full h-48 object-cover" />
-              <div
-                v-if="lesson.tag"
-                class="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold"
-                :class="lesson.tag.class"
-              >
-                {{ lesson.tag.text }}
-              </div>
-            </div>
-            <div class="p-6">
-              <div class="flex items-center mb-2">
-                <span class="text-xs px-2 py-1 rounded mr-2" :class="lesson.grade.class">{{
-                  lesson.grade.text
-                }}</span>
-                <span class="text-gray-500 text-sm"
-                  ><i data-feather="clock" class="w-3 h-3 inline mr-1"></i>
-                  {{ lesson.duration }}</span
-                >
-              </div>
-              <h3 class="font-bold text-xl mb-2">{{ lesson.title }}</h3>
-              <p class="text-gray-600 mb-4">{{ lesson.description }}</p>
-              <div class="flex justify-between items-center">
-                <div class="flex">
-                  <i
-                    v-for="n in 5"
-                    :key="n"
-                    data-feather="star"
-                    class="w-4 h-4"
-                    :class="
-                      n <= lesson.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'
-                    "
-                  ></i>
-                </div>
-                <button
-                  class="bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-200"
-                >
-                  Học ngay
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="py-16 bg-white">
-      <div class="container mx-auto px-4">
-        <div class="flex justify-between items-center mb-12">
-          <h2 class="text-3xl font-bold text-purple-800">Trò chơi giáo dục</h2>
-          <a href="#" class="text-purple-600 font-medium hover:underline">Xem tất cả</a>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div
-            v-for="(game, index) in educationalGames"
-            :key="game.title"
-            class="game-card rounded-xl p-6 text-center cursor-pointer"
-            :class="game.gradient"
-            data-aos="zoom-in"
-            :data-aos-delay="index * 100"
-            @click="selectGame(game.title)"
-          >
-            <div
-              class="bg-white w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-4 shadow-md"
-            >
-              <i :data-feather="game.icon" class="w-12 h-12" :class="game.iconColor"></i>
-            </div>
-            <h3 class="font-bold text-xl mb-2" :class="game.textColor">
-              {{ game.title }}
-            </h3>
-            <p class="text-gray-600 mb-4">{{ game.description }}</p>
-            <button class="text-white px-4 py-2 rounded-full font-medium" :class="game.buttonClass">
-              Chơi ngay
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="py-16 bg-gradient-to-r from-indigo-500 to-blue-500 text-white">
-      <div class="container mx-auto px-4">
-        <div class="flex flex-col md:flex-row items-center">
-          <div class="md:w-1/2 mb-8 md:mb-0" data-aos="fade-right">
-            <h2 class="text-3xl font-bold mb-4">Dành cho phụ huynh</h2>
-            <p class="text-lg mb-6 opacity-90">
-              Theo dõi tiến độ học tập của con và nhận báo cáo chi tiết hàng tuần.
-            </p>
-            <ul class="space-y-3 mb-8">
-              <li class="flex items-center">
-                <i data-feather="check-circle" class="w-5 h-5 mr-2 text-green-300"></i>
-                Báo cáo học tập chi tiết
-              </li>
-              <li class="flex items-center">
-                <i data-feather="check-circle" class="w-5 h-5 mr-2 text-green-300"></i>
-                Gợi ý bài học phù hợp
-              </li>
-              <li class="flex items-center">
-                <i data-feather="check-circle" class="w-5 h-5 mr-2 text-green-300"></i>
-                Quản lý thời gian học
-              </li>
-            </ul>
-            <button
-              class="bg-white text-indigo-600 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-gray-100 transition"
-            >
-              Đăng ký tài khoản phụ huynh
-            </button>
-          </div>
-          <div class="md:w-1/2" data-aos="fade-left">
-            <img
-              src="http://static.photos/education/640x360/6"
-              alt="Parent dashboard"
-              class="w-full rounded-lg shadow-xl"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="py-16 bg-white">
-      <div class="container mx-auto px-4">
-        <h2 class="text-3xl font-bold text-center text-purple-800 mb-12">
-          Phụ huynh nói gì về chúng tôi
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div
-            v-for="(testimonial, index) in testimonials"
-            :key="testimonial.name"
-            class="bg-gray-50 p-6 rounded-xl"
-            data-aos="fade-up"
-            :data-aos-delay="index * 100"
-          >
-            <div class="flex items-center mb-4">
-              <img :src="testimonial.avatar" alt="Parent" class="w-12 h-12 rounded-full mr-4" />
-              <div>
-                <h4 class="font-bold">{{ testimonial.name }}</h4>
-                <p class="text-gray-500 text-sm">{{ testimonial.relation }}</p>
-              </div>
-            </div>
-            <p class="text-gray-700 italic">"{{ testimonial.quote }}"</p>
-            <div class="flex mt-4">
-              <i
-                v-for="n in 5"
-                :key="n"
-                data-feather="star"
-                class="w-4 h-4"
-                :class="
-                  n <= testimonial.rating ? 'text-yellow-500 fill-yellow-500' : 'text-yellow-500'
-                "
-              ></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="py-16 bg-purple-100">
-      <div class="container mx-auto px-4 text-center">
-        <h2 class="text-3xl font-bold text-purple-800 mb-6">
-          Sẵn sàng cho hành trình học tập vui vẻ?
-        </h2>
-        <p class="text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
-          Đăng ký ngay để bé có thể bắt đầu học tập và khám phá thế giới diệu kỳ!
-        </p>
-        <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+    <!-- Courses Section -->
+    <section id="courses" class="py-16 px-6 md:px-20 bg-white/80">
+      <h3 class="text-3xl font-bold text-center text-blue-700 mb-10">Các môn học tiêu biểu</h3>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div
+          v-for="course in courses"
+          :key="course.title"
+          class="rounded-2xl p-6 shadow hover:scale-105 transition"
+          :class="course.bg"
+        >
+          <h4 class="text-xl font-bold mb-2">{{ course.title }}</h4>
+          <p class="text-gray-700 mb-4">{{ course.description }}</p>
           <button
-            class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-full font-bold shadow-lg text-lg transition"
+            class="bg-white text-blue-600 px-4 py-2 rounded-lg shadow hover:bg-blue-100 transition"
           >
-            Đăng ký miễn phí
-          </button>
-          <button
-            class="bg-white hover:bg-gray-100 text-purple-600 px-8 py-4 rounded-full font-bold shadow-lg text-lg transition"
-          >
-            <i data-feather="play-circle" class="inline mr-2"></i> Xem demo
+            <router-link to="/auth/login">khám phá</router-link>
           </button>
         </div>
       </div>
     </section>
 
-    <footer class="bg-gray-800 text-white py-12">
-      <div class="container mx-auto px-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div>
-            <LogoEduriot :size="90" primary="#E0E7FF" accent="#FFD166" />
-            <h3 class="text-xl font-bold mb-4">Học Vui</h3>
-            <p class="text-gray-400">
-              Nền tảng học tập trực tuyến hàng đầu dành cho học sinh tiểu học.
-            </p>
+    <section id="featured-lessons" class="py-16 px-6 md:px-20">
+      <div class="flex justify-between items-center mb-10">
+        <h3 class="text-3xl font-bold text-blue-700">Bài học nổi bật</h3>
+        <a href="#" class="text-pink-500 font-semibold hover:underline">Xem tất cả</a>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div
+          v-for="lesson in featuredLessons"
+          :key="lesson.title"
+          class="bg-white rounded-2xl shadow-lg overflow-hidden transform hover:-translate-y-2 transition-transform duration-300"
+        >
+          <div class="relative">
+            <img :src="lesson.image" :alt="lesson.title" class="w-full h-48 object-cover" />
+            <span
+              v-if="lesson.tag"
+              class="absolute top-3 right-3 px-3 py-1 text-sm font-semibold text-white rounded-full"
+              :class="lesson.tag.bg"
+            >
+              {{ lesson.tag.text }}
+            </span>
           </div>
-
-          <div>
-            <h4 class="font-bold text-lg mb-4">Liên kết</h4>
-            <ul class="space-y-2">
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Trang chủ</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Về chúng tôi</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Bài học</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Trò chơi</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Liên hệ</a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 class="font-bold text-lg mb-4">Hỗ trợ</h4>
-            <ul class="space-y-2">
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Câu hỏi thường gặp</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Hướng dẫn sử dụng</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Chính sách bảo mật</a>
-              </li>
-              <li>
-                <a href="#" class="text-gray-400 hover:text-white">Điều khoản sử dụng</a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 class="font-bold text-lg mb-4">Kết nối với chúng tôi</h4>
-            <div class="flex space-x-4 mb-4">
-              <a
-                href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
-                class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center"
-              >
-                <i data-feather="facebook" class="w-5 h-5"></i>
-              </a>
-              <a
-                href="https://www.instagram.com/tustar.k72/"
-                class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center"
-              >
-                <i data-feather="instagram" class="w-5 h-5"></i>
-              </a>
-              <a
-                href="#"
-                class="bg-gray-700 hover:bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center"
-              >
-                <i data-feather="twitter" class="w-5 h-5"></i>
-              </a>
-              <a
-                href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
-                class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center"
-              >
-                <i data-feather="youtube" class="w-5 h-5"></i>
-              </a>
+          <div class="p-6">
+            <div class="flex items-center text-sm text-gray-500 mb-3">
+              <span class="px-2 py-1 bg-blue-100 text-blue-600 rounded-md font-semibold text-xs">{{
+                lesson.grade
+              }}</span>
+              <span class="ml-4 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                {{ lesson.duration }}
+              </span>
             </div>
-            <p class="text-gray-400">Email: support@hocvui.edu.vn</p>
-            <p class="text-gray-400">Hotline: 1900 1234</p>
+            <h4 class="text-xl font-bold text-gray-800 mb-2 truncate">{{ lesson.title }}</h4>
+            <p class="text-gray-600 text-sm mb-4 h-10">{{ lesson.description }}</p>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center">
+                <span v-for="star in 5" :key="star" class="text-xl">
+                  <template v-if="star <= lesson.rating">⭐</template>
+                  <template v-else>
+                    <span class="text-gray-300">⭐</span>
+                  </template>
+                </span>
+              </div>
+              <button
+                class="bg-purple-100 text-purple-700 px-5 py-2 rounded-lg font-semibold hover:bg-purple-200 transition-colors"
+              >
+                Học ngay
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="border-t border-gray-700 mt-12 pt-8 text-center text-gray-400">
-          <p>© 2023 Học Vui. Tất cả quyền được bảo lưu.</p>
+    <!-- Benefits Section -->
+    <section class="py-16 px-6 md:px-20">
+      <h3 class="text-3xl font-bold text-center text-blue-700 mb-10">
+        Lợi ích khi học tại EDURIOT
+      </h3>
+      <ul class="max-w-3xl mx-auto space-y-4 text-lg">
+        <li v-for="b in benefits" :key="b" class="flex items-start space-x-3">
+          <span class="text-green-500 text-2xl">✔️</span>
+          <span>{{ b }}</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Reviews Section -->
+    <section id="reviews" class="py-16 px-6 md:px-20 bg-gradient-to-r from-yellow-50 to-pink-50">
+      <h3 class="text-3xl font-bold text-center text-blue-700 mb-10">Cảm nhận của phụ huynh</h3>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div
+          v-for="review in reviews"
+          :key="review.name"
+          class="bg-white rounded-2xl shadow p-6 text-center hover:shadow-lg transition"
+        >
+          <p class="text-gray-700 italic mb-4">“{{ review.text }}”</p>
+          <h4 class="font-semibold text-blue-600">— {{ review.name }}</h4>
+          <p class="text-sm text-gray-500">{{ review.info }}</p>
         </div>
+      </div>
+    </section>
+
+    <!-- Call to Action -->
+    <section class="py-20 text-center bg-gradient-to-r from-green-100 to-blue-100">
+      <h3 class="text-3xl font-bold text-blue-700 mb-6">
+        Hãy để bé bắt đầu hành trình học vui ngay hôm nay!
+      </h3>
+      <button
+        class="bg-gradient-to-r from-pink-400 to-yellow-400 text-white px-10 py-4 rounded-full text-lg font-semibold hover:scale-105 transition"
+      >
+        <router-link to="/auth/login"> Đăng ký học thử miễn phí </router-link>
+      </button>
+    </section>
+
+    <!-- Footer -->
+    <footer
+      id="contact"
+      class="bg-blue-700 text-white py-10 px-6 md:px-20"
+      style="background: #1e3a8a"
+    >
+      <div
+        class="grid md:grid-cols-3 gap-8"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))"
+      >
+        <div>
+          <h4 class="font-bold text-xl mb-2">EDURIOT</h4>
+          <p>Học tập vui nhộn, an toàn và hiệu quả cho học sinh tiểu học Việt Nam.</p>
+        </div>
+        <div>
+          <h4 class="font-bold text-xl mb-2">Liên kết nhanh</h4>
+          <ul>
+            <li><a href="#about" class="hover:underline">Giới thiệu</a></li>
+            <li><a href="#courses" class="hover:underline">Khóa học</a></li>
+            <li><a href="#reviews" class="hover:underline">Cảm nhận</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-bold text-xl mb-2">Liên hệ</h4>
+          <p>Email: contact@hocvuionline.vn</p>
+          <p>Hotline: 0123 456 789</p>
+        </div>
+        <div>
+          <h4 class="font-bold text-lg mb-4">Kết nối với chúng tôi</h4>
+          <div class="flex space-x-4 mb-4">
+            <!-- <a
+              href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
+              class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center"
+            >
+              <i data-feather="facebook" class="w-5 h-5"></i>
+            </a>
+            <a
+              href="https://www.instagram.com/tustar.k72/"
+              class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center"
+            >
+              <i data-feather="instagram" class="w-5 h-5"></i>
+            </a>
+            <a
+              href="#"
+              class="bg-gray-700 hover:bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center"
+            >
+              <i data-feather="twitter" class="w-5 h-5"></i>
+            </a>
+            <a
+              href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
+              class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center"
+            >
+              <i data-feather="youtube" class="w-5 h-5"></i>
+            </a>   -->
+            <a
+              href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
+              class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              target="_blank"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+                />
+              </svg>
+            </a>
+            <a
+              href="https://www.instagram.com/tustar.k72/"
+              class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              target="_blank"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"
+                />
+              </svg>
+            </a>
+            <a
+              href="#"
+              class="bg-gray-700 hover:bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"
+                />
+              </svg>
+            </a>
+            <a
+              href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
+              class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              target="_blank"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
+                />
+              </svg>
+            </a>
+          </div>
+          <p class="text-gray-400">Email: anhtu105182@gmail.com</p>
+          <p class="text-gray-400">Hotline: 0383137092</p>
+        </div>
+      </div>
+      <div class="text-center mt-10 border-t border-blue-500 pt-4">
+        © 2025 EDURIOT. All rights reserved.
       </div>
     </footer>
   </div>
 </template>
 
 <script setup>
-import { onMounted, nextTick, ref } from 'vue'
-import AOS from 'aos'
-import feather from 'feather-icons'
-import 'aos/dist/aos.css'
+import { ref } from 'vue'
 import LogoEduriot from '@/components/ui/LogoEduriot.vue'
+// import { onMounted, nextTick } from 'vue'
 
-// Reactive data for dynamic content
-const subjects = ref([
+// onMounted(() => {
+//   nextTick(() => {
+//     if (window.feather) window.feather.replace()
+//   })
+// })
+const aboutItems = ref([
   {
-    name: 'Toán học',
-    description: 'Con số thú vị',
-    icon: 'plus',
-    bgColor: 'bg-yellow-100',
-    iconBgColor: 'bg-yellow-200',
-    textColor: 'text-yellow-800',
-    iconTextColor: 'text-yellow-700',
+    icon: '🎯',
+    title: 'Chương trình cá nhân hóa',
+    description: 'Lộ trình học được thiết kế phù hợp với năng lực và sở thích của từng bé.',
+    color: 'text-pink-500',
   },
   {
-    name: 'Tiếng Việt',
-    description: 'Ngôn ngữ diệu kỳ',
-    icon: 'book',
-    bgColor: 'bg-blue-100',
-    iconBgColor: 'bg-blue-200',
-    textColor: 'text-blue-800',
-    iconTextColor: 'text-blue-700',
+    icon: '🎮',
+    title: 'Trò chơi học tập',
+    description: 'Mỗi bài học là một trò chơi giúp bé ghi nhớ tự nhiên và hứng thú học tập.',
+    color: 'text-green-500',
   },
   {
-    name: 'Khoa học',
-    description: 'Khám phá tự nhiên',
-    icon: 'flask',
-    bgColor: 'bg-green-100',
-    iconBgColor: 'bg-green-200',
-    textColor: 'text-green-800',
-    iconTextColor: 'text-green-700',
-  },
-  {
-    name: 'Lịch sử',
-    description: 'Hành trình thời gian',
-    icon: 'clock',
-    bgColor: 'bg-red-100',
-    iconBgColor: 'bg-red-200',
-    textColor: 'text-red-800',
-    iconTextColor: 'text-red-700',
-  },
-  {
-    name: 'Địa lý',
-    description: 'Thế giới quanh ta',
-    icon: 'globe',
-    bgColor: 'bg-purple-100',
-    iconBgColor: 'bg-purple-200',
-    textColor: 'text-purple-800',
-    iconTextColor: 'text-purple-700',
+    icon: '👨‍👩‍👧',
+    title: 'Phụ huynh dễ theo dõi',
+    description: 'Xem tiến độ, thành tích và thời gian học của con chỉ với vài thao tác.',
+    color: 'text-yellow-500',
   },
 ])
+// ... (bên dưới const reviews = ref([...]))
 
 const featuredLessons = ref([
   {
-    image: 'http://static.photos/education/640x360/3',
-    tag: { text: 'Mới', class: 'bg-yellow-400 text-white' },
-    grade: { text: 'Lớp 1', class: 'bg-blue-100 text-blue-800' },
+    image:
+      'https://images.pexels.com/photos/4145190/pexels-photo-4145190.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    tag: { text: 'Mới', bg: 'bg-yellow-400' },
+    grade: 'Lớp 1',
     duration: '5 phút',
     title: 'Học đếm từ 1 đến 10',
-    description: 'Cùng chú gấu dễ thương học đếm qua bài hát vui nhộn',
-    rating: 4,
+    description: 'Cùng chú gấu dễ thương học đếm qua bài hát vui nhộn.',
+    rating: 3,
   },
   {
-    image: 'http://static.photos/education/640x360/4',
+    image:
+      'https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
     tag: null,
-    grade: { text: 'Lớp 2', class: 'bg-green-100 text-green-800' },
+    grade: 'Lớp 2',
     duration: '7 phút',
     title: 'Bảng chữ cái vui nhộn',
-    description: 'Học 29 chữ cái qua các bài hát và hình ảnh sinh động',
-    rating: 5,
+    description: 'Học 29 chữ cái qua các bài hát và hình ảnh sinh động.',
+    rating: 4,
   },
   {
-    image: 'http://static.photos/education/640x360/5',
-    tag: { text: 'Phổ biến', class: 'bg-red-400 text-white' },
-    grade: { text: 'Lớp 3', class: 'bg-purple-100 text-purple-800' },
+    image:
+      'https://images.pexels.com/photos/4056461/pexels-photo-4056461.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    tag: { text: 'Phổ biến', bg: 'bg-pink-500' },
+    grade: 'Lớp 3',
     duration: '6 phút',
     title: 'Khám phá hệ mặt trời',
-    description: 'Hành trình thú vị qua 8 hành tinh trong hệ mặt trời',
-    rating: 4,
+    description: 'Hành trình thú vị qua 8 hành tinh trong hệ mặt trời.',
+    rating: 3,
   },
 ])
 
-const educationalGames = ref([
+const courses = ref([
   {
-    gradient: 'bg-gradient-to-br from-yellow-100 to-yellow-200',
-    icon: 'plus-circle',
-    iconColor: 'text-yellow-600',
-    title: 'Toán nhanh',
-    description: 'Tính toán thần tốc',
-    textColor: 'text-yellow-800',
-    buttonClass: 'bg-yellow-400 hover:bg-yellow-500',
+    title: 'Toán học vui nhộn',
+    description: 'Khám phá phép tính qua trò chơi và thử thách hấp dẫn.',
+    bg: 'bg-pink-100',
   },
   {
-    gradient: 'bg-gradient-to-br from-blue-100 to-blue-200',
-    icon: 'book-open',
-    iconColor: 'text-blue-600',
-    title: 'Ghép từ',
-    description: 'Rèn luyện từ vựng',
-    textColor: 'text-blue-800',
-    buttonClass: 'bg-blue-400 hover:bg-blue-500',
+    title: 'Tiếng Việt',
+    description: 'Luyện đọc hiểu, chính tả và viết sáng tạo với câu chuyện gần gũi.',
+    bg: 'bg-yellow-100',
   },
   {
-    gradient: 'bg-gradient-to-br from-green-100 to-green-200',
-    icon: 'puzzle',
-    iconColor: 'text-green-600',
-    title: 'Câu đố',
-    description: 'Rèn trí thông minh',
-    textColor: 'text-green-800',
-    buttonClass: 'bg-green-400 hover:bg-green-500',
+    title: 'Tiếng Anh',
+    description: 'Phát âm và học từ vựng qua hình ảnh và âm thanh sinh động.',
+    bg: 'bg-green-100',
   },
   {
-    gradient: 'bg-gradient-to-br from-purple-100 to-purple-200',
-    icon: 'award',
-    iconColor: 'text-purple-600',
-    title: 'Đố vui',
-    description: 'Kiến thức tổng hợp',
-    textColor: 'text-purple-800',
-    buttonClass: 'bg-purple-400 hover:bg-purple-500',
+    title: 'Khoa học',
+    description: 'Tìm hiểu thế giới quanh ta qua video minh họa hấp dẫn.',
+    bg: 'bg-blue-100',
+  },
+  {
+    title: 'Mỹ thuật',
+    description: 'Phát triển óc sáng tạo với bài học vẽ và tô màu trực tuyến.',
+    bg: 'bg-purple-100',
+  },
+  {
+    title: 'Tin học cơ bản',
+    description: 'Làm quen máy tính và lập trình Scratch cho trẻ nhỏ.',
+    bg: 'bg-pink-200',
   },
 ])
 
-const testimonials = ref([
-  {
-    avatar: 'http://static.photos/people/200x200/1',
-    name: 'Chị Nguyễn Thị Mai',
-    relation: 'Phụ huynh bé Minh Anh',
-    quote:
-      'Bé nhà mình rất thích học trên Học Vui, mỗi ngày đều đòi mở bài học mới. Mình thấy chương trình rất phù hợp với lứa tuổi các bé.',
-    rating: 5,
-  },
-  {
-    avatar: 'http://static.photos/people/200x200/2',
-    name: 'Anh Trần Văn Nam',
-    relation: 'Phụ huynh bé Tuấn Anh',
-    quote:
-      'Tôi rất hài lòng với hệ thống báo cáo học tập hàng tuần. Nó giúp tôi theo dõi được sự tiến bộ của con rõ ràng.',
-    rating: 4,
-  },
-  {
-    avatar: 'http://static.photos/people/200x200/3',
-    name: 'Chị Lê Thị Hương',
-    relation: 'Phụ huynh bé Ngọc Linh',
-    quote:
-      'Các trò chơi giáo dục rất thú vị, bé nhà mình vừa học vừa chơi mà tiếp thu kiến thức rất nhanh. Cảm ơn Học Vui!',
-    rating: 5,
-  },
+const benefits = ref([
+  'Học mọi lúc, mọi nơi trên điện thoại, máy tính bảng hoặc PC.',
+  'Nội dung được biên soạn theo chương trình tiểu học Việt Nam.',
+  'Theo dõi tiến độ học và điểm số dễ dàng.',
+  'Giao diện thân thiện, nhiều màu sắc giúp trẻ thích thú.',
+  'Hỗ trợ 24/7 và cập nhật bài học mới hàng tuần.',
 ])
 
-onMounted(() => {
-  // Initialize AOS animation
-  AOS.init({
-    duration: 800,
-    easing: 'ease-in-out',
-    once: true,
-  })
-
-  // Use nextTick to ensure the DOM is updated before replacing icons
-  nextTick(() => {
-    feather.replace()
-  })
-})
-
-// Methods
-const selectSubject = (subject) => {
-  alert(`Bạn đã chọn môn: ${subject}. Tính năng đang được phát triển!`)
-}
-
-const selectGame = (game) => {
-  alert(`Bạn đã chọn trò chơi: ${game}. Tính năng đang được phát triển!`)
-}
-
-const toggleMobileMenu = () => {
-  alert('Menu di động sẽ hiển thị tại đây!')
-}
+const reviews = ref([
+  {
+    name: 'Chị Lan',
+    info: 'Phụ huynh bé Minh – lớp 3',
+    text: 'Con tôi rất thích các trò chơi Toán và Tiếng Việt, học mà vẫn cười tươi mỗi ngày!',
+  },
+  {
+    name: 'Anh Dũng',
+    info: 'Phụ huynh bé Linh – lớp 4',
+    text: 'Giao diện dễ dùng, bài học sinh động, con tự học được mà không cần nhắc nhở.',
+  },
+  {
+    name: 'Cô Mai',
+    info: 'Giáo viên tiểu học',
+    text: 'Nội dung rất sát chương trình, tôi khuyến khích học sinh của mình sử dụng.',
+  },
+])
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-:root {
-  --primary: #ff6b6b;
-  --secondary: #4ecdc4;
-  --accent: #ffe66d;
-  --dark: #292f36;
-  --light: #f7fff7;
+html {
+  scroll-behavior: smooth;
 }
 
-body {
-  font-family: 'Baloo 2', cursive;
-  background-color: #f9f9f9;
-  color: var(--dark);
+.animate-fade-in {
+  animation: fadeIn 1.2s ease-in-out;
 }
 
-.subject-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
 
-.game-card {
-  transition: all 0.3s ease;
-}
-
-.game-card:hover {
-  transform: scale(1.05);
-}
-
-.progress-ring__circle {
-  transition: stroke-dashoffset 0.5s;
-  transform: rotate(-90deg);
-  transform-origin: 50% 50%;
-}
-
-.avatar-selector {
-  transition: all 0.3s ease;
-}
-
-.avatar-selector:hover {
-  transform: scale(1.1);
-  border-color: var(--primary);
-}
-
-.bounce {
-  animation: bounce 2s infinite;
-}
-
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
+  to {
+    opacity: 1;
     transform: translateY(0);
-  }
-
-  40% {
-    transform: translateY(-15px);
-  }
-
-  60% {
-    transform: translateY(-7px);
   }
 }
 </style>
