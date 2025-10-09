@@ -3,7 +3,7 @@ name: Deploy Frontend to S3 and CloudFront
 on:
   push:
     branches:
-      - main # hoặc develop nếu bạn muốn deploy từ nhánh develop
+      - main   # hoặc develop nếu bạn muốn deploy từ nhánh develop
 
 jobs:
   deploy:
@@ -16,29 +16,38 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 20   # Vite yêu cầu >= 20.19
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          cd frontend
+          npm install
 
       - name: Build project
-        run: npm run build
+        run: |
+          cd frontend
+          npm run build
 
+      # Cấu hình AWS credentials 1 lần duy nhất
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2   # region của S3 bucket
+
+      # Upload dist lên S3
       - name: Deploy to S3
-        uses: aws-actions/s3-sync@v2
+        uses: jakejarvis/s3-sync-action@master
         with:
-          bucket: e-learning-vue-2025
-          region: ap-southeast-2
-          source-dir: dist
+          args: --delete
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET: e-learning-vue-2025
+          SOURCE_DIR: frontend/dist
 
+      # Invalidate CloudFront cache
       - name: Invalidate CloudFront cache
-        uses: aws-actions/cloudfront-invalidate@v1
-        with:
-          distribution-id: E2UVQPRWJWHRT
-          paths: "/*"
+        uses: chetan/invalidate-cloudfront-action@v2
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DISTRIBUTION: E2UVQPRWJWHHRT
+          PATHS: "/*"
