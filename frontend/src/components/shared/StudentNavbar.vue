@@ -9,7 +9,7 @@
           <span class="hidden text-base font-semibold text-emerald-700 sm:inline">
             My Learning
           </span> -->
-          <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
+          <LogoEduriot :size="90" primary="#3B82F6" accent="#14B8A6" />
         </RouterLink>
       </div>
 

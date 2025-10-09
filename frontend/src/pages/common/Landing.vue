@@ -4,7 +4,7 @@
       <div class="container mx-auto px-4 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <LogoEduriot :size="30" primary="#E0E7FF" accent="#FFD166" />
+            <LogoEduriot :size="70" primary="#E0E7FF" accent="#FFD166" />
           </div>
           <nav class="hidden md:flex space-x-6">
             <a href="#" class="text-white hover:text-yellow-200 font-medium">Trang chủ</a>
@@ -288,11 +288,7 @@
       <div class="container mx-auto px-4">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <img
-              src="http://static.photos/education/200x200/1"
-              alt="Logo"
-              class="w-16 h-16 rounded-full mb-4"
-            />
+            <LogoEduriot :size="90" primary="#E0E7FF" accent="#FFD166" />
             <h3 class="text-xl font-bold mb-4">Học Vui</h3>
             <p class="text-gray-400">
               Nền tảng học tập trực tuyến hàng đầu dành cho học sinh tiểu học.
