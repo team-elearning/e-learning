@@ -16,11 +16,7 @@
       <div class="w-full max-w-md p-6 sm:p-8">
         <!-- Logo nhỏ + switch -->
         <div class="mb-8 text-center">
-          <div
-            class="mx-auto h-12 w-12 rounded-full bg-indigo-600/10 flex items-center justify-center"
-          >
-            <span class="text-xl">🎓</span>
-          </div>
+          <LogoEduriot :size="120" style="justify-content: center" />
           <h2 class="mt-3 text-xl font-semibold text-gray-800">Đăng nhập / Đăng ký</h2>
           <p class="text-sm text-gray-500">Truy cập bằng tài khoản của bạn</p>
         </div>
@@ -40,5 +36,6 @@
 </template>
 
 <script setup lang="ts">
+import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 // no-op
 </script>

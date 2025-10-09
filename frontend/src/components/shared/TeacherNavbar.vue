@@ -5,7 +5,7 @@
     >
       <div class="flex items-center gap-4">
         <RouterLink to="/teacher/dashboard" class="text-xl font-bold tracking-tight text-gray-800">
-          <LogoEduriot :size="28" primary="#3B82F6" accent="#14B8A6" />
+          <LogoEduriot :size="80" primary="#3B82F6" accent="#14B8A6" />
         </RouterLink>
       </div>
 
