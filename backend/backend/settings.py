@@ -78,6 +78,9 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.MultiPartRenderer',
     ],
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
+    
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
 SIMPLE_JWT = {
@@ -207,13 +210,98 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 AUTH_USER_MODEL = 'account.UserModel'
 
 
+# ----------------------------------------------------------------------------------------------------------------------------------
+import os
+
+# AI Personalization Settings
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Task settings
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 20 * 60
+
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# Optional: OpenAI API key for advanced features
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+
+# Logging
 LOGGING = {
     'version': 1,
-    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/ai_personalization.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
     'loggers': {
+        'ai_personalization': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'django.db.backends': {
             'level': 'DEBUG',
             'handlers': ['console'],
         },
     },
 }
+
+
+
+# LOGGING = {
+#     'version': 1,
+#     'handlers': {'console': {'class': 'logging.StreamHandler'}},
+#     'loggers': {
+#         'django.db.backends': {
+#             'level': 'DEBUG',
+#             'handlers': ['console'],
+#         },
+#     },
+# }
+
+
+
+# .gitignore additions
+"""
+# AI Personalization
+logs/
+models/*.pkl
+data/*.csv
+data/*.json
+*.pyc
+__pycache__/
+.coverage
+htmlcov/
+.pytest_cache/
+celerybeat-schedule
+"""

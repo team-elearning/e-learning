@@ -91,6 +91,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { courseService, type CourseSummary } from '@/services/course.service'
 import { useExamStore } from '@/store/exam.store'
+import { log } from 'echarts/types/src/util/log.js'
 
 type CourseCard = CourseSummary & { progress: number; done: boolean }
 
@@ -116,6 +117,7 @@ async function fetchCourses() {
     })
     featured.value = mapped.slice(0, 6)
     resumeCourse.value = mapped.find((c) => c.progress > 0 && c.progress < 100) || mapped[0] || null
+
   } catch (e: any) {
     errMsg.value = `courseService.list lỗi: ${e?.message || String(e)}`
   }
@@ -172,14 +174,14 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style>
 :root {
   --bg: #f6f7fb;
   --card: #fff;
   --text: #0f172a;
   --muted: #6b7280;
   --line: #e5e7eb;
-  --accent: #2563eb;
+  --accent: #42b983;
 }
 .student-dashboard {
   min-height: 100vh;
