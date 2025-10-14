@@ -10,24 +10,33 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 '''
 
-# import os
+import os
 from pathlib import Path
 from datetime import timedelta
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-of#ow^h-zzp*0z@=&lb!y1!!d8@m^w%&$)hqbr1_(qe%iwb742'
+# SECURITY WARNING: keep the secret key used in production 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+def env_list(name, default=""):
+    value = os.getenv(name, default)
+    return [x.strip() for x in value.split(",") if x.strip()]
 
-ALLOWED_HOSTS = []
+
+# SECRET_KEY, DEBUG
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+# Hosts, CORS/CSRF
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")
 
 
 # Application definition
@@ -59,15 +68,10 @@ INSTALLED_APPS = [
     'payments',
 ]
 
-# CORS settings for Vue frontend
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:8080',  # Vue dev server
-    'http://localhost:8000',  # Production URL (adjust as needed)
-]
-
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'  # For collectstatic
+STATIC_ROOT = Path('/var/www/elearning/staticfiles')
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -82,6 +86,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -129,14 +134,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 #     }
 # }
 
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'e-learning',
-        'USER': 'postgres',
-        'PASSWORD': '123456',
-        'HOST': 'localhost',
-        'PORT': '5432',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", ""),
+        "USER": os.getenv("DB_USER", ""),
+        "PASSWORD": os.getenv("DB_PASSWORD", ""),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
 
@@ -207,7 +213,40 @@ EMAIL_HOST_USER = "xt828440@gmail.com"
 EMAIL_HOST_PASSWORD = "myge xwkk foyx dqkj"
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+
 AUTH_USER_MODEL = 'account.UserModel'
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://api.eduriot.fit',
+    'https://eduriot.fit',
+]
+
+CORS_ALLOWED_ORIGINS = [
+    'https://eduriot.fit',
+    'https://localhost:8080',
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = []
+for h in ALLOWED_HOSTS:
+    h = h.strip()
+    if h and not h.startswith("localhost") and not h.startswith("127."):
+        CSRF_TRUSTED_ORIGINS.append(f"https://{h}")
+# Nếu muốn FE cũng gửi POST có CSRF: thêm FE domain vào đây:
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"  # DEV: in console
+)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@eduriot.fit")
+
+# PROD - SMTP (khi cần gửi mail thật)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------
@@ -276,21 +315,6 @@ LOGGING = {
     },
 }
 
-
-
-# LOGGING = {
-#     'version': 1,
-#     'handlers': {'console': {'class': 'logging.StreamHandler'}},
-#     'loggers': {
-#         'django.db.backends': {
-#             'level': 'DEBUG',
-#             'handlers': ['console'],
-#         },
-#     },
-# }
-
-
-
 # .gitignore additions
 """
 # AI Personalization
@@ -305,3 +329,15 @@ htmlcov/
 .pytest_cache/
 celerybeat-schedule
 """
+
+# MEDIA
+MEDIA_URL = '/media/'
+MEDIA_ROOT = Path('/var/www/elearning/media')
+
+# Giới hạn upload cơ bản (có thể chỉnh lại sau)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024          # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024    # 1GB
+
+# Nếu deploy sau Nginx HTTPS:
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+

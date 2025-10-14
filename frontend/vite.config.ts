@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import vueJsx from '@vitejs/plugin-vue-jsx'
+import sitemap from 'vite-plugin-sitemap'
 
 
 // https://vite.dev/config/
@@ -12,6 +13,7 @@ export default defineConfig({
     vue(),
     vueDevTools(),
     vueJsx(),
+    sitemap({ hostname: 'https://eduriot.fit' }),
   ],
   resolve: {
     alias: {
