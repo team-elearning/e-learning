@@ -91,8 +91,20 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { courseService, type CourseSummary } from '@/services/course.service'
 import { useExamStore } from '@/store/exam.store'
-import { log } from 'echarts/types/src/util/log.js'
+// ✅ CÁCH IMPORT ĐÚNG
+import * as echarts from 'echarts/core'
 
+// Import các loại biểu đồ bạn cần (ví dụ: BarChart, LineChart, PieChart)
+import { BarChart } from 'echarts/charts'
+
+// Import các component cần thiết (ví dụ: Title, Tooltip, Grid)
+import { TitleComponent, TooltipComponent, GridComponent } from 'echarts/components'
+
+// Import renderer (dùng Canvas hoặc SVG)
+import { CanvasRenderer } from 'echarts/renderers'
+
+// Đăng ký các component đã import
+echarts.use([TitleComponent, TooltipComponent, GridComponent, BarChart, CanvasRenderer])
 type CourseCard = CourseSummary & { progress: number; done: boolean }
 
 const router = useRouter()
@@ -117,7 +129,6 @@ async function fetchCourses() {
     })
     featured.value = mapped.slice(0, 6)
     resumeCourse.value = mapped.find((c) => c.progress > 0 && c.progress < 100) || mapped[0] || null
-
   } catch (e: any) {
     errMsg.value = `courseService.list lỗi: ${e?.message || String(e)}`
   }
