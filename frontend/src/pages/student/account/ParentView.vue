@@ -65,10 +65,17 @@
           </div>
 
           <div class="actions">
-            <button class="btn-primary" :disabled="saving || !isValid">
+            <button 
+              class="btn-primary" 
+              :class="{ 'is-busy': saving }"
+              :disabled="saving || !isValid"
+            >
               <span v-if="saving" class="spinner"></span>
-              LƯU THÔNG TIN
+              {{ saving ? 'ĐANG LƯU...' : 'LƯU THÔNG TIN' }}
             </button>
+            <small v-if="!isValid" class="btn-hint">
+              Vui lòng điền đầy đủ thông tin bắt buộc
+            </small>
           </div>
         </form>
       </div>
@@ -137,7 +144,8 @@ async function save() {
 
 /* Tabs */
 .tabs{ display:flex; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px; width:max-content; }
-.tab{ padding:10px 14px; border-radius:8px; border:1px solid transparent; background:#fff; cursor:pointer; font-weight:700; }
+.tab{ padding:10px 14px; border-radius:8px; border:1px solid transparent; background:#fff; cursor:pointer; font-weight:700; transition: all 0.2s ease; }
+.tab:hover:not(.active){ background:#f9fafb; }
 .tab.active{ color:var(--accent); border-color:var(--accent-tint-border); background:var(--accent-tint-bg); }
 
 /* Card */
@@ -156,13 +164,58 @@ async function save() {
 .row{ display:grid; grid-template-columns: 220px 1fr; gap:16px; align-items:center; margin-bottom:12px; }
 .label{ text-align:left; color:#111827; font-weight:600; }
 .req{ color:#ef4444; }
-.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; outline:none; }
+.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; outline:none; transition: all 0.2s ease; }
 .input:focus{ border-color:var(--focus-border); box-shadow:0 0 0 3px var(--focus-ring); }
 .select{ appearance:none; background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat:no-repeat; }
 
-.actions{ display:flex; justify-content:flex-end; margin-top:16px; }
-.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
-.btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
+.actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; margin-top:16px; }
+
+/* ===========================
+   NÚT PRIMARY - DÙNG !IMPORTANT
+   =========================== */
+.btn-primary{
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 12px 18px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Nút khi KHÔNG disabled - hover */
+.btn-primary:not(:disabled):hover{ 
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Nút khi DISABLED - màu xám */
+.btn-primary:disabled{
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* Nút khi đang SAVING */
+.btn-primary.is-busy{
+  background: var(--accent) !important;
+  color: #fff !important;
+  opacity: .7 !important;
+  cursor: progress !important;
+}
+
+.btn-hint{
+  font-size:12px;
+  color:var(--muted);
+  text-align:right;
+  font-style:italic;
+}
 
 /* Spinner */
 .spinner{ width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }

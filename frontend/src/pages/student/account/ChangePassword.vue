@@ -98,10 +98,18 @@
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn-primary" :disabled="saving || !isValid">
+            <button 
+              type="submit" 
+              class="btn-primary" 
+              :class="{ 'is-busy': saving }"
+              :disabled="saving || !isValid"
+            >
               <span v-if="saving" class="spinner"></span>
-              CẬP NHẬT MẬT KHẨU
+              {{ saving ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT MẬT KHẨU' }}
             </button>
+            <small v-if="!isValid" class="btn-hint">
+              Vui lòng điền đầy đủ và chính xác tất cả các trường
+            </small>
           </div>
         </form>
       </div>
@@ -193,10 +201,54 @@ async function changePassword() {
 .req{ color:#ef4444; }
 .input{ width:100%; padding:10px 40px 10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; outline:none; transition: all 0.2s ease; }
 .input:focus{ border-color:var(--focus-border); box-shadow:0 0 0 3px var(--focus-ring); }
-.actions{ display:flex; justify-content:flex-end; margin-top:16px; }
-.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition: all 0.2s ease; }
-.btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
-.btn-primary:not(:disabled):hover{ filter:brightness(1.05); transform: translateY(-1px); }
+.actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; margin-top:16px; }
+
+/* ===========================
+   NÚT PRIMARY - DÙNG !IMPORTANT
+   =========================== */
+.btn-primary{
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 12px 18px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Nút khi KHÔNG disabled - hover */
+.btn-primary:not(:disabled):hover{ 
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Nút khi DISABLED - màu xám */
+.btn-primary:disabled{
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* Nút khi đang SAVING */
+.btn-primary.is-busy{
+  background: var(--accent) !important;
+  color: #fff !important;
+  opacity: .7 !important;
+  cursor: progress !important;
+}
+
+.btn-hint{
+  font-size:12px;
+  color:var(--muted);
+  text-align:right;
+  font-style:italic;
+}
 
 /* Spinner */
 .spinner{ width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
@@ -209,29 +261,29 @@ async function changePassword() {
   width: 100%;
 }
 .eye{
-  position:absolute; 
-  right:8px; 
-  top:50%; 
-  transform:translateY(-50%);
-  background:transparent; 
-  border:0; 
-  padding:6px; 
-  border-radius:6px; 
-  cursor:pointer;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  color: #9ca3af;
+  position:absolute !important;
+  right:8px !important;
+  top:50% !important;
+  transform:translateY(-50%) !important;
+  background:transparent !important;
+  border:0 !important;
+  padding:6px !important;
+  border-radius:6px !important;
+  cursor:pointer !important;
+  z-index: 10 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  color: #9ca3af !important;
 }
 .eye:hover{ 
-  background:#f3f4f6; 
-  color: #6b7280;
+  background:#f3f4f6 !important;
+  color: #6b7280 !important;
 }
 .eye svg{ 
-  width:20px; 
-  height:20px; 
+  width:20px !important;
+  height:20px !important;
 }
 
 /* Errors */

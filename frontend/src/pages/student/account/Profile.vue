@@ -26,7 +26,7 @@
         </transition>
 
         <!-- FORM -->
-        <form class="form" @submit.prevent="saveProfile">
+        <form v-if="ready" class="form" @submit.prevent="saveProfile">
           <div class="row">
             <label class="label">Ảnh đại diện</label>
             <div class="field-inline">
@@ -145,12 +145,23 @@
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn-primary" :disabled="saving || !isValidInfo || !isDirty">
+            <button
+              type="submit"
+              class="btn-primary"
+              :class="{ 'is-busy': saving }"
+              :disabled="saving || !isValidInfo || !isDirty"
+            >
               <span v-if="saving" class="spinner"></span>
-              CẬP NHẬT
+              {{ saving ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT' }}
             </button>
+            <small v-if="!isValidInfo || !isDirty" class="btn-hint">
+              {{ !isValidInfo ? 'Vui lòng điền đầy đủ thông tin bắt buộc' : 'Chưa có thay đổi nào' }}
+            </small>
           </div>
         </form>
+
+        <!-- Skeleton khi chưa sẵn sàng -->
+        <div v-else class="muted" style="padding:12px 0">Đang tải thông tin…</div>
       </div>
     </div>
   </div>
@@ -160,23 +171,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
-import type { UpdateProfileDto } from '@/services/auth.service' // [ADD] typing payload
+import type { UpdateProfileDto } from '@/services/auth.service'
 
 const router = useRouter()
 const auth = useAuthStore()
+const ready = ref(false)
 
-// Điều hướng 2 tab
-function goChangePwd(){
-  // [CLEAN] dùng name như bạn đã cấu hình router
-  router.push({ name: 'student-change-password' })
-}
-function goParent(){
-  router.push({ name: 'student-parent' })
-}
+// Tabs
+function goChangePwd(){ router.push({ name: 'student-change-password' }) }
+function goParent(){ router.push({ name: 'student-parent' }) }
 
 /* Avatar */
-const defaultAvatar = 'https://i.pravatar.cc/80?img=10' // giữ ảnh cũ
-// [FIX] Lấy avatar từ store (getter) hoặc fallback default
+const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
 const currentAvatar = computed(() => auth.avatar || defaultAvatar)
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -198,7 +204,7 @@ function onPickFile(e: Event) {
   reader.readAsDataURL(file)
 }
 
-/* Info form */
+/* Form data */
 const form = reactive({
   username: '',
   fullname: '',
@@ -212,13 +218,19 @@ const form = reactive({
   ward: ''
 })
 
-// Ngày sinh (demo)
+// DOB demo
 const dob = reactive({ day: 1, month: 1, year: 2000 })
 const days = Array.from({ length: 31 }, (_, i) => i + 1)
 const months = Array.from({ length: 12 }, (_, i) => i + 1)
 const years = Array.from({ length: 60 }, (_, i) => 1980 + i)
 
-/* Prefill từ auth.user nếu có */
+/* Prefill + ready */
+const initialJSON = ref<string>('')
+
+function snapshot(){
+  initialJSON.value = JSON.stringify({ ...form, avatarPreview: avatarPreview.value })
+}
+
 onMounted(() => {
   auth.init?.()
   if (auth.user) {
@@ -226,34 +238,27 @@ onMounted(() => {
     form.fullname = auth.user.name || ''
     form.phone = auth.user.phone || ''
     form.email = auth.user.email || ''
-    snapshot() // [ADD]
   }
+  snapshot()
+  ready.value = true
 })
 
-/* Validation */
+/* Validation (chỉ chạy khi ready) */
 const errors = reactive<{ fullname?: string; phone?: string; email?: string }>({})
 const isEmail = (v: string) => /^\S+@\S+\.\S+$/.test(v)
+
 watch(() => ({ ...form }), () => {
+  if (!ready.value) return
   errors.fullname = form.fullname ? '' : 'Vui lòng nhập họ và tên.'
   errors.phone = form.phone ? '' : 'Vui lòng nhập số điện thoại.'
   errors.email = form.email && !isEmail(form.email) ? 'Email không hợp lệ.' : ''
-}, { deep: true, immediate: true })
+}, { deep: true, immediate: false })
+
 const isValidInfo = computed(() => !errors.fullname && !errors.phone && !errors.email)
 
 /* Dirty check */
-const initialJSON = ref<string>('') // [ADD]
-function snapshot(){
-  // [FIX] lưu trạng thái đầu vào + cờ avatarPreview
-  initialJSON.value = JSON.stringify({
-    ...form,
-    hasAvatarPreview: false
-  })
-}
 const isDirty = computed(() => {
-  const now = JSON.stringify({
-    ...form,
-    hasAvatarPreview: !!avatarPreview.value
-  })
+  const now = JSON.stringify({ ...form, avatarPreview: avatarPreview.value })
   return now !== initialJSON.value
 })
 
@@ -273,16 +278,14 @@ async function saveProfile() {
 
   saving.value = true
   try {
-    // [FIX] dùng đúng DTO, không dùng Partial<Object> nữa
     const payload: UpdateProfileDto = {
       name: form.fullname,
       email: form.email || auth.user?.email,
       phone: form.phone,
-      avatar: avatarPreview.value || auth.user?.avatar, // gửi base64/mock URL
+      avatar: avatarPreview.value || auth.user?.avatar,
     }
     await auth.updateProfile(payload as any)
     lastUpdated.value = new Date().toLocaleString()
-    // Reset state sau khi lưu
     snapshot()
     avatarFile.value = null
     avatarPreview.value = ''
@@ -295,7 +298,7 @@ async function saveProfile() {
 }
 </script>
 
-<!-- Styles giữ nguyên -->
+<!-- Theme -->
 <style>
 :root{
   --bg:#f6f7fb;
@@ -312,7 +315,6 @@ async function saveProfile() {
 </style>
 
 <style scoped>
-/* giữ nguyên toàn bộ CSS của bạn */
 .profile-page{ background:var(--bg); min-height:100vh; color:var(--text); }
 .container{ max-width:1000px; margin:0 auto; padding:24px 16px 40px; }
 .tabs{ display:flex; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px; width:max-content; }
@@ -339,10 +341,55 @@ async function saveProfile() {
 .avatar{ width:72px; height:72px; border-radius:50%; overflow:hidden; border:1px solid var(--line); background:#fff; }
 .avatar img{ width:100%; height:100%; object-fit:cover; }
 .hidden{ display:none; }
-.actions{ display:flex; justify-content:flex-end; margin-top:16px; }
-.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
-.btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
-.btn-primary:hover{ filter:brightness(1.05); }
+.actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; margin-top:16px; }
+
+/* ===========================
+   NÚT PRIMARY - DÙNG !IMPORTANT
+   =========================== */
+.btn-primary{
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 12px 18px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: inline-flex !important; 
+  align-items: center !important; 
+  gap: 8px !important;
+  transition: all .2s ease !important;
+}
+
+/* Nút khi KHÔNG disabled - hover */
+.btn-primary:not(:disabled):hover{ 
+  filter: brightness(1.1) !important; 
+  transform: translateY(-1px) !important;
+}
+
+/* Nút khi DISABLED - màu xám rõ ràng */
+.btn-primary:disabled{
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+/* Nút khi đang SAVING - giữ màu xanh + spinner */
+.btn-primary.is-busy{
+  background: var(--accent) !important;
+  color: #fff !important;
+  opacity: .7 !important;
+  cursor: progress !important;
+}
+
+.btn-hint{
+  font-size:12px;
+  color:var(--muted);
+  text-align:right;
+  font-style:italic;
+}
+
 .btn-light{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; }
 .spinner{ width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin{ to{ transform:rotate(360deg); } }
@@ -354,9 +401,6 @@ async function saveProfile() {
 .check input{ display:none; }
 .check span{ width:16px; height:16px; border:1px solid #cbd5e1; border-radius:4px; position:relative; }
 .check input:checked + span::after{ content:''; position:absolute; left:3px; top:1px; width:8px; height:12px; border:2px solid var(--accent); border-top:0; border-left:0; transform:rotate(45deg); }
-.pwd-wrap{ position:relative; }
-.eye{ position:absolute; right:10px; top:50%; transform:translateY(-50%); background:#fff; border:0; padding:4px; border-radius:6px; cursor:pointer; }
-.eye svg{ width:18px; height:18px; fill:#9ca3af; }
 @media (max-width: 840px){
   .row{ grid-template-columns: 1fr; }
   .label{ margin-bottom:4px; }
