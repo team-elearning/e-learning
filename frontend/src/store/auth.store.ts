@@ -10,12 +10,13 @@ export const useAuthStore = defineStore('auth', {
   }),
 
   // Getters phục vụ Navbar/Profile
-  getters: {                                              // [ADD]
-    isAuthenticated: (state) => !!state.token,            // [ADD]
-    role: (state): Role | undefined => state.user?.role,  // [ADD]
+  getters: {
+    // [ADD]
+    isAuthenticated: (state) => !!state.token, // [ADD]
+    role: (state): Role | undefined => state.user?.role, // [ADD]
     // ADDluôn có ảnh fallback để Navbar không bị null
     avatar: (state): string => state.user?.avatar || 'https://i.pravatar.cc/80?img=10',
-  },                                                      // [ADD]
+  }, // [ADD]
 
   actions: {
     async login(email: string, password: string, remember = true) {
@@ -76,7 +77,7 @@ export const useAuthStore = defineStore('auth', {
     // Dùng cho trang Profile để cập nhật hồ sơ người dùng
     async updateProfile(payload: Partial<AuthUser & { avatar?: string }>) {
       // Nếu service đã có API thật → gọi; nếu chưa có → merge local
-      const prev = this.user                                  // [SAFE] giữ lại user cũ
+      const prev = this.user // [SAFE] giữ lại user cũ
       if (typeof authService.updateProfile === 'function') {
         const res = await authService.updateProfile(payload as any)
         // [SAFE] Không cho mock service ghi đè id/role cũ
@@ -84,13 +85,34 @@ export const useAuthStore = defineStore('auth', {
         this.user = {
           ...(prev as AuthUser),
           ...next,
-          id: prev?.id ?? next.id,            // [SAFE]
-          role: prev?.role ?? next.role,      // [SAFE]
+          id: prev?.id ?? next.id, // [SAFE]
+          role: prev?.role ?? next.role, // [SAFE]
         }
       } else {
-        this.user = { ...(prev as AuthUser), ...payload }     // giữ nguyên cách cũ
+        this.user = { ...(prev as AuthUser), ...payload } // giữ nguyên cách cũ
       }
       this.persist() // [ADD]
+    },
+
+    // trang quên đổi mật khẩu
+    async forgotPassword(email: string) {
+      const service = authService as any
+      if (service['forgotPassword']) {
+        await service['forgotPassword'](email)
+      } else {
+        await new Promise((r) => setTimeout(r, 800))
+        console.log(`[Store Mock] Sent reset email to: ${email}`)
+      }
+    },
+    // trang reset mật khẩu
+    async resetPassword(token: string, newPassword: string) {
+      const service = authService as any
+      if (service['resetPassword']) {
+        await service['resetPassword'](token, newPassword)
+      } else {
+        await new Promise((r) => setTimeout(r, 800))
+        console.log(`[Store Mock] Reset password`)
+      }
     },
 
     // [ADD] Dùng cho trang Đổi mật khẩu
@@ -102,13 +124,14 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // Khởi tạo nhanh khi app load 
-    init() {                         
-      this.hydrateFromStorage()     // [ADD]
+    // Khởi tạo nhanh khi app load
+    init() {
+      this.hydrateFromStorage() // [ADD]
     },
 
     // (Tùy chọn) Cập nhật avatar ngay để UI mượt hơn (optimistic)
-    setAvatar(url: string) {        // [ADD]
+    setAvatar(url: string) {
+      // [ADD]
       if (this.user) {
         this.user = { ...this.user, avatar: url }
         this.persist()
