@@ -4,18 +4,9 @@
     <div class="container">
       <!-- Tabs -->
       <div class="tabs">
-        <!-- [SỬA] tab Info vẫn ở trang hiện tại -->
-        <button class="tab active" type="button">
-          THÔNG TIN CÁ NHÂN
-        </button>
-
-        <!-- [THÊM] hai tab còn lại điều hướng sang trang riêng -->
-        <button class="tab" type="button" @click="goChangePwd">
-          ĐỔI MẬT KHẨU
-        </button>
-        <button class="tab" type="button" @click="goParent">
-          THÔNG TIN PHỤ HUYNH
-        </button>
+        <button class="tab active" type="button">THÔNG TIN CÁ NHÂN</button>
+        <button class="tab" type="button" @click="goChangePwd">ĐỔI MẬT KHẨU</button>
+        <button class="tab" type="button" @click="goParent">THÔNG TIN PHỤ HUYNH</button>
       </div>
 
       <!-- Card -->
@@ -34,12 +25,14 @@
           </div>
         </transition>
 
-        <!-- ===== FORM THÔNG TIN CÁ NHÂN (giữ nguyên) ===== -->
+        <!-- FORM -->
         <form class="form" @submit.prevent="saveProfile">
           <div class="row">
             <label class="label">Ảnh đại diện</label>
             <div class="field-inline">
-              <div class="avatar"><img :src="avatarPreview || defaultAvatar" alt="avatar" /></div>
+              <div class="avatar">
+                <img :src="avatarPreview || currentAvatar" alt="avatar" />
+              </div>
               <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onPickFile" />
               <button class="btn-light" type="button" @click="openFile">Upload</button>
               <small class="muted">PNG/JPG ≤ 2MB (có thể để trống)</small>
@@ -115,7 +108,9 @@
 
           <div class="row">
             <label class="label">Địa chỉ</label>
-            <div><textarea v-model.trim="form.address" class="input" rows="3" placeholder="Có thể để trống"></textarea></div>
+            <div>
+              <textarea v-model.trim="form.address" class="input" rows="3" placeholder="Có thể để trống"></textarea>
+            </div>
           </div>
 
           <div class="row">
@@ -150,7 +145,7 @@
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn-primary" :disabled="saving || !isValidInfo">
+            <button type="submit" class="btn-primary" :disabled="saving || !isValidInfo || !isDirty">
               <span v-if="saving" class="spinner"></span>
               CẬP NHẬT
             </button>
@@ -162,17 +157,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'         // [THÊM]
-const router = useRouter()                     // [THÊM]
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/store/auth.store'
+import type { UpdateProfileDto } from '@/services/auth.service' // [ADD] typing payload
 
-// [THÊM] điều hướng sang 2 trang riêng
-function goChangePwd(){ router.push({ name: 'student-change-password' }) }
-function goParent(){ router.push({ name: 'student-parent' }) }
+const router = useRouter()
+const auth = useAuthStore()
+
+// Điều hướng 2 tab
+function goChangePwd(){
+  // [CLEAN] dùng name như bạn đã cấu hình router
+  router.push({ name: 'student-change-password' })
+}
+function goParent(){
+  router.push({ name: 'student-parent' })
+}
 
 /* Avatar */
-const defaultAvatar =
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=student&backgroundType=gradientLinear'
+const defaultAvatar = 'https://i.pravatar.cc/80?img=10' // giữ ảnh cũ
+// [FIX] Lấy avatar từ store (getter) hoặc fallback default
+const currentAvatar = computed(() => auth.avatar || defaultAvatar)
+
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string>('')
@@ -181,7 +187,11 @@ function openFile(){ fileInput.value?.click() }
 function onPickFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  if (file.size > 2 * 1024 * 1024) { alert('Ảnh quá 2MB!'); (e.target as HTMLInputElement).value = ''; return }
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Ảnh quá 2MB!')
+    ;(e.target as HTMLInputElement).value = ''
+    return
+  }
   avatarFile.value = file
   const reader = new FileReader()
   reader.onload = () => (avatarPreview.value = String(reader.result || ''))
@@ -190,21 +200,35 @@ function onPickFile(e: Event) {
 
 /* Info form */
 const form = reactive({
-  username: 'Student',
-  fullname: 'nguyễn văn a',
-  phone: '09xxxxxxx',
+  username: '',
+  fullname: '',
+  phone: '',
   email: '',
   emailUpdates: false,
   gender: 'male',
   address: '',
-  city: 'N/A',
+  city: '',
   district: '',
   ward: ''
 })
-const dob = reactive({ day: 1, month: 1, year: 2020 })
+
+// Ngày sinh (demo)
+const dob = reactive({ day: 1, month: 1, year: 2000 })
 const days = Array.from({ length: 31 }, (_, i) => i + 1)
 const months = Array.from({ length: 12 }, (_, i) => i + 1)
 const years = Array.from({ length: 60 }, (_, i) => 1980 + i)
+
+/* Prefill từ auth.user nếu có */
+onMounted(() => {
+  auth.init?.()
+  if (auth.user) {
+    form.username = auth.user.name || ''
+    form.fullname = auth.user.name || ''
+    form.phone = auth.user.phone || ''
+    form.email = auth.user.email || ''
+    snapshot() // [ADD]
+  }
+})
 
 /* Validation */
 const errors = reactive<{ fullname?: string; phone?: string; email?: string }>({})
@@ -216,6 +240,23 @@ watch(() => ({ ...form }), () => {
 }, { deep: true, immediate: true })
 const isValidInfo = computed(() => !errors.fullname && !errors.phone && !errors.email)
 
+/* Dirty check */
+const initialJSON = ref<string>('') // [ADD]
+function snapshot(){
+  // [FIX] lưu trạng thái đầu vào + cờ avatarPreview
+  initialJSON.value = JSON.stringify({
+    ...form,
+    hasAvatarPreview: false
+  })
+}
+const isDirty = computed(() => {
+  const now = JSON.stringify({
+    ...form,
+    hasAvatarPreview: !!avatarPreview.value
+  })
+  return now !== initialJSON.value
+})
+
 /* Save */
 const saving = ref(false)
 const lastUpdated = ref('chưa có')
@@ -225,62 +266,66 @@ function showToast(msg: string, type: 'success'|'error') {
   toast.msg = msg; toast.type = type
   clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast.msg = ''), 2500)
 }
+
 async function saveProfile() {
   if (!isValidInfo.value) { showToast('Vui lòng kiểm tra lại các trường bắt buộc.', 'error'); return }
+  if (!isDirty.value) return
+
   saving.value = true
   try {
-    await new Promise(r => setTimeout(r, 900)) // TODO: call API update profile
+    // [FIX] dùng đúng DTO, không dùng Partial<Object> nữa
+    const payload: UpdateProfileDto = {
+      name: form.fullname,
+      email: form.email || auth.user?.email,
+      phone: form.phone,
+      avatar: avatarPreview.value || auth.user?.avatar, // gửi base64/mock URL
+    }
+    await auth.updateProfile(payload as any)
     lastUpdated.value = new Date().toLocaleString()
+    // Reset state sau khi lưu
+    snapshot()
+    avatarFile.value = null
+    avatarPreview.value = ''
     showToast('Cập nhật hồ sơ thành công!', 'success')
   } catch (e) {
     showToast('Cập nhật thất bại. Thử lại sau.', 'error')
-  } finally { saving.value = false }
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
-<!-- Styles giữ nguyên từ file của bạn -->
- <style>
+<!-- Styles giữ nguyên -->
+<style>
 :root{
   --bg:#f6f7fb;
   --card:#fff;
   --text:#0f172a;
   --muted:#6b7280;
   --line:#e5e7eb;
-
-  /* Accent GREEN */
-  --accent:#16a34a;             /* green-600 */
-  --accent-tint-bg:#ecfdf5;     /* green-50  */
-  --accent-tint-border:#bbf7d0; /* green-200 */
-
-  /* Focus ring xanh lá */
-  --focus-border:#86efac;       /* green-300 */
+  --accent:#16a34a;
+  --accent-tint-bg:#ecfdf5;
+  --accent-tint-border:#bbf7d0;
+  --focus-border:#86efac;
   --focus-ring:rgba(22,163,74,.18);
 }
 </style>
 
-<!-- ========= SCOPED STYLES ========= -->
 <style scoped>
+/* giữ nguyên toàn bộ CSS của bạn */
 .profile-page{ background:var(--bg); min-height:100vh; color:var(--text); }
 .container{ max-width:1000px; margin:0 auto; padding:24px 16px 40px; }
-
-/* Tabs */
 .tabs{ display:flex; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px; width:max-content; }
 .tab{ padding:10px 14px; border-radius:8px; border:1px solid transparent; background:#fff; cursor:pointer; font-weight:700; }
 .tab.active{ color:var(--accent); border-color:var(--accent-tint-border); background:var(--accent-tint-bg); }
-
-/* Card */
 .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; margin-top:12px; padding:16px 16px 20px; }
 .card-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .card-title{ font-weight:800; letter-spacing:.4px; }
 .last-updated{ font-size:12px; color:var(--muted); }
-
-/* Toast */
 .toast{ position:fixed; right:18px; bottom:18px; padding:10px 12px; border-radius:10px; border:1px solid; z-index:40;}
 .toast.success{ background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
 .toast.error{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
 .fade-enter-active,.fade-leave-active{ transition:opacity .2s; } .fade-enter-from,.fade-leave-to{ opacity:0; }
-
-/* Form */
 .form{ margin-top:6px; }
 .row{ display:grid; grid-template-columns: 220px 1fr; gap:16px; align-items:center; margin-bottom:12px; }
 .label{ text-align:left; color:#111827; font-weight:600; }
@@ -291,55 +336,29 @@ async function saveProfile() {
 .field-inline{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .helper{ display:block; margin-top:6px; font-size:12px; }
 .err{ color:#dc2626; font-size:12px; margin-top:6px; }
-
-/* Avatar */
 .avatar{ width:72px; height:72px; border-radius:50%; overflow:hidden; border:1px solid var(--line); background:#fff; }
 .avatar img{ width:100%; height:100%; object-fit:cover; }
 .hidden{ display:none; }
-
-/* Buttons */
 .actions{ display:flex; justify-content:flex-end; margin-top:16px; }
-.btn-primary{
-  background:var(--accent);
-  color:#fff;
-  border:1px solid var(--accent);
-  padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer;
-  display:inline-flex; align-items:center; gap:8px;
-}
+.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
 .btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
 .btn-primary:hover{ filter:brightness(1.05); }
 .btn-light{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; }
-
-/* Spinner */
 .spinner{ width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin{ to{ transform:rotate(360deg); } }
-
-/* Radios & Checkbox (green) */
 .radio{ display:inline-flex; align-items:center; gap:8px; margin-right:16px; }
 .radio input{ display:none; }
 .radio span{ width:16px; height:16px; border:2px solid var(--focus-border); border-radius:50%; display:inline-block; position:relative; }
 .radio input:checked + span::after{ content:''; position:absolute; inset:3px; background:var(--accent); border-radius:50%; }
-
 .check{ display:flex; align-items:center; gap:8px; margin-top:8px; }
 .check input{ display:none; }
 .check span{ width:16px; height:16px; border:1px solid #cbd5e1; border-radius:4px; position:relative; }
-.check input:checked + span::after{
-  content:''; position:absolute; left:3px; top:1px; width:8px; height:12px;
-  border:2px solid var(--accent); border-top:0; border-left:0; transform:rotate(45deg);
-}
-
-/* Password eye icon */
+.check input:checked + span::after{ content:''; position:absolute; left:3px; top:1px; width:8px; height:12px; border:2px solid var(--accent); border-top:0; border-left:0; transform:rotate(45deg); }
 .pwd-wrap{ position:relative; }
-.eye{
-  position:absolute; right:10px; top:50%; transform:translateY(-50%);
-  background:#fff; border:0; padding:4px; border-radius:6px; cursor:pointer;
-}
+.eye{ position:absolute; right:10px; top:50%; transform:translateY(-50%); background:#fff; border:0; padding:4px; border-radius:6px; cursor:pointer; }
 .eye svg{ width:18px; height:18px; fill:#9ca3af; }
-
-/* Responsive */
 @media (max-width: 840px){
   .row{ grid-template-columns: 1fr; }
   .label{ margin-bottom:4px; }
 }
 </style>
-

@@ -1,7 +1,6 @@
 // src/store/auth.store.ts
 import { defineStore } from 'pinia'
 import router from '@/router'
-// [REMOVE] , type AuthPayload
 import { authService, type Role, type AuthUser } from '@/services/auth.service'
 
 export const useAuthStore = defineStore('auth', {
@@ -9,6 +8,14 @@ export const useAuthStore = defineStore('auth', {
     token: null as string | null,
     user: null as AuthUser | null,
   }),
+
+  // Getters phục vụ Navbar/Profile
+  getters: {                                              // [ADD]
+    isAuthenticated: (state) => !!state.token,            // [ADD]
+    role: (state): Role | undefined => state.user?.role,  // [ADD]
+    // ADDluôn có ảnh fallback để Navbar không bị null
+    avatar: (state): string => state.user?.avatar || 'https://i.pravatar.cc/80?img=10',
+  },                                                      // [ADD]
 
   actions: {
     async login(email: string, password: string, remember = true) {
@@ -27,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
       this.token = token
       this.user = user
       localStorage.setItem('auth', JSON.stringify({ token, user }))
-      // this.persist() // [ADD-OPTIONAL] có thể dùng helper thay vì setItem trực tiếp
+      // this.persist() // [ADD-OPTIONAL]
       this.redirectByRole(user.role)
     },
 
@@ -69,13 +76,21 @@ export const useAuthStore = defineStore('auth', {
     // Dùng cho trang Profile để cập nhật hồ sơ người dùng
     async updateProfile(payload: Partial<AuthUser & { avatar?: string }>) {
       // Nếu service đã có API thật → gọi; nếu chưa có → merge local
+      const prev = this.user                                  // [SAFE] giữ lại user cũ
       if (typeof authService.updateProfile === 'function') {
         const res = await authService.updateProfile(payload as any)
-        this.user = res?.user ?? { ...(this.user as AuthUser), ...payload }
+        // [SAFE] Không cho mock service ghi đè id/role cũ
+        const next = res?.user ?? { ...(prev as AuthUser), ...payload }
+        this.user = {
+          ...(prev as AuthUser),
+          ...next,
+          id: prev?.id ?? next.id,            // [SAFE]
+          role: prev?.role ?? next.role,      // [SAFE]
+        }
       } else {
-        this.user = { ...(this.user as AuthUser), ...payload }
+        this.user = { ...(prev as AuthUser), ...payload }     // giữ nguyên cách cũ
       }
-      this.persist() // ADD
+      this.persist() // [ADD]
     },
 
     // [ADD] Dùng cho trang Đổi mật khẩu
@@ -84,6 +99,19 @@ export const useAuthStore = defineStore('auth', {
         await authService.changePassword(oldPassword, newPassword)
       } else {
         return // mock local nếu chưa có API
+      }
+    },
+
+    // Khởi tạo nhanh khi app load 
+    init() {                         
+      this.hydrateFromStorage()     // [ADD]
+    },
+
+    // (Tùy chọn) Cập nhật avatar ngay để UI mượt hơn (optimistic)
+    setAvatar(url: string) {        // [ADD]
+      if (this.user) {
+        this.user = { ...this.user, avatar: url }
+        this.persist()
       }
     },
   },
