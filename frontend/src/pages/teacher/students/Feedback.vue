@@ -1,12 +1,21 @@
 <!-- src/pages/teacher/students/Feedback.vue -->
 <template>
   <div class="min-h-screen w-full overflow-x-hidden bg-slate-50">
-    <main class="w-full mx-auto max-w-screen-2xl px-6 py-8 md:px-10">
+    <main class="w-full mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 md:px-10">
       <!-- Header -->
-      <div class="mb-5 flex items-center justify-between gap-3">
-        <h1 class="text-2xl font-semibold">Phản hồi học sinh</h1>
-        <button class="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50" @click="goBack">
-          ← Quay lại danh sách
+      <div
+        class="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-2 sm:gap-3"
+      >
+        <h1 class="text-xl font-semibold sm:text-2xl">Phản hồi học sinh</h1>
+
+        <!-- Nút quay lại: nhỏ trên mobile, bình thường trên >=sm -->
+        <button
+          class="shrink-0 rounded-lg border px-2.5 py-1.5 text-xs sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm hover:bg-slate-50"
+          @click="goBack"
+          aria-label="Quay lại danh sách học sinh"
+          title="Quay lại danh sách học sinh"
+        >
+          ← <span class="ml-1">Quay lại danh sách</span>
         </button>
       </div>
 
@@ -145,7 +154,6 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-/** ========= Types ========= */
 type StudentRow = {
   id: number
   name: string
@@ -157,7 +165,6 @@ type StudentRow = {
   lastActive: string
 }
 
-/** ========= Router / state ========= */
 const route = useRoute()
 const router = useRouter()
 
@@ -172,14 +179,12 @@ const sent = ref(false)
 const loading = ref(true)
 const allStudents = ref<StudentRow[]>([])
 
-/** ========= Debounce search ========= */
 let t: number | null = null
 const debouncedFilter = () => {
   if (t) clearTimeout(t)
-  t = window.setTimeout(() => { /* trigger computed filter */ }, 250) as unknown as number
+  t = window.setTimeout(() => {}, 250) as unknown as number
 }
 
-/** ========= Chips (fixed as ref) ========= */
 const chipTexts = ref<string[]>([
   'Em làm tốt phần lý thuyết.',
   'Cần luyện thêm bài tập vận dụng.',
@@ -188,13 +193,9 @@ const chipTexts = ref<string[]>([
   'Ôn lại từ vựng chương này nhé.',
 ])
 
-/** ========= Data source =========
- * Ưu tiên dùng userService (mock có sẵn). Nếu không có, dùng mock tại chỗ.
- */
 async function fetchStudents() {
   loading.value = true
   try {
-    // dynamic import để không phụ thuộc cứng
     // @ts-ignore
     const mod = await import('@/services/user.service')
     const userService = mod.userService as {
@@ -212,13 +213,12 @@ async function fetchStudents() {
         avatar: `https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(u.username)}&backgroundType=gradientLinear`,
         classCode: cls,
         course,
-        progress: 40 + ((id + i) % 50), // 40..89
-        avgScore: 6 + ((id + i) % 40) / 10, // 6.0..9.9
+        progress: 40 + ((id + i) % 50),
+        avgScore: 6 + ((id + i) % 40) / 10,
         lastActive: new Date(now - ((i + 1) * 36e5)).toLocaleString(),
       }
     })
   } catch {
-    // Fallback mock (nếu không resolve được service)
     const N = 24
     const now = Date.now()
     allStudents.value = Array.from({ length: N }).map((_, i) => {
@@ -239,7 +239,6 @@ async function fetchStudents() {
   }
 }
 
-/** ========= Derived ========= */
 const students = computed(() => {
   const key = q.value.trim().toLowerCase()
   return allStudents.value.filter(s =>
@@ -256,18 +255,15 @@ const current = computed<StudentRow | null>(() =>
 
 const canSend = computed(() => !!current.value && message.value.trim().length > 0)
 
-/** ========= Effects / actions ========= */
 function select(id: number) {
   if (selectedId.value === id) return
   selectedId.value = id
-  // reset compose
   sent.value = false
   message.value = ''
   rating.value = 7.5
   template.value = ''
 }
 
-// đồng bộ id vào URL (để F5 vẫn giữ lựa chọn)
 watch(selectedId, (val) => {
   const q = { ...route.query }
   if (val) q.id = String(val)
@@ -288,7 +284,6 @@ function append(t: string) {
 
 function send() {
   if (!canSend.value || !current.value) return
-  // TODO: gọi API thật
   console.log('SEND_FEEDBACK', {
     studentId: current.value.id,
     rating: rating.value,
@@ -301,10 +296,8 @@ function goBack() {
   router.push({ path: '/teacher/students' })
 }
 
-/** ========= Mount ========= */
 onMounted(async () => {
   await fetchStudents()
-  // nếu có ?id nhưng không khớp data → clear
   if (selectedId.value && !allStudents.value.some(s => s.id === selectedId.value)) {
     selectedId.value = null
   }

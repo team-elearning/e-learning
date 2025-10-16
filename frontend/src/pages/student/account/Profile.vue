@@ -63,7 +63,7 @@
                 class="hidden"
                 @change="onPickFile"
               />
-              <small class="muted">Nhấn vào ảnh để thay đổi<br />PNG/JPG ≤ 2MB</small>
+              <small class="muted"><br />PNG/JPG ≤ 2MB</small>
             </div>
           </div>
 

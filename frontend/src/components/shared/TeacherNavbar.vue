@@ -158,7 +158,11 @@
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-4"
     >
-      <div v-if="open" class="mobile-menu md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl">
+      <div
+        v-if="open"
+        ref="mobileMenuWrapper"
+        class="mobile-menu md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl"
+      >
         <div class="space-y-2 px-3 pt-3 pb-4">
           <RouterLink
             v-for="(item, index) in menu"
@@ -218,8 +222,20 @@ const menu = [
   { path: '/teacher/students', label: 'Học sinh' },
 ]
 
+// Avatar dropdown click outside
 const avatarWrapper = ref<HTMLElement | null>(null)
 onClickOutside(avatarWrapper, () => { avatarOpen.value = false })
+
+// Mobile menu click outside — giống StudentNavbar
+const mobileMenuWrapper = ref<HTMLElement | null>(null)
+onClickOutside(mobileMenuWrapper, (event) => {
+  const target = event.target as HTMLElement
+  // Chỉ đóng khi click KHÔNG phải vào nút hamburger
+  const isHamburgerClick = target.closest('.hamburger-btn')
+  if (!isHamburgerClick) {
+    open.value = false
+  }
+})
 
 function isActive(path: string) {
   if (path === '/teacher/dashboard') return route.path === path
