@@ -75,8 +75,8 @@
           </div>
         </div>
 
-        <!-- Transactions List -->
-        <div class="card">
+        <!-- Transactions: Desktop/Tablet Table -->
+        <div class="card only-desktop">
           <div class="table-wrapper">
             <table class="table">
               <thead>
@@ -122,13 +122,60 @@
               </tbody>
             </table>
 
-            <!-- Empty State -->
             <div v-if="filteredTransactions.length === 0" class="empty-state">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
               </svg>
               <p>Chưa có giao dịch nào</p>
             </div>
+          </div>
+        </div>
+
+        <!-- Transactions: Mobile Cards -->
+        <div class="tx-list only-mobile">
+          <div
+            class="tx-card"
+            v-for="item in filteredTransactions"
+            :key="'m-' + item.id"
+          >
+            <div class="tx-row">
+              <span class="tx-label">Mã đơn</span>
+              <span class="tx-value tx-strong">{{ item.orderId }}</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Gói học</span>
+              <span class="tx-value">{{ item.plan }}</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Số tiền</span>
+              <span class="tx-value tx-strong">{{ vnd(item.amount) }}</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Phương thức</span>
+              <span class="tx-value">{{ item.method }}</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Ngày</span>
+              <span class="tx-value">{{ formatDate(item.date) }}</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Trạng thái</span>
+              <span class="tx-value">
+                <span :class="['badge', `badge-${item.status}`]">
+                  {{ statusText(item.status) }}
+                </span>
+              </span>
+            </div>
+            <div class="tx-actions">
+              <button class="btn-view" @click="viewDetail(item)">Xem</button>
+            </div>
+          </div>
+
+          <div v-if="filteredTransactions.length === 0" class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
+            </svg>
+            <p>Chưa có giao dịch nào</p>
           </div>
         </div>
       </div>
@@ -157,7 +204,6 @@ async function goCheckout() {
   }
 }
 
-// Transaction History Data
 interface Transaction {
   id: number
   orderId: string
@@ -182,39 +228,19 @@ const filteredTransactions = computed(() => {
   return transactions.value.filter(t => t.status === statusFilter.value)
 })
 
-const totalSuccess = computed(() => 
-  transactions.value.filter(t => t.status === 'success').reduce((sum, t) => sum + t.amount, 0)
+const totalSuccess = computed(() =>
+  transactions.value.filter(t => t.status === 'success').reduce((s, t) => s + t.amount, 0)
 )
+const pendingCount = computed(() => transactions.value.filter(t => t.status === 'pending').length)
+const successCount = computed(() => transactions.value.filter(t => t.status === 'success').length)
 
-const pendingCount = computed(() => 
-  transactions.value.filter(t => t.status === 'pending').length
-)
-
-const successCount = computed(() => 
-  transactions.value.filter(t => t.status === 'success').length
-)
-
-function vnd(n: number) {
-  return n.toLocaleString('vi-VN') + 'đ'
+function vnd(n: number) { return n.toLocaleString('vi-VN') + 'đ' }
+function formatDate(s: string) {
+  const d = new Date(s)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
 }
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`
-}
-
-function statusText(status: string) {
-  const map: Record<string, string> = {
-    success: 'Thành công',
-    pending: 'Đang xử lý',
-    failed: 'Thất bại'
-  }
-  return map[status] || status
-}
-
-function viewDetail(item: Transaction) {
-  alert(`Chi tiết: ${item.orderId}`)
-}
+function statusText(st: string) { return ({success:'Thành công', pending:'Đang xử lý', failed:'Thất bại'} as any)[st] || st }
+function viewDetail(item: Transaction) { alert(`Chi tiết: ${item.orderId}`) }
 </script>
 
 <style>
@@ -231,7 +257,7 @@ function viewDetail(item: Transaction) {
 <style scoped>
 .page { background:#f6f7fb; min-height:100vh; padding-bottom:40px; }
 .container { max-width:1200px; margin:0 auto; padding:24px 16px 40px; }
-.title { font-size:24px; font-weight:800; margin-bottom:16px; }
+.title { font-size:clamp(20px, 2.2vw, 24px); font-weight:800; margin-bottom:16px; }
 
 /* Payment Methods Grid */
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:32px; }
@@ -241,7 +267,7 @@ function viewDetail(item: Transaction) {
 .method.muted-card { opacity:0.6; }
 .actions { display:flex; gap:8px; }
 
-/* Primary Button with !important */
+/* Primary Button */
 .btn-primary{
   background: var(--accent) !important;
   border: 1px solid var(--accent) !important;
@@ -255,166 +281,87 @@ function viewDetail(item: Transaction) {
   gap: 8px !important;
   transition: all 0.2s ease !important;
 }
-.btn-primary:not([disabled]):hover{
-  filter: brightness(1.1) !important;
-  transform: translateY(-1px) !important;
-}
+.btn-primary:not([disabled]):hover{ filter: brightness(1.1) !important; transform: translateY(-1px) !important; }
 .btn-primary[disabled]{ opacity:.7 !important; cursor:not-allowed !important; }
 
-.spinner{
-  width:16px !important; height:16px !important;
-  border:2px solid rgba(255,255,255,.6) !important;
-  border-top-color:#fff !important;
-  border-radius:50% !important;
-  animation:spin .8s linear infinite !important;
-}
+.spinner{ width:16px; height:16px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin{ to{ transform: rotate(360deg); } }
 
 /* History Section */
 .history-section { margin-top:32px; }
-.section-header { 
-  display:flex; 
-  justify-content:space-between; 
-  align-items:center; 
-  margin-bottom:16px; 
-  flex-wrap:wrap; 
-  gap:12px; 
-}
-.section-title { font-size:20px; font-weight:800; margin:0; }
+.section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+.section-title { font-size:clamp(18px, 2vw, 20px); font-weight:800; margin:0; }
 .filters { display:flex; gap:10px; }
 .filter-select {
-  padding:10px 14px !important;
-  border:1px solid var(--line) !important;
-  border-radius:10px !important;
-  background:#fff !important;
-  font-size:14px !important;
-  font-weight:600 !important;
-  cursor:pointer !important;
-  outline:none !important;
-  min-width:150px !important;
+  padding:10px 14px; border:1px solid var(--line); border-radius:10px; background:#fff;
+  font-size:14px; font-weight:600; cursor:pointer; outline:none; min-width:150px;
 }
-.filter-select:focus {
-  border-color:var(--accent) !important;
-  box-shadow:0 0 0 3px rgba(22,163,74,0.1) !important;
-}
+.filter-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(22,163,74,0.1); }
 
 /* Stats */
-.stats-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap:14px;
-  margin-bottom:20px;
-}
-.stat-card {
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:12px;
-  padding:16px;
-  display:flex;
-  align-items:center;
-  gap:14px;
-}
-.stat-icon {
-  width:48px;
-  height:48px;
-  border-radius:10px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
+.stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:20px; }
+.stat-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; display:flex; align-items:center; gap:14px; }
+.stat-icon { width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
 .stat-icon svg { width:24px; height:24px; }
 .stat-icon.success { background:#ecfdf5; color:var(--success); }
 .stat-icon.pending { background:#fef3c7; color:var(--pending); }
 .stat-icon.total { background:#ede9fe; color:#8b5cf6; }
-.stat-value { font-size:20px; font-weight:800; margin-bottom:2px; }
+.stat-value { font-size:clamp(18px, 2vw, 20px); font-weight:800; margin-bottom:2px; }
 .stat-label { font-size:12px; color:var(--muted); }
 
-/* Table */
+/* Desktop/Tablet Table */
 .table-wrapper { overflow-x:auto; }
 .table { width:100%; border-collapse:collapse; min-width:800px; }
 .table thead { background:#f9fafb; }
-.table th {
-  padding:12px 14px;
-  text-align:left;
-  font-size:11px;
-  font-weight:700;
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:0.5px;
-  border-bottom:1px solid var(--line);
-}
-.table tbody tr {
-  border-bottom:1px solid var(--line);
-  transition:background 0.2s ease;
-}
+.table th { padding:12px 14px; text-align:left; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--line); }
+.table tbody tr { border-bottom:1px solid var(--line); transition:background 0.2s ease; }
 .table tbody tr:hover { background:#f9fafb; }
 .table td { padding:14px; }
 .order-id { font-weight:700; font-size:13px; }
 .plan-name { font-size:14px; font-weight:600; }
 .amount { font-weight:800; color:#111827; }
-.method-badge {
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  font-size:13px;
-  color:var(--muted);
-}
+.method-badge { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
 .method-badge svg { width:16px; height:16px; }
 .date { font-size:13px; color:var(--muted); }
 
 /* Badges */
-.badge {
-  display:inline-flex !important;
-  padding:5px 10px !important;
-  border-radius:16px !important;
-  font-size:11px !important;
-  font-weight:700 !important;
-  text-transform:uppercase !important;
-  letter-spacing:0.3px !important;
-}
-.badge-success { background:#ecfdf5 !important; color:#10b981 !important; }
-.badge-pending { background:#fef3c7 !important; color:#f59e0b !important; }
-.badge-failed { background:#fee2e2 !important; color:#ef4444 !important; }
+.badge { display:inline-flex; padding:5px 10px; border-radius:16px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; }
+.badge-success { background:#ecfdf5; color:#10b981; }
+.badge-pending { background:#fef3c7; color:#f59e0b; }
+.badge-failed { background:#fee2e2; color:#ef4444; }
 
 /* View Button */
-.btn-view {
-  width:32px !important;
-  height:32px !important;
-  display:flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  background:#fff !important;
-  border:1px solid var(--line) !important;
-  border-radius:8px !important;
-  cursor:pointer !important;
-  transition:all 0.2s ease !important;
-}
-.btn-view svg { width:16px !important; height:16px !important; }
-.btn-view:hover {
-  background:#f9fafb !important;
-  border-color:var(--accent) !important;
-  color:var(--accent) !important;
-}
+.btn-view { width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--line); border-radius:8px; cursor:pointer; transition:all 0.2s ease; }
+.btn-view svg { width:16px; height:16px; }
+.btn-view:hover { background:#f9fafb; border-color:var(--accent); color:var(--accent); }
 
-/* Empty State */
-.empty-state {
-  padding:50px 20px;
-  text-align:center;
-  color:var(--muted);
+/* Mobile Transaction Cards (ẩn trên desktop) */
+.tx-list{ display:none; }
+.tx-card{
+  background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px;
+  display:grid; gap:8px;
 }
-.empty-state svg {
-  width:56px;
-  height:56px;
-  margin:0 auto 12px;
-  opacity:0.5;
-}
+.tx-row{ display:flex; justify-content:space-between; gap:12px; }
+.tx-label{ color:var(--muted); font-size:12px; }
+.tx-value{ font-size:14px; font-weight:600; text-align:right; }
+.tx-strong{ font-weight:800; }
+.tx-actions{ display:flex; justify-content:flex-end; }
+.tx-actions .btn-view{ width:auto; height:auto; padding:8px 10px; }
 
 /* Responsive */
-@media (max-width: 900px){ 
-  .grid{ grid-template-columns: 1fr; } 
+@media (max-width: 1024px){
+  .container{ padding:20px 12px 32px; }
+}
+@media (max-width: 900px){
+  .grid{ grid-template-columns: 1fr; }
   .section-header { flex-direction:column; align-items:stretch; }
   .filters { flex-direction:column; }
   .filter-select { width:100%; min-width:auto; }
   .stats-grid { grid-template-columns:1fr; }
+}
+@media (max-width: 700px){
+  .only-desktop{ display:none; } /* Ẩn bảng */
+  .only-mobile{ display:block; } /* Hiện card */
+  .tx-list{ display:block; }
 }
 </style>

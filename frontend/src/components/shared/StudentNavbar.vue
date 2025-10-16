@@ -158,7 +158,7 @@
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-4"
     >
-      <div v-if="open" class="mobile-menu md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl">
+      <div v-if="open" ref="mobileMenuWrapper" class="mobile-menu md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl">
         <div class="space-y-2 px-3 pt-3 pb-4">
           <RouterLink
             v-for="(item, index) in menu"
@@ -201,15 +201,12 @@ const route = useRoute()
 const open = ref(false)
 const avatarOpen = ref(false)
 
-// fallback avatar cũ (giống bạn đang dùng)
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
 
-// reactive từ store
 const avatarSrc = computed(() => auth.user?.avatar || defaultAvatar)
 const displayName = computed(() => auth.user?.name || 'Học sinh')
 const displayEmail = computed(() => auth.user?.email || 'student@example.com')
 
-// demo thông báo (giữ như cũ)
 const unreadCount = ref(0)
 const hasNotifications = computed(() => unreadCount.value > 0)
 
@@ -221,8 +218,21 @@ const menu = [
   { path: '/student/account/profile', label: 'Tài khoản của tôi' },
 ]
 
+// Avatar dropdown click outside
 const avatarWrapper = ref<HTMLElement | null>(null)
 onClickOutside(avatarWrapper, () => { avatarOpen.value = false })
+
+// Mobile menu click outside
+const mobileMenuWrapper = ref<HTMLElement | null>(null)
+onClickOutside(mobileMenuWrapper, (event) => {
+  // Kiểm tra xem click có phải từ hamburger button không
+  const target = event.target as HTMLElement
+  const isHamburgerClick = target.closest('.hamburger-btn')
+  
+  if (!isHamburgerClick) {
+    open.value = false
+  }
+})
 
 function isActive(path: string) {
   if (path === '/student/dashboard') return route.path === path
@@ -246,7 +256,6 @@ function handleClick(path: string) {
 </script>
 
 <style scoped>
-/* (Giữ nguyên toàn bộ CSS của bạn) */
 .logo-wrapper { position: relative; display: inline-block; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .logo-glow-bg { position: absolute; inset: -15px; background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(20,184,166,0.2) 30%, transparent 70%); border-radius: 50%; opacity: 0; filter: blur(20px); transition: opacity 0.5s ease, transform 0.5s ease; animation: float 3s ease-in-out infinite; }
 .logo-wrapper:hover .logo-glow-bg { opacity: 1; transform: scale(1.2); }
