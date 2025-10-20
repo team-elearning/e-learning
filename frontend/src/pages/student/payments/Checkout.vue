@@ -74,9 +74,18 @@
             </div>
 
             <div class="actions">
-              <button class="btn-primary" @click="markPaid">Tôi đã thanh toán</button>
-              <span class="muted" v-if="justMarked">Đã ghi nhận. Hệ thống sẽ kích hoạt ngay sau khi đối soát.</span>
+              <button 
+                class="btn-primary" 
+                :class="{ 'is-busy': justMarked }"
+                @click="markPaid"
+              >
+                <span v-if="justMarked" class="spinner"></span>
+                {{ justMarked ? 'Đang xử lý...' : 'Tôi đã thanh toán' }}
+              </button>
             </div>
+            <span class="muted confirm-note" v-if="justMarked">
+              ✓ Đã ghi nhận. Hệ thống sẽ kích hoạt ngay sau khi đối soát.
+            </span>
           </div>
         </section>
 
@@ -182,7 +191,7 @@ async function downloadQR(){
 
 /** Mock */
 const justMarked = ref(false)
-function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=false,2500) }
+function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=false,3000) }
 </script>
 
 <style>
@@ -215,7 +224,7 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 /* Fields */
 .field{ display:grid; gap:6px; margin-bottom:10px; }
 .label{ font-size:12px; color:var(--muted); }
-.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; outline:none; }
+.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; outline:none; transition: all 0.2s ease; }
 .input.right{ text-align:right; }
 .input:focus{ border-color:var(--focus-border); box-shadow:0 0 0 3px var(--focus-ring); }
 .select{ appearance:none; background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat:no-repeat; }
@@ -225,12 +234,72 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 /* Copy line */
 .copy-line{ position:relative; }
 .copy-line .input{ padding-right: 96px; }
-.copy{ position:absolute; right:6px; top:50%; transform:translateY(-50%); border:1px solid var(--line); padding:6px 10px; background:#fff; border-radius:8px; cursor:pointer; font-weight:700; }
+.copy{ position:absolute; right:6px; top:50%; transform:translateY(-50%); border:1px solid var(--line); padding:6px 10px; background:#fff; border-radius:8px; cursor:pointer; font-weight:700; transition: all 0.2s ease; }
+.copy:hover{ background:#f9fafb; }
 
-/* Buttons */
-.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:10px 14px; border-radius:10px; font-weight:800; cursor:pointer; }
-.btn-outline, .btn-light{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; }
-.actions{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+/* ===========================
+   BUTTONS - DÙNG !IMPORTANT
+   =========================== */
+.btn-primary{
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 12px 16px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.2s ease !important;
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+.btn-primary:hover{ 
+  filter: brightness(1.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-primary.is-busy{
+  opacity: .7 !important;
+  cursor: progress !important;
+}
+
+.btn-outline, .btn-light{ 
+  background:#fff !important; 
+  border:1px solid var(--line) !important; 
+  border-radius:10px !important; 
+  padding:8px 12px !important; 
+  cursor:pointer !important; 
+  font-weight:700 !important;
+  transition: all 0.2s ease !important;
+  width: 100% !important;
+}
+.btn-outline:hover, .btn-light:hover{ 
+  background:#f9fafb !important; 
+}
+
+.actions{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.confirm-note{ 
+  font-size:13px; 
+  color:#166534; 
+  font-weight:600; 
+  text-align:center;
+  display:block;
+  padding:6px;
+}
+
+/* Spinner */
+.spinner{ 
+  width:16px !important; 
+  height:16px !important; 
+  border:2px solid rgba(255,255,255,.6) !important; 
+  border-top-color:#fff !important; 
+  border-radius:50% !important; 
+  animation:spin .8s linear infinite !important; 
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
 
 /* Summary */
 .summary{ display:grid; gap:8px; }

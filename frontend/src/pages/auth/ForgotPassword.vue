@@ -1,90 +1,136 @@
-<!-- src/pages/auth/ForgotPassword.vue -->
 <template>
-  <div class="w-full">
-    <!-- Giữ đúng layout/spacing/màu như form Đăng nhập -->
-    <div class="mx-auto w-full max-w-md">
-      <!-- Title -->
-      <h1 class="mb-2 text-xl font-semibold text-gray-900 text-center">Quên mật khẩu</h1>
-      <p class="mb-4 text-center text-sm text-gray-500">
-        Nhập email để nhận liên kết đặt lại mật khẩu.
+  <div class="space-y-6">
+    <!-- Back button -->
+    <RouterLink
+      to="/auth/login"
+      class="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition group"
+    >
+      <svg class="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Quay lại đăng nhập
+    </RouterLink>
+
+    <div class="text-center">
+      <div class="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 animate-bounce-slow">
+        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <h3 class="text-xl font-bold text-gray-900 mb-2">Quên mật khẩu?</h3>
+      <p class="text-sm text-gray-600">
+        Nhập email của bạn và chúng tôi sẽ gửi link đặt lại mật khẩu
       </p>
+    </div>
 
-      <!-- Alert thành công / lỗi (cùng style login) -->
-      <div
-        v-if="status==='success'"
-        class="mb-4 rounded-xl border border-[#79BBFF] bg-[#79BBFF1A] p-3 text-sm text-[#245]"
-        role="alert"
-      >
-        Đã gửi email đặt lại mật khẩu tới <b>{{ email }}</b>. Vui lòng kiểm tra hộp thư (và cả mục Spam).
+    <!-- Success Alert -->
+    <div
+      v-if="status === 'success'"
+      class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 animate-fade-in"
+      role="alert"
+    >
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+        <div>
+          <p class="font-medium">Đã gửi email thành công!</p>
+          <p class="mt-1">
+            Chúng tôi đã gửi link đặt lại mật khẩu đến <span class="font-semibold">{{ email }}</span>. 
+            Vui lòng kiểm tra hộp thư (và cả mục Spam).
+          </p>
+        </div>
       </div>
-      <div
-        v-else-if="status==='error'"
-        class="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
-        role="alert"
-      >
-        {{ errMessage }}
-      </div>
+    </div>
 
-      <!-- Form (label có * như login, input & button đồng bộ màu/bo góc) -->
-      <form @submit.prevent="submit" novalidate>
-        <label for="email" class="mb-1 block text-sm font-medium text-gray-700">
-          <span class="text-rose-500">*</span> Email
+    <!-- Error Alert -->
+    <div
+      v-else-if="status === 'error'"
+      class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-shake"
+      role="alert"
+    >
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+        </svg>
+        <p>{{ errMessage }}</p>
+      </div>
+    </div>
+
+    <form v-if="status !== 'success'" @submit.prevent="submit" class="space-y-5" autocomplete="off">
+      <!-- Email -->
+      <div class="form-group">
+        <label for="email" class="form-label">
+          Email
+          <span class="text-red-500">*</span>
         </label>
-        <input
-          id="email"
-          v-model.trim="email"
-          type="email"
-          autocomplete="email"
-          :disabled="loading || status==='success'"
-          class="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none transition
-                 focus:border-[#79BBFF] focus:ring-2 focus:ring-[#79BBFF]/30 disabled:cursor-not-allowed disabled:bg-gray-50"
-          placeholder="you@example.com"
-          @blur="touched = true"
-          required
-        />
-        <p v-if="touched && !validEmail" class="mt-1 text-xs text-rose-600">
-          Vui lòng nhập email hợp lệ.
-        </p>
-
-        <!-- Nút gửi (giống nút Đăng nhập) -->
-        <button
-          type="submit"
-          :disabled="!validEmail || loading || status==='success'"
-          class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-[#48a0f8] px-4 py-2.5 text-sm font-semibold text-white transition
-                 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <svg
-            v-if="loading"
-            class="mr-2 h-4 w-4 animate-spin"
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" class="opacity-30"></circle>
-            <path d="M21 12a9 9 0 00-9-9" stroke-linecap="round"></path>
+        <div class="relative">
+          <div class="input-icon">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <input
+            id="email"
+            v-model.trim="email"
+            type="email"
+            name="email-forgot"
+            placeholder="you@example.com"
+            autocomplete="off"
+            class="form-input"
+            :class="{ 'border-red-300': touched && !validEmail }"
+            :disabled="loading"
+            @blur="touched = true"
+            @input="touched = false"
+            required
+          />
+        </div>
+        <p v-if="touched && !validEmail" class="form-error">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
           </svg>
-          <span>{{ status==='success' ? 'Đã gửi liên kết' : 'Gửi liên kết đặt lại' }}</span>
-        </button>
+          <span>Vui lòng nhập email hợp lệ</span>
+        </p>
+      </div>
 
-        <!-- Dòng phân cách “hoặc” giống login -->
-        <div class="my-4 flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-200"></div>
-          <span class="text-xs text-gray-400">hoặc</span>
-          <div class="h-px flex-1 bg-gray-200"></div>
-        </div>
+      <button
+        type="submit"
+        class="btn-primary"
+        :disabled="!validEmail || loading"
+        :class="{ 'opacity-60 cursor-not-allowed': !validEmail || loading }"
+      >
+        <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span v-if="!loading">Gửi link đặt lại</span>
+        <span v-else>Đang gửi...</span>
+      </button>
+    </form>
 
-        <!-- Hành động phụ: quay lại đăng nhập / đăng ký (đồng bộ màu) -->
-        <div class="flex items-center justify-between text-sm">
-          <RouterLink to="/auth/login" class="font-medium text-[#2391ff] hover:underline">
-            ← Quay lại đăng nhập
-          </RouterLink>
-          <RouterLink to="/auth/register" class="text-gray-600 hover:underline">
-            Tạo tài khoản
-          </RouterLink>
-        </div>
-      </form>
+    <!-- Success state actions -->
+    <div v-else class="space-y-3">
+      <button
+        @click="status = 'idle'; email = ''; touched = false"
+        class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+      >
+        Gửi lại email
+      </button>
+      <RouterLink
+        to="/auth/login"
+        class="block w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-center text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition"
+      >
+        Quay lại đăng nhập
+      </RouterLink>
+    </div>
 
-      <!-- Ghi chú dưới giống login -->
-      <p class="mt-6 text-center text-xs text-gray-400">
-        Bằng việc tiếp tục, bạn đồng ý với Điều khoản và Chính sách bảo mật của chúng tôi.
+    <!-- Footer links -->
+    <div v-if="status !== 'success'" class="text-center text-sm">
+      <p class="text-gray-600">
+        Chưa có tài khoản?
+        <RouterLink to="/auth/register" class="font-medium text-emerald-600 hover:text-emerald-700 transition">
+          Đăng ký ngay
+        </RouterLink>
       </p>
     </div>
   </div>
@@ -92,6 +138,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useAuthStore } from '@/store/auth.store'
+
+const auth = useAuthStore()
 
 const email = ref('')
 const touched = ref(false)
@@ -104,13 +153,13 @@ const validEmail = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
 async function submit() {
   touched.value = true
   if (!validEmail.value || loading.value) return
+  
   loading.value = true
   status.value = 'idle'
   errMessage.value = ''
 
   try {
-    // TODO: thay bằng authService.forgotPassword(email.value)
-    await new Promise((res) => setTimeout(res, 900))
+    await auth.forgotPassword(email.value)
     status.value = 'success'
   } catch (e: any) {
     status.value = 'error'
@@ -120,3 +169,109 @@ async function submit() {
   }
 }
 </script>
+
+<style scoped>
+.form-group {
+  @apply space-y-2;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700;
+}
+
+.form-input {
+  @apply w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400;
+  @apply focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500;
+  @apply transition duration-200;
+  @apply disabled:bg-gray-50 disabled:cursor-not-allowed;
+}
+
+.form-input:hover:not(:disabled) {
+  @apply border-gray-300;
+}
+
+.input-icon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10;
+}
+
+.form-error {
+  @apply text-xs text-red-600 mt-1.5 flex items-start gap-1.5;
+}
+
+.btn-primary {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 0.75rem !important;
+  background: linear-gradient(to right, rgb(5, 150, 105), rgb(20, 184, 166)) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  transition: all 0.2s !important;
+  transform-origin: center !important;
+  box-shadow: 0 10px 15px -3px rgba(5, 150, 105, 0.25) !important;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(to right, rgb(4, 120, 87), rgb(13, 148, 136)) !important;
+}
+
+.btn-primary:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.5), 0 10px 15px -3px rgba(5, 150, 105, 0.25) !important;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98) !important;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-10px);
+  }
+  75% {
+    transform: translateX(10px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.3s ease-out;
+}
+</style>

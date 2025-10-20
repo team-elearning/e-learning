@@ -251,21 +251,28 @@ const mockCourseData = {
 </script>
 
 <style scoped>
-/* [NOTE] SỬA LỖI GIAO DIỆN: Thêm màu chữ cho các phần tử trong progress-head */
 :root{
   --page-bg:#0b1220;
-  --panel:#1e293b; /* Nền tối hơn cho panel */
-  --text:#f8fafc; /* Chữ trắng */
-  --muted:#94a3b8; /* Chữ xám nhạt */
-  --line:#334155; /* Đường kẻ tối */
-  --accent:#22c55e; /* Màu nhấn xanh lá */
+  --panel:#1e293b;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --line:#334155;
+  --accent:#22c55e;
 }
 
 .lesson-player{ background:var(--page-bg); min-height:100vh; }
 .container{ max-width:1440px; margin:0 auto; padding:14px; }
 
 .topbar{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.link{ background:var(--panel); border:1px solid var(--line); color: var(--text); border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; }
+.link{ 
+  background:var(--panel); 
+  border:1px solid var(--line); 
+  color: var(--text) !important; /* Thêm !important */
+  border-radius:10px; 
+  padding:8px 12px; 
+  font-weight:700; 
+  cursor:pointer; 
+}
 .spacer{ flex:1; }
 
 .content{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:14px; }
@@ -277,11 +284,20 @@ const mockCourseData = {
 
 .video-title{
   display:flex; justify-content:space-between; align-items:flex-end;
-  gap:12px; padding:12px 14px; background:#0f172a; color:var(--text);
+  gap:12px; padding:12px 14px; background:#0f172a; 
   border-top:1px solid var(--line);
 }
-.video-title h2{ font-size:18px; font-weight:800; margin:0; }
-.video-title .subtitle{ color: var(--muted); font-size:14px; margin:0; }
+.video-title h2{ 
+  font-size:18px; 
+  font-weight:800; 
+  margin:0; 
+  color:var(--text) !important; /* Thêm !important */
+}
+.video-title .subtitle{ 
+  color: var(--muted) !important; /* Thêm !important */
+  font-size:14px; 
+  margin:0; 
+}
 
 /* RIGHT */
 .right{ position:relative; }
@@ -292,28 +308,65 @@ const mockCourseData = {
 }
 
 /* Progress head */
-.progress-head{ display:flex; gap:16px; padding:16px; border-bottom:1px solid var(--line); align-items: center;}
+.progress-head{ 
+  display:flex; 
+  gap:16px; 
+  padding:16px; 
+  border-bottom:1px solid var(--line); 
+  align-items: center;
+}
 .circle{ position:relative; width:56px; height:56px; flex-shrink: 0;}
 .c{ transform:rotate(-90deg); }
 .bg{ fill:none; stroke:var(--line); stroke-width:4; }
 .fg{ fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; transition:stroke-dasharray .4s ease; }
-.pct{ position:absolute; inset:0; display:grid; place-items:center; font-weight:800; font-size:14px; color: var(--text); } /* Sửa màu chữ */
-.meta h4{ margin:0; font-size:16px; font-weight:800; color: var(--text); } /* Sửa màu chữ */
-.meta .sub{ color:var(--muted); font-size:13px; margin-top: 4px; } /* Sửa màu chữ */
+.pct{ 
+  position:absolute; 
+  inset:0; 
+  display:grid; 
+  place-items:center; 
+  font-weight:800; 
+  font-size:14px; 
+  color: var(--text) !important; /* Thêm !important */
+}
+.meta h4{ 
+  margin:0; 
+  font-size:16px; 
+  font-weight:800; 
+  color: var(--text) !important; /* Thêm !important */
+}
+.meta .sub{ 
+  color:var(--muted) !important; /* Thêm !important */
+  font-size:13px; 
+  margin-top: 4px; 
+}
 
 /* Outline */
 .outline{ max-height:calc(100vh - 220px); overflow:auto; padding:8px; }
 .sec{ border-radius:8px; overflow:hidden; margin-bottom:8px; background:#27364b; }
 .sec-head{
   width:100%; text-align:left; display:flex; align-items:center; gap:8px;
-  padding:12px; background:transparent; border:0; cursor:pointer; color: var(--text);
+  padding:12px; background:transparent; border:0; cursor:pointer; 
+  color: var(--text) !important; /* Thêm !important */
 }
-.sec-head .name{ font-weight:700; flex:1; }
+.sec-head .name{ 
+  font-weight:700; 
+  flex:1; 
+  color: var(--text) !important; /* Thêm !important */
+}
 .sec-head .len{
-  font-size:12px; font-weight:700; color:var(--muted);
-  background:#334155; border-radius:999px; padding:2px 8px;
+  font-size:12px; 
+  font-weight:700; 
+  color:var(--muted) !important; /* Thêm !important */
+  background:#334155; 
+  border-radius:999px; 
+  padding:2px 8px;
 }
-.chev{ width:20px; height:20px; fill:var(--muted); transition: transform 0.2s ease; }
+.chev{ 
+  width:20px; 
+  height:20px; 
+  fill:var(--muted); 
+  transition: transform 0.2s ease; 
+}
 .chev.open{ transform:rotate(180deg) }
 
 .row{
@@ -321,21 +374,38 @@ const mockCourseData = {
   padding:12px; border-top:1px solid var(--line); cursor:pointer; background:transparent;
 }
 .row:hover{ background: #334155; }
-.row.active{ background:var(--accent); color: #fff; }
-.row.active .title, .row.active .time, .row.active .idx { color: #fff; }
+.row.active{ background:var(--accent) !important; color: #fff !important; }
+.row.active .title, 
+.row.active .time, 
+.row.active .idx { color: #fff !important; }
 .row.done .title{ opacity: 0.7; }
 .leftcell{ display:flex; align-items:center; gap:10px; min-width:0 }
 .idx{
   width:22px; height:22px; display:grid; place-items:center;
-  border-radius:6px; font-size:12px; font-weight:700; color:var(--muted);
+  border-radius:6px; font-size:12px; font-weight:700; 
+  color:var(--muted) !important; /* Thêm !important */
   background:#334155; flex-shrink: 0;
 }
-.title{ font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: var(--text); }
+.title{ 
+  font-weight:500; 
+  white-space:nowrap; 
+  overflow:hidden; 
+  text-overflow:ellipsis; 
+  color: var(--text) !important; /* Thêm !important */
+}
 .rightcell{ display:flex; align-items:center; gap:10px; }
-.time{ color:var(--muted); font-size:12px; }
-.state svg{ width:18px; height:18px; stroke:var(--accent); stroke-width:2.5; fill:none; }
-.row.active .state svg { stroke: #fff; }
-
+.time{ 
+  color:var(--muted) !important; /* Thêm !important */
+  font-size:12px; 
+}
+.state svg{ 
+  width:18px; 
+  height:18px; 
+  stroke:var(--accent); 
+  stroke-width:2.5; 
+  fill:none; 
+}
+.row.active .state svg { stroke: #fff !important; }
 
 /* Accordion anim */
 .acc-enter-from, .acc-leave-to{ max-height:0; opacity:.2 }
@@ -349,7 +419,7 @@ const mockCourseData = {
   font-weight:700;
   border:1.5px solid var(--line);
   background:var(--panel);
-  color:var(--text);
+  color:var(--text) !important; /* Thêm !important */
   transition:all .15s ease;
   cursor:pointer;
 }
