@@ -32,7 +32,8 @@ def env_list(name, default=""):
 
 # SECRET_KEY, DEBUG
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+# DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 # Hosts, CORS/CSRF
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
@@ -85,6 +86,9 @@ REST_FRAMEWORK = {
     
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+
+    'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",
+    'USE_TZ': True,
 }
 
 
@@ -182,7 +186,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Ho_Chi_Minh'
 
 USE_I18N = True
 
