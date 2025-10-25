@@ -10,7 +10,7 @@
             </p>
           </div>
           <button
-            class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="shrink-0 whitespace-nowrap rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:py-1.5 sm:text-sm"
             @click="resetForm"
             :disabled="loading || !isDirty"
           >
@@ -20,18 +20,42 @@
 
         <form class="space-y-6 p-6" @submit.prevent="onSave">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <img
-              :src="preview || form.avatar || fallback"
-              class="h-20 w-20 rounded-full object-cover ring-2 ring-slate-200"
-              alt="avatar"
-            />
-            <div class="space-y-2">
+            <!-- Avatar clickable -->
+            <div class="flex items-center gap-4">
+              <!-- Hidden input -->
+              <input
+                id="avatarInput"
+                type="file"
+                class="hidden"
+                accept="image/*"
+                @change="onPick"
+              />
+              <!-- Label wraps avatar to trigger file picker -->
               <label
-                class="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                for="avatarInput"
+                class="relative inline-block cursor-pointer"
+                aria-label="Đổi ảnh đại diện"
+                title="Đổi ảnh đại diện"
               >
-                <input type="file" class="hidden" accept="image/*" @change="onPick" />
-                <span>Đổi ảnh đại diện</span>
+                <img
+                  :src="preview || form.avatar || fallback120"
+                  class="h-20 w-20 rounded-full object-cover ring-2 ring-slate-200 transition-all hover:ring-blue-300"
+                  alt="avatar"
+                />
+                <!-- camera badge -->
+                <span
+                  class="absolute -right-1 -bottom-1 grid h-6 w-6 place-items-center rounded-full border border-white bg-slate-800 text-white shadow ring-1 ring-black/5"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5">
+                    <path
+                      d="M4 6.5A1.5 1.5 0 0 1 5.5 5h1.172a2 2 0 0 0 1.414-.586l.328-.328A2 2 0 0 1 9.828 3h.344a2 2 0 0 1 1.414.586l.328.328A2 2 0 0 0 13.328 5H14.5A1.5 1.5 0 0 1 16 6.5v6A1.5 1.5 0 0 1 14.5 14h-9A1.5 1.5 0 0 1 4 12.5v-6Zm6 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                    />
+                  </svg>
+                </span>
               </label>
+            </div>
+
+            <div class="space-y-2">
               <p class="text-xs text-slate-500">Chấp nhận PNG, JPG, WebP. Kích thước tối đa 2MB.</p>
               <p v-if="errors.avatar" class="text-xs text-red-600">{{ errors.avatar }}</p>
             </div>
@@ -97,7 +121,7 @@
 
           <hr class="border-slate-200" />
 
-          <div class="flex items-center gap-4">
+          <div class="flex flex-wrap items-center gap-3 sm:gap-4">
             <button
               type="submit"
               class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
@@ -153,9 +177,10 @@ import type { AuthUser } from '@/services/auth.service'
 const auth = useAuthStore()
 const user = computed<AuthUser | null>(() => auth.user)
 
-const fallback = 'https://i.pravatar.cc/120?img=5'
+/** fallback */
+const fallback120 = computed(() => user.value?.avatar || 'https://i.pravatar.cc/120?img=5')
 
-// --- form state ---
+/** form state */
 const original = reactive({
   name: user.value?.name ?? '',
   email: user.value?.email ?? '',
@@ -164,16 +189,15 @@ const original = reactive({
   bio: user.value?.bio ?? '',
   avatar: user.value?.avatar ?? '',
 })
-
 const form = reactive({ ...original })
 const errors = reactive<{ [k: string]: string }>({})
 const loading = ref(false)
 const saved = ref(false)
 
-// derived
+/** dirty */
 const isDirty = computed(() => JSON.stringify(form) !== JSON.stringify(original))
 
-// preview avatar
+/** preview avatar */
 const preview = ref<string | null>(null)
 const onPick = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -192,37 +216,38 @@ const onPick = (e: Event) => {
   reader.readAsDataURL(file)
 }
 
-// validate đơn giản
+/** validate */
 const validate = () => {
   errors.name = form.name ? '' : 'Vui lòng nhập họ tên'
   errors.email = /\S+@\S+\.\S+/.test(form.email) ? '' : 'Email không hợp lệ'
   return !errors.name && !errors.email
 }
 
+/** save */
 const onSave = async () => {
   saved.value = false
   if (!validate()) return
   loading.value = true
   try {
-    await auth.updateProfile({
-      ...form,
-      avatar: preview.value ?? form.avatar ?? undefined,
-    })
+    const payload: Partial<AuthUser> = { ...form }
+    if (preview.value) payload.avatar = preview.value
+    await auth.updateProfile(payload)
     Object.assign(original, { ...form, avatar: preview.value ?? form.avatar })
     saved.value = true
-    setTimeout(() => (saved.value = false), 2000) // Tăng thời gian hiển thị thông báo
+    setTimeout(() => (saved.value = false), 2000)
   } finally {
     loading.value = false
   }
 }
 
+/** reset */
 const resetForm = () => {
   Object.assign(form, original)
   preview.value = null
   Object.keys(errors).forEach((k) => (errors[k] = ''))
 }
 
-// nếu user được hydrate lại, cập nhật form
+/** sync when user changes */
 watch(user, (u) => {
   if (!u) return
   Object.assign(original, {

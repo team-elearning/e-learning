@@ -1,3 +1,4 @@
+<!-- src/pages/student/account/ParentInfo.vue -->
 <template>
   <div class="profile-page">
     <div class="container">
@@ -34,7 +35,7 @@
           <div class="row">
             <label class="label">Số điện thoại <span class="req">*</span></label>
             <div>
-              <input v-model.trim="f.phone" class="input" placeholder="09xxxxxxxx" />
+              <input v-model.trim="f.phone" type="tel" class="input" inputmode="tel" placeholder="09xxxxxxxx" />
               <p v-if="errs.phone" class="err">{{ errs.phone }}</p>
             </div>
           </div>
@@ -42,7 +43,7 @@
           <div class="row">
             <label class="label">Email</label>
             <div>
-              <input v-model.trim="f.email" class="input" placeholder="parent@example.com" />
+              <input v-model.trim="f.email" type="email" class="input" placeholder="parent@example.com" />
               <p v-if="errs.email" class="err">{{ errs.email }}</p>
             </div>
           </div>
@@ -65,10 +66,18 @@
           </div>
 
           <div class="actions">
-            <button class="btn-primary" :disabled="saving || !isValid">
+            <button 
+              class="btn-primary" 
+              :class="{ 'is-busy': saving }"
+              :disabled="saving || !isValid"
+              type="submit"
+            >
               <span v-if="saving" class="spinner"></span>
-              LƯU THÔNG TIN
+              {{ saving ? 'ĐANG LƯU...' : 'LƯU THÔNG TIN' }}
             </button>
+            <small v-if="!isValid" class="btn-hint">
+              Vui lòng điền đầy đủ thông tin bắt buộc
+            </small>
           </div>
         </form>
       </div>
@@ -121,7 +130,7 @@ async function save() {
 }
 </script>
 
-<!-- ======= GLOBAL THEME (đồng bộ Profile) ======= -->
+<!-- GLOBAL THEME (đồng bộ các trang account) -->
 <style>
 :root{
   --bg:#f6f7fb; --card:#fff; --text:#0f172a; --muted:#6b7280; --line:#e5e7eb;
@@ -130,50 +139,102 @@ async function save() {
 }
 </style>
 
-<!-- ======= SCOPED STYLES ======= -->
+<!-- SCOPED -->
 <style scoped>
+/* ===== Layout chung (mobile-first) ===== */
 .profile-page{ background:var(--bg); min-height:100vh; color:var(--text); }
-.container{ max-width:1000px; margin:0 auto; padding:24px 16px 40px; }
+.container{ max-width:1000px; margin:0 auto; padding:16px 10px 32px; }
 
-/* Tabs */
-.tabs{ display:flex; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px; width:max-content; }
-.tab{ padding:10px 14px; border-radius:8px; border:1px solid transparent; background:#fff; cursor:pointer; font-weight:700; }
+/* Tabs: full-width mobile, co lại ở desktop (giống Profile.vue) */
+.tabs{
+  display:flex; gap:4px; background:#fff; border:1px solid var(--line);
+  border-radius:10px; padding:4px; width:100%;
+}
+.tab{
+  flex:1; padding:8px 4px; border-radius:8px; border:1px solid transparent;
+  background:#fff; cursor:pointer; font-weight:700; white-space:nowrap;
+  text-align:center; font-size:10px; line-height:1.3; transition:.2s;
+}
+.tab:hover:not(.active){ background:#f9fafb; }
 .tab.active{ color:var(--accent); border-color:var(--accent-tint-border); background:var(--accent-tint-bg); }
 
 /* Card */
-.card{ background:var(--card); border:1px solid var(--line); border-radius:14px; margin-top:12px; padding:16px 16px 20px; }
-.card-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
-.card-title{ font-weight:800; }
+.card{ background:var(--card); border:1px solid var(--line); border-radius:12px; margin-top:10px; padding:12px; }
+.card-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.card-title{ font-weight:800; font-size:14px; }
 
 /* Toast */
-.toast{ position:fixed; right:18px; bottom:18px; padding:10px 12px; border-radius:10px; border:1px solid; z-index:40;}
+.toast{ position:fixed; right:10px; bottom:10px; padding:8px 10px; border-radius:10px; border:1px solid; z-index:40; font-size:12px; }
 .toast.success{ background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
 .toast.error{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
 .fade-enter-active,.fade-leave-active{ transition:opacity .2s; } .fade-enter-from,.fade-leave-to{ opacity:0; }
 
-/* Form */
+/* Form + fields */
 .form{ margin-top:6px; }
-.row{ display:grid; grid-template-columns: 220px 1fr; gap:16px; align-items:center; margin-bottom:12px; }
-.label{ text-align:left; color:#111827; font-weight:600; }
+.row{ display:grid; grid-template-columns:1fr; gap:6px; margin-bottom:12px; }
+.label{ text-align:left; color:#111827; font-weight:600; font-size:12px; }
 .req{ color:#ef4444; }
-.input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; outline:none; }
+
+.input{
+  width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+  background:#fff; outline:none; font-size:14px; transition:.2s;
+}
 .input:focus{ border-color:var(--focus-border); box-shadow:0 0 0 3px var(--focus-ring); }
-.select{ appearance:none; background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat:no-repeat; }
+.select{
+  appearance:none;
+  background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%);
+  background-position: calc(100% - 14px) calc(1em + 2px), calc(100% - 9px) calc(1em + 2px);
+  background-size: 5px 5px;
+  background-repeat:no-repeat;
+}
 
-.actions{ display:flex; justify-content:flex-end; margin-top:16px; }
-.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); padding:12px 18px; border-radius:10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
-.btn-primary:disabled{ opacity:.6; cursor:not-allowed; }
+/* Actions + Button */
+.actions{ display:flex; flex-direction:column; align-items:stretch; gap:8px; margin-top:16px; }
 
-/* Spinner */
-.spinner{ width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
-@keyframes spin{ to{ transform:rotate(360deg); } }
+.btn-primary{
+  background: var(--accent) !important;
+  color:#fff !important;
+  border:1px solid var(--accent) !important;
+  padding:12px 18px !important;
+  border-radius:10px !important;
+  font-weight:800 !important;
+  cursor:pointer !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  gap:8px !important; font-size:12px !important; width:100% !important;
+}
+.btn-primary:not(:disabled):hover{ filter:brightness(1.06); transform:translateY(-1px); transition:.15s ease; }
+.btn-primary:disabled{
+  background:#d1d5db !important; border-color:#d1d5db !important; color:#6b7280 !important;
+  cursor:not-allowed !important; opacity:1 !important;
+}
+.btn-primary.is-busy{ opacity:.7 !important; }
+
+.btn-hint{ font-size:10px; color:var(--muted); text-align:center; }
 
 /* Errors */
 .err{ color:#dc2626; font-size:12px; margin-top:6px; }
 
-/* Responsive */
-@media (max-width: 840px){
-  .row{ grid-template-columns: 1fr; }
-  .label{ margin-bottom:4px; }
+/* ===== Breakpoints khớp với Profile.vue ===== */
+@media (min-width:641px){
+  .container{ padding:20px 14px 36px; }
+  .tabs{ gap:6px; padding:6px; }
+  .tab{ padding:10px 10px; font-size:12px; }
+  .card{ padding:14px; }
+  .card-title{ font-size:15px; }
+}
+
+@media (min-width:841px){
+  .container{ padding:24px 16px 40px; }
+  .tabs{ width:max-content; }
+  .tab{ padding:10px 14px; font-size:13px; }
+  .card{ padding:16px; }
+  .card-title{ font-size:16px; }
+
+  .row{ grid-template-columns:220px 1fr; gap:14px; align-items:center; }
+  .label{ font-size:14px; }
+
+  .actions{ align-items:flex-end; }
+  .btn-primary{ width:auto !important; } /* nút thu gọn ở desktop */
+  .btn-hint{ text-align:right; }
 }
 </style>
