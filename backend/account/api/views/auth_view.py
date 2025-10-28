@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,6 +13,7 @@ from account.api.dtos.user_dto import UserInput, UserPublicOutput, UserAdminOutp
 from account.api.mixins import RoleBasedOutputMixin
 from account.serializers import (RegisterSerializer, ResetPasswordSerializer)
 from account.services import user_service, auth_service
+from account.services.exceptions import DomainError
 from account.serializers import CustomTokenObtainPairSerializer
 
 
@@ -27,8 +29,23 @@ class RegisterView(RoleBasedOutputMixin, APIView):
         serializer.is_valid(raise_exception=True)
         user_input_dto = UserInput(**serializer.validated_data)
 
-        # call service with domain object
-        user_domain = user_service.register_user(data=user_input_dto.to_dict())
+        try:
+            # call service with domain object
+            user_domain = user_service.register_user(data=user_input_dto.to_dict()) # Pass the domain object
+
+        except DomainError as e: # <-- Catch DomainError
+            # Catch the custom domain error from your service
+            return Response(
+                {"error": str(e)}, # Use the error message from the exception
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except IntegrityError:
+            # Catch the database error when a unique constraint fails
+            return Response(
+                {"error": "A user with that username or email already exists."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Put the domain object in the response so the mixin can pick it up
         return Response({"instance": user_domain}, status=status.HTTP_201_CREATED)

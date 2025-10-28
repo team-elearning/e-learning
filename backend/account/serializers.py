@@ -129,18 +129,7 @@ class RegisterSerializer(serializers.Serializer):
         """Convert validated data into a UserDomain object"""
         return UserDomain(**self.validated_data)
     
-
-# """Serializer for login requests (input only)."""
-# class LoginSerializer(serializers.Serializer):
-#     username_or_email = serializers.CharField()
-#     raw_password = serializers.CharField(write_only=True)
-
-#     def to_domain(self) -> "LoginDomain":
-#         """Convert validated data into a LoginDomain object"""
-#         return LoginDomain(username_or_email=self.validated_data["username_or_email"],
-#                            raw_password=self.validated_data["raw_password"],)
-    
-    
+ 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
