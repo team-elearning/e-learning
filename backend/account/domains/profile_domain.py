@@ -42,10 +42,13 @@ class ProfileDomain:
         if self.user_id is None:
             raise ValueError("user_id is required")
 
-        if self.dob and self.dob > date.today():
+        if isinstance(self.dob, datetime):
+            self.dob = self.dob.date()
+
+        if self.dob is not None and self.dob > date.today():
             raise ValueError("Date of birth cannot be in the future.")
 
-        if self.language not in ["vi", "en"]:
+        if self.language not in ["vietnamese", "english"]:
             raise ValueError("Unsupported language.")
 
 

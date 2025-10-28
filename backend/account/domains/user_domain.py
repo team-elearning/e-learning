@@ -36,8 +36,11 @@ class UserDomain:
     email: str = ""
     raw_password: Optional[str] = None
     created_on: Optional[datetime] = None
+    updated_on: Optional[datetime] = None
     role: str = "student"
     phone: Optional[str] = None
+    is_active: bool = True
+    is_staff: bool = False
 
 
     # --- Validation ---
@@ -140,9 +143,9 @@ class UserDomain:
     #     self.password = new_password
 
 
-    def create_profile(self):
+    def create_profile(self): # Mới tạo chưa cần validate
         profile_domain = ProfileDomain(user_id=self.id)
-        profile_domain.validate()
+        # profile_domain.validate()
         return profile_domain
 
 

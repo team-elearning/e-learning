@@ -64,7 +64,7 @@ class Profile(models.Model):
         blank=True,
         null=True
     )
-    language = models.CharField(max_length=8, default='vi')
+    language = models.CharField(max_length=20, default='vietnamese')
     metadata = models.JSONField(default=dict, blank=True)  # e.g., {'preferences': {...}}
 
     class Meta:
