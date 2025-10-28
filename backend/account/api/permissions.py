@@ -45,4 +45,27 @@ class IsAdminOrSelf(BasePermission):
        
        # Allow users accessing their own data
         return obj.id == request.user.id
+    
+
+class IsAdmin(BasePermission):
+    """
+    Custom permission to allow access if the user is an admin or accessing their own data.
+    """
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        return True
+    
+    def has_object_permission(self, request, view, obj):
+        """
+        Custom permission to allow access if the user is an admin or accessing their own data.
+        """
+        return request.user.is_staff # AND request.user.role == "admin"
+    
+
+class IsSelf(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # obj ở đây là instance của UserModel
+        return obj.id == request.user.id
 

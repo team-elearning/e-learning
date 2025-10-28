@@ -27,6 +27,18 @@ class UserSerializer(serializers.ModelSerializer):
             "phone", "created_on", "role"
         ]
         read_only_fields = ["id", "created_on"]
+
+    def get_fields(self):
+        """Dynamically make some fields read-only depending on the user."""
+        fields = super().get_fields()
+
+        request = self.context.get("request", None)
+        if request and not request.user.is_staff:  # Non-admin user
+            # Make restricted fields read-only
+            fields["role"].read_only = True
+            fields["is_active"].read_only = True
+
+        return fields
     
     def to_domain(self) -> UserDomain:
         """Convert serializer data -> UserDomain."""
@@ -175,7 +187,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user': {
-                'id': user.id,
+                # 'id': user.id,
                 'username': user.username,
                 'email': user.email,
             }

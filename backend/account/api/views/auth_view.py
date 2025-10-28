@@ -1,81 +1,42 @@
-from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
-from rest_framework import status, generics, permissions
+from django.contrib.auth import get_user_model
+from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 
-from account.models import UserModel, Profile, ParentalConsent
-from account.domains.register_domain import RegisterDomain
-from account.api.permissions import IsAdminOrSelf
-from account.serializers import (
-    UserSerializer,
-    RegisterSerializer,
-    ChangePasswordSerializer,
-    ResetPasswordSerializer,
-    ProfileSerializer,
-    ParentalConsentSerializer,
-)
+from account.api.dtos.user_dto import UserInput, UserPublicOutput, UserAdminOutput
+from account.api.mixins import RoleBasedOutputMixin
+from account.serializers import (RegisterSerializer, ResetPasswordSerializer)
 from account.services import user_service, auth_service
 from account.serializers import CustomTokenObtainPairSerializer
 
 
 
-class RegisterView(APIView):
+class RegisterView(RoleBasedOutputMixin, APIView):
     permission_classes = [permissions.AllowAny]
+
+    output_dto_public = UserPublicOutput
+    output_dto_admin = UserAdminOutput
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        user_input_dto = UserInput(**serializer.validated_data)
 
         # call service with domain object
-        user_domain = user_service.register_user(data=data)
+        user_domain = user_service.register_user(data=user_input_dto.to_dict())
 
-        # map domain -> response dict (use UserSerializer.from_domain or usual serializer)
-        return Response(UserSerializer.from_domain(user_domain), status=status.HTTP_201_CREATED)
+        # Put the domain object in the response so the mixin can pick it up
+        return Response({"instance": user_domain}, status=status.HTTP_201_CREATED)
     
 
 # ---------- Login (token-based) ----------
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
-
-# class LoginView(APIView):
-#     permission_classes = [permissions.AllowAny]
-
-#     def post(self, request):
-#         serializer = LoginSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         data = serializer.validated_data
-#         identifier = data["username_or_email"]
-#         raw_password = data["raw_password"]
-
-#         # authenticate by username or email (robust)
-#         user = None
-#         try:
-#             user = UserModel.objects.get(username=identifier)
-#         except UserModel.DoesNotExist:
-#             try:
-#                 user = UserModel.objects.get(email=identifier)
-#             except UserModel.DoesNotExist:
-#                 user = None
-
-#         if not user or not user.check_password(raw_password):
-#             return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
-#         # create or return token (DRF TokenAuth)
-#         token, _ = Token.objects.get_or_create(user=user)
-
-#         # return token + user data (use domain mapping)
-#         user_domain = user_service.get_user_by_id(user.id)
-#         return Response({
-#             "token": token.key,
-#             "user": UserSerializer.from_domain(user_domain),
-#         })
-    
 
 # ---------- Logout ----------
 class LogoutView(APIView):
@@ -146,6 +107,146 @@ class ResetPasswordConfirmView(APIView):
         if not ok:
             return Response({"detail": "Invalid token or request"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"success": True}, status=status.HTTP_200_OK)
+    
+
+
+
+User = get_user_model()
+# --- Admin (only)
+class AdminLoginAsUserView(APIView):
+    """
+    An admin-only view to obtain JWT tokens for any user.
+    The admin must be authenticated and be a superuser/staff.
+    
+    Usage: POST /api/login/admin-as/<user_id>/
+    """
+    # This is crucial: only allow authenticated admin users
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        Takes a user_id from the URL and returns access/refresh tokens
+        for that user.
+        """
+        # Find the user we want to log in as
+        # get_object_or_404 will automatically return a 404 response if user not found
+        try:
+            user_to_login = get_object_or_404(User, pk=user_id)
+        except Exception:
+             return Response(
+                {"error": f"User with ID {user_id} not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+        # Generate tokens for the specified user
+        refresh = RefreshToken.for_user(user_to_login)
+             
+        try:
+            # Validate the Django user model against the Pydantic DTO
+            user_data_dto = UserAdminOutput.model_validate(user_to_login)
+            # Use your existing method to get the dictionary
+            user_data_dict = user_data_dto.to_dict(exclude_none=True)
+        except Exception as e:
+            # Catch errors if your User model doesn't match the DTO
+            return Response(
+                {"error": f"Failed to serialize user data: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        response_data = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': user_data_dict  # <-- Use the dictionary from the DTO
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+
+class AdminRefreshUserAccessView(APIView):
+    """
+    An admin-only view to obtain a new *access token* for any user.
+    This does NOT generate a new refresh token.
+    
+    Usage: POST /api/admin/refresh-access/<user_id>/
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        Takes a user_id from the URL and returns a new access token
+        for that user, along with the user's data.
+        """
+        try:
+            user_to_refresh = get_object_or_404(User, pk=user_id)
+        except Exception:
+            return Response(
+                {"error": f"User with ID {user_id} not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+        # Generate an access token
+        access = AccessToken.for_user(user_to_refresh)
+        
+        # Serialize user data using Pydantic DTO
+        try:
+            # Validate the Django user model against the Pydantic DTO
+            user_data_dto = UserAdminOutput.model_validate(user_to_refresh)
+            # Use method to get the dictionary
+            user_data_dict = user_data_dto.to_dict(exclude_none=True)
+        except Exception as e:
+            # Catch errors if your User model doesn't match the DTO
+            return Response(
+                {"error": f"Failed to serialize user data: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # 3. Format the response as requested
+        response_data = {
+            'access': str(access),
+            'user': user_data_dict  # <-- Use the dictionary from the DTO
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+
+class AdminLogoutUserView(APIView):
+    """
+    An admin-only view to force-logout any user by blacklisting
+    all of their outstanding refresh tokens.
+    
+    Usage: POST /api/admin/logout-user/<user_id>/
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, user_id, *args, **kwargs):
+        """
+        Takes a user_id from the URL and blacklists all of their
+        refresh tokens.
+        """
+        try:
+            user_to_logout = get_object_or_404(User, pk=user_id)
+        except Exception:
+            return Response(
+                {"error": f"User with ID {user_id} not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Find all outstanding refresh tokens for the user
+        # OutstandingToken only stores refresh tokens
+        tokens = OutstandingToken.objects.filter(user=user_to_logout)
+        
+        # Blacklist each token
+        count = 0
+        for token in tokens:
+            # get_or_create ensures we don't add duplicate entries
+            _, created = BlacklistedToken.objects.get_or_create(token=token)
+            if created:
+                count += 1
+        
+        return Response(
+            {"detail": f"Successfully logged out user {user_to_logout.username}. Blacklisted {count} refresh token(s)."},
+            status=status.HTTP_200_OK
+        )
 
 
 
