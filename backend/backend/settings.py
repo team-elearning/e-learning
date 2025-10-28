@@ -7,6 +7,19 @@ from dotenv import load_dotenv
 # Base paths & environment
 # -------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# -------------------------------
+# Static files
+# -------------------------------
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # nơi collectstatic sẽ gom các file tĩn
+
+# -------------------------------
+# Media files
+# -------------------------------
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 load_dotenv(BASE_DIR / ".env")
 
 def env_list(name, default=""):
