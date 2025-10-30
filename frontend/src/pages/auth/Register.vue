@@ -361,7 +361,6 @@ function validate() {
   const passwordValid = validatePassword()
   const confirmValid = validateConfirm()
   const agreeValid = validateAgree()
-  
   return fullNameValid && usernameValid && emailValid && phoneValid && passwordValid && confirmValid && agreeValid
 }
 
@@ -379,7 +378,6 @@ const onSubmit = async () => {
       confirm: form.confirm,
       agree: form.agree,
     })
-    
     showToast('Đăng ký thành công. Vui lòng đăng nhập.', 'success')
     router.push('/auth/login')
   } catch (e: any) {
@@ -405,14 +403,11 @@ function showToast(message: string, type: 'success' | 'error') {
     </div>
     <div class="toast-bar"></div>
   `
-  
   document.body.appendChild(toast)
-  
   requestAnimationFrame(() => {
     toast.style.transform = 'translateX(0)'
     toast.style.opacity = '1'
   })
-  
   setTimeout(() => {
     toast.style.transform = 'translateX(400px)'
     toast.style.opacity = '0'
@@ -450,9 +445,7 @@ function showToast(message: string, type: 'success' | 'error') {
   color: #ef4444;
 }
 
-.input-wrapper {
-  position: relative;
-}
+.input-wrapper { position: relative; }
 
 .input-icon {
   position: absolute;
@@ -463,41 +456,33 @@ function showToast(message: string, type: 'success' | 'error') {
   z-index: 10;
 }
 
-.icon {
-  width: 1rem;
-  height: 1rem;
-  color: #9ca3af;
-}
+.icon { width: 1rem; height: 1rem; color: #9ca3af; }
 
+/* ==== PINK THEME INPUT ==== */
 .form-input {
   width: 100%;
   padding: 0.5rem 2.5rem 0.5rem 2.25rem;
   background: white;
-  border: 2px solid rgba(16, 185, 129, 0.2);
+  border: 2px solid rgba(236, 72, 153, 0.2); /* pink-500 @ 0.2 */
   border-radius: 0.625rem;
   font-size: 0.8125rem;
   color: #1f2937;
   transition: all 0.2s;
 }
 
-.form-input::placeholder {
-  color: #9ca3af;
-}
+.form-input::placeholder { color: #9ca3af; }
 
-.form-input:hover {
-  border-color: rgba(16, 185, 129, 0.4);
-}
+.form-input:hover { border-color: rgba(236, 72, 153, 0.4); }
 
 .form-input:focus {
   outline: none;
-  border-color: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  border-color: #ec4899; /* pink-500 */
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12);
 }
 
-.form-input.error {
-  border-color: #ef4444;
-}
+.form-input.error { border-color: #ef4444; }
 
+/* Toggle (show/hide password) */
 .toggle-btn {
   position: absolute;
   right: 0.625rem;
@@ -510,16 +495,11 @@ function showToast(message: string, type: 'success' | 'error') {
   color: #9ca3af;
   transition: color 0.2s;
 }
+.toggle-btn:hover { color: #ec4899; }
 
-.toggle-btn:hover {
-  color: #10b981;
-}
+.toggle-icon { width: 1rem; height: 1rem; }
 
-.toggle-icon {
-  width: 1rem;
-  height: 1rem;
-}
-
+/* Error text */
 .error-msg {
   display: flex;
   align-items: flex-start;
@@ -528,17 +508,10 @@ function showToast(message: string, type: 'success' | 'error') {
   color: #ef4444;
   margin-top: 0.125rem;
 }
+.error-icon { width: 0.625rem; height: 0.625rem; flex-shrink: 0; margin-top: 0.0625rem; }
 
-.error-icon {
-  width: 0.625rem;
-  height: 0.625rem;
-  flex-shrink: 0;
-  margin-top: 0.0625rem;
-}
-
-.hint-wrapper {
-  margin-top: 0.25rem;
-}
+/* Password hints */
+.hint-wrapper { margin-top: 0.25rem; }
 
 .hint {
   display: flex;
@@ -548,56 +521,35 @@ function showToast(message: string, type: 'success' | 'error') {
   color: #9ca3af;
   transition: color 0.2s;
 }
+.hint.valid { color: #ec4899; } /* pink when valid */
+.hint-icon { width: 0.75rem; height: 0.75rem; flex-shrink: 0; }
 
-.hint.valid {
-  color: #10b981;
-}
-
-.hint-icon {
-  width: 0.75rem;
-  height: 0.75rem;
-  flex-shrink: 0;
-}
-
-.terms-group {
-  padding-top: 0.125rem;
-}
-
-.terms-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  cursor: pointer;
-}
+/* Terms */
+.terms-group { padding-top: 0.125rem; }
+.terms-label { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; }
 
 .terms-checkbox {
   margin-top: 0.0625rem;
   width: 0.875rem;
   height: 0.875rem;
   flex-shrink: 0;
-  border: 2px solid rgba(16, 185, 129, 0.4);
+  border: 2px solid rgba(236, 72, 153, 0.4);
   border-radius: 0.25rem;
   cursor: pointer;
-  accent-color: #10b981;
+  accent-color: #ec4899; /* pink */
 }
 
-.terms-text {
-  font-size: 0.6875rem;
-  color: #6b7280;
-  line-height: 1.35;
-}
+.terms-text { font-size: 0.6875rem; color: #6b7280; line-height: 1.35; }
 
 .terms-link {
-  color: #10b981;
+  color: #ec4899;
   font-weight: 700;
   text-decoration: none;
   transition: color 0.2s;
 }
+.terms-link:hover { color: #db2777; }
 
-.terms-link:hover {
-  color: #059669;
-}
-
+/* ==== SUBMIT BUTTON – PINK GRADIENT ==== */
 .submit-btn {
   width: 100%;
   display: flex;
@@ -605,7 +557,7 @@ function showToast(message: string, type: 'success' | 'error') {
   justify-content: center;
   gap: 0.375rem;
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #10b981, #14b8a6, #06b6d4);
+  background: linear-gradient(135deg, #ec4899, #db2777, #be185d);
   background-size: 200% 200%;
   color: white;
   font-weight: 700;
@@ -614,59 +566,39 @@ function showToast(message: string, type: 'success' | 'error') {
   border-radius: 0.625rem;
   cursor: pointer;
   transition: all 0.3s;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.3);
   animation: gradient-shift 3s ease infinite;
   margin-top: 0.25rem;
 }
 
 @keyframes gradient-shift {
   0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
 }
 
-.submit-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
+.submit-btn:active:not(:disabled) { transform: translateY(0); }
+.submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
-.submit-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+/* Spinner */
+.spinner { width: 1rem; height: 1rem; animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-.spinner {
-  width: 1rem;
-  height: 1rem;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.login-link {
-  text-align: center;
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
+/* Footer link */
+.login-link { text-align: center; font-size: 0.75rem; color: #6b7280; }
 .login-link-text {
   font-weight: 700;
-  color: #10b981;
+  color: #ec4899;
   text-decoration: none;
   transition: color 0.2s;
 }
+.login-link-text:hover { color: #db2777; }
 
-.login-link-text:hover {
-  color: #059669;
-}
-
-/* TOAST */
+/* ==== TOAST ==== */
 :global(.toast-notification) {
   position: fixed;
   top: 1rem;
@@ -686,8 +618,8 @@ function showToast(message: string, type: 'success' | 'error') {
 }
 
 :global(.toast-success) {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.98), rgba(5, 150, 105, 0.98));
-  border: 1px solid rgba(16, 185, 129, 0.5);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.98), rgba(219, 39, 119, 0.98));
+  border: 1px solid rgba(236, 72, 153, 0.5);
 }
 
 :global(.toast-error) {
@@ -706,30 +638,10 @@ function showToast(message: string, type: 'success' | 'error') {
   border-radius: 10px;
 }
 
-:global(.toast-icon) {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: white;
-  stroke-width: 2.5;
-}
-
-:global(.toast-body) {
-  flex: 1;
-  min-width: 0;
-}
-
-:global(.toast-title) {
-  font-weight: 900;
-  font-size: 0.875rem;
-  color: white;
-  margin-bottom: 0.25rem;
-}
-
-:global(.toast-msg) {
-  font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.95);
-  line-height: 1.3;
-}
+:global(.toast-icon) { width: 1.25rem; height: 1.25rem; color: white; stroke-width: 2.5; }
+:global(.toast-body) { flex: 1; min-width: 0; }
+:global(.toast-title) { font-weight: 900; font-size: 0.875rem; color: white; margin-bottom: 0.25rem; }
+:global(.toast-msg) { font-size: 0.8125rem; color: rgba(255, 255, 255, 0.95); line-height: 1.3; }
 
 :global(.toast-bar) {
   position: absolute;
@@ -747,95 +659,27 @@ function showToast(message: string, type: 'success' | 'error') {
     bar-shrink 3.5s linear forwards,
     bar-shimmer 1.5s linear infinite;
 }
-
-@keyframes bar-shrink {
-  from { width: 100%; }
-  to { width: 0%; }
-}
-
-@keyframes bar-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
+@keyframes bar-shrink { from { width: 100%; } to { width: 0%; } }
+@keyframes bar-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* RESPONSIVE */
 @media (max-width: 640px) {
-  .register-form {
-    gap: 0.5rem;
-  }
-
-  .form-group {
-    gap: 0.1875rem;
-  }
-
-  .form-label {
-    font-size: 0.6875rem;
-  }
-
-  .form-input {
-    padding: 0.4375rem 2.25rem 0.4375rem 2rem;
-    font-size: 0.75rem;
-  }
-
-  .input-icon {
-    left: 0.5rem;
-  }
-
-  .icon {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-
-  .toggle-btn {
-    right: 0.5rem;
-  }
-
-  .toggle-icon {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-
-  .error-msg {
-    font-size: 0.5625rem;
-  }
-
-  .error-icon {
-    width: 0.5625rem;
-    height: 0.5625rem;
-  }
-
-  .hint {
-    font-size: 0.5625rem;
-  }
-
-  .hint-icon {
-    width: 0.6875rem;
-    height: 0.6875rem;
-  }
-
-  .terms-text {
-    font-size: 0.625rem;
-  }
-
-  .submit-btn {
-    padding: 0.4375rem 0.875rem;
-    font-size: 0.75rem;
-  }
-
-  .spinner {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-
-  .login-link {
-    font-size: 0.6875rem;
-  }
-
-  :global(.toast-notification) {
-    top: 0.75rem;
-    right: 0.75rem;
-    left: 0.75rem;
-    max-width: none;
-  }
+  .register-form { gap: 0.5rem; }
+  .form-group { gap: 0.1875rem; }
+  .form-label { font-size: 0.6875rem; }
+  .form-input { padding: 0.4375rem 2.25rem 0.4375rem 2rem; font-size: 0.75rem; }
+  .input-icon { left: 0.5rem; }
+  .icon { width: 0.875rem; height: 0.875rem; }
+  .toggle-btn { right: 0.5rem; }
+  .toggle-icon { width: 0.875rem; height: 0.875rem; }
+  .error-msg { font-size: 0.5625rem; }
+  .error-icon { width: 0.5625rem; height: 0.5625rem; }
+  .hint { font-size: 0.5625rem; }
+  .hint-icon { width: 0.6875rem; height: 0.6875rem; }
+  .terms-text { font-size: 0.625rem; }
+  .submit-btn { padding: 0.4375rem 0.875rem; font-size: 0.75rem; }
+  .spinner { width: 0.875rem; height: 0.875rem; }
+  .login-link { font-size: 0.6875rem; }
+  :global(.toast-notification) { top: 0.75rem; right: 0.75rem; left: 0.75rem; max-width: none; }
 }
 </style>
