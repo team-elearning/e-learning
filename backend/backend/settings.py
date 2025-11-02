@@ -140,6 +140,7 @@ SIMPLE_JWT = {
 # -------------------------------
 AUTH_USER_MODEL = 'account.UserModel'
 
+
 # -------------------------------
 # Static & Media files
 # -------------------------------

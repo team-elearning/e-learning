@@ -1,13 +1,7 @@
-from typing import Optional, Any, Dict
-from dataclasses import fields
-from django.contrib.auth import authenticate
-from django.contrib.auth.hashers import make_password
-from django.core.exceptions import ObjectDoesNotExist
+from typing import Optional, Any, Dict, List
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 from account.domains.user_domain import UserDomain
-from account.domains.register_domain import RegisterDomain
-from account.domains.profile_domain import ProfileDomain
-from account.domains.change_password_domain import ChangePasswordDomain
 from account.domains.reset_password_domain import ResetPasswordDomain
 from account.models import UserModel
 from account.models import Profile
@@ -54,6 +48,22 @@ def change_password(user_id: int, old_password: str, new_password: str) -> bool:
     user.set_password(new_password)
     user.save()
     return True
+
+
+def admin_set_password(user_id: int, new_password: str):
+    """
+    Finds a user by ID and sets their password directly.
+    Does not check the old password.
+    Raises UserNotFoundError if the user doesn't exist.
+    """
+    try:
+        user = UserModel.objects.get(id=user_id)
+    except UserModel.DoesNotExist:
+        raise UserNotFoundError("User not found.")
+    
+    # Use Django's set_password to handle hashing
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
 
 
 def reset_password(domain: ResetPasswordDomain) -> bool:
@@ -121,14 +131,30 @@ def reactivate_user(user_id: int) -> Optional[UserDomain]:
     except UserModel.DoesNotExist:
         return None
     
+def delete_user(user_id):
+    """
+    Service-layer method to delete a user.
+    Contains business logic for *if* a user can be deleted.
+    """
+    # Fetch the domain object from the repository
+    user_to_delete = UserModel.objects.get(id=user_id)
+    
+    if not user_to_delete:
+        raise ValidationError("User not found.")
+    UserModel.delete(user_to_delete)
+    
 
-def list_users(role: str = None, active_only: bool = True) -> list[UserDomain]:
-    qs = UserModel.objects.all()
-    if role:
-        qs = qs.filter(role=role)
-    if active_only:
-        qs = qs.filter(is_active=True)
-    return [UserDomain.from_model(u) for u in qs]
+def list_all_users_for_admin() -> List[UserDomain]:
+    """
+    Gets all users as a list of UserDomain entities.
+
+    This follows the style of 'register_user', where the service
+    layer interacts with the Model but returns Domain Entities.
+    """
+    user_models = UserModel.objects.all().order_by('id')
+    user_domains = [UserDomain.from_model(user) for user in user_models]
+    return user_domains
+
 
     
     
