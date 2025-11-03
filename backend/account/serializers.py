@@ -183,11 +183,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user': {
-                # 'id': user.id,
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                # 'full_name': profile.display_name if profile.display_name else user.username,
+                'full_name': profile.display_name if profile.display_name else user.username,
             }
         }
         return data
