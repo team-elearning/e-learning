@@ -1,7 +1,19 @@
 import http from '@/config/axios'
+import { jwtDecode } from 'jwt-decode';
+
 // src/services/auth.service.ts
 export type Role = 'admin' | 'teacher' | 'student'
+// import jwtDecode from 'jwt-decode';
 
+export const getRoleFromToken = (token: string): Role | null => {
+  try {
+    const decoded: { role?: Role } = jwtDecode(token);
+    return decoded.role || null;
+  } catch (error) {
+    console.error('Invalid token:', error);
+    return null;
+  }
+};
 
 export interface AuthUser {
   id: number
@@ -14,6 +26,9 @@ export interface AuthUser {
   bio?: string
   avatar?: string
 }
+
+
+
 
 
 export interface AuthPayload {
@@ -29,32 +44,61 @@ export interface UpdateProfileDto extends Partial<AuthUser> {
 
 
 export const authService = {
+  // async login(email: string, password: string): Promise<AuthPayload> {
+  //   if (!email || !password) throw new Error('Thiếu thông tin đăng nhập')
+  //   // gọi api thật
+  //   const { data } = await http.post('/account/login/', {
+  //     username_or_email: email,
+  //     password,
+  //   })
+
+
+  //   // map về authuser
+  //   const user: AuthUser = {
+  //     id: Number(data.user.id),
+  //     name: data.user.username ?? 'User',
+  //     email: data.user.email,
+  //     // BE chưa trả role -> tạm mặc định 'student' (sau này BE có thì sửa lại chỗ này)
+  //     role: 'student',
+  //   }
+
+
+  //   localStorage.setItem('access', data.access)
+  //   if (data.refresh) localStorage.setItem('refresh', data.refresh)
+
+
+  //   return { token: data.access as string, user }
+  // },
+
   async login(email: string, password: string): Promise<AuthPayload> {
-    if (!email || !password) throw new Error('Thiếu thông tin đăng nhập')
-    // gọi api thật
+    if (!email || !password) throw new Error('Thiếu thông tin đăng nhập');
+
+    // Gọi API đăng nhập
     const { data } = await http.post('/account/login/', {
       username_or_email: email,
       password,
-    })
+    });
 
+    // Lấy token từ API response
+    const token = data.access as string;
 
-    // map về authuser
+    // Xác định vai trò từ token
+    const role = getRoleFromToken(token) || 'student'; // Nếu không có role, mặc định là 'student'
+
+    // Map về AuthUser
     const user: AuthUser = {
       id: Number(data.user.id),
       name: data.user.username ?? 'User',
       email: data.user.email,
-      // BE chưa trả role -> tạm mặc định 'student' (sau này BE có thì sửa lại chỗ này)
-      role: 'student',
-    }
+      role, // Vai trò lấy từ token
+    };
 
+    // Lưu token vào localStorage
+    localStorage.setItem('access', token);
+    if (data.refresh) localStorage.setItem('refresh', data.refresh);
 
-    localStorage.setItem('access', data.access)
-    if (data.refresh) localStorage.setItem('refresh', data.refresh)
-
-
-    return { token: data.access as string, user }
+    return { token, user };
   },
-
 
   async loginWithGoogle(): Promise<AuthPayload> {
     return {
@@ -67,6 +111,7 @@ export const authService = {
       },
     }
   },
+
 
 
   async register(payload: {

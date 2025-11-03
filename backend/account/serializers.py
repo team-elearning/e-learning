@@ -183,6 +183,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 # 'id': user.id,
                 'username': user.username,
                 'email': user.email,
+                'role': user.role,
+                'full_name': f"{user.first_name} {user.last_name}".strip(),
             }
         }
         return data
