@@ -176,6 +176,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Get profile
         profile = profile_service.get_profile_by_user(user.id)
+        if not profile:
+            raise AuthenticationFailed("User profile not found", code="authentication")
 
         # Generate tokens manually
         refresh = RefreshToken.for_user(user)

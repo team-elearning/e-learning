@@ -2,21 +2,22 @@
 from django.urls import path
 
 from content.api import views
+from content.api.views import subject_view, course_view, module_view, lesson_view, lesson_version_view, content_block_view, exploration_view, exploration_state_view, exploration_transition_view
 
 urlpatterns = [
     # ---------------------------
     # Subject
     # ---------------------------
-    path("subjects/", views.SubjectListCreateView.as_view(), name="subject-list"),
-    path("subjects/<uuid:pk>/", views.SubjectDetailView.as_view(), name="subject-detail"),
+    path("subjects/", subject_view.SubjectListCreateView.as_view(), name="subject-list"),
+    path("subjects/<uuid:pk>/", subject_view.SubjectDetailView.as_view(), name="subject-detail"),
 
     # ---------------------------
     # Course
     # ---------------------------
-    path("courses/", views.CourseListCreateView.as_view(), name="course-list"),
-    path("courses/<uuid:pk>/", views.CourseDetailView.as_view(), name="course-detail"),
-    path("courses/<uuid:course_id>/publish/", views.CoursePublishView.as_view(), name="course-publish"),
-    path("courses/<uuid:course_id>/enroll/", views.CourseEnrollView.as_view(), name="course-enroll"),
+    path("courses/", course_view.CourseListCreateView.as_view(), name="course-list"),
+    path("courses/<uuid:pk>/", course_view.CourseDetailView.as_view(), name="course-detail"),
+    path("courses/<uuid:course_id>/publish/", course_view.CoursePublishView.as_view(), name="course-publish"),
+    path("courses/<uuid:course_id>/enroll/", course_view.CourseEnrollView.as_view(), name="course-enroll"),
 
     # ---------------------------
     # Module (nested under course)

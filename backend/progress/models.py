@@ -1,46 +1,48 @@
+
 import uuid
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+from content.models import Course, Lesson
 
-# Create your models here.
-class Progress(models.Model):
+class UserProgress(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='progresses')
-    lesson = models.ForeignKey('content.Lesson', on_delete=models.CASCADE, related_name='progresses')
-    lesson_version = models.ForeignKey('content.LessonVersion', on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='progress')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='progress')
+    completed_lessons = models.PositiveIntegerField(default=0)
+    total_lessons = models.PositiveIntegerField(default=0)
+    progress_percentage = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('user', 'course')
+        verbose_name = ("User Progress")
+        verbose_name_plural = ("User Progresses")
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.user}'s progress in {self.course}"
+
+class UserLessonProgress(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_progress = models.ForeignKey(UserProgress, on_delete=models.CASCADE, related_name='lesson_progress')
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='user_progress')
     status = models.CharField(
-        max_length=32,
-        default='not_started',
-        choices=[('not_started', ('Not Started')), ('in_progress', ('In Progress')), ('completed', ('Completed'))]
+        max_length=20,
+        choices=[('not_started', 'Not Started'), ('in_progress', 'In Progress'), ('completed', 'Completed')],
+        default='not_started'
     )
-    percent = models.FloatField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
-    last_interaction = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ('student', 'lesson')
-        verbose_name = ('Progress')
-        verbose_name_plural = ('Progresses')
+        unique_together = ('user_progress', 'lesson')
+        verbose_name = ("User Lesson Progress")
+        verbose_name_plural = ("User Lesson Progresses")
+        ordering = ['lesson__position']
 
     def __str__(self):
-        return f"Progress for {self.lesson} by {self.student}"
-
-class Event(models.Model):
-    # Analytics events (Oppia-style logging).
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
-    event_type = models.CharField(max_length=128)  # e.g., 'lesson_view', 'exercise_complete'
-    object_type = models.CharField(max_length=64)  # e.g., 'lesson', 'exploration'
-    object_id = models.UUIDField(null=True, blank=True)
-    metadata = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        indexes = [models.Index(fields=['event_type', 'created_at'])]
-        verbose_name = ('Event')
-        verbose_name_plural = ('Events')
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.event_type} by {self.user}"
+        return f"{self.user_progress.user}'s progress on {self.lesson}"
