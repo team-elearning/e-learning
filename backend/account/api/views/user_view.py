@@ -1,13 +1,15 @@
-from rest_framework import status, generics, permissions
+import logging
+from django.http import Http404
+from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
 from account.models import UserModel
-from account.api.permissions import IsAdmin
+from account.domains.user_domain import UserDomain
 from account.api.dtos.user_dto import UpdateUserInput, UserPublicOutput, UserAdminOutput
 from account.api.mixins import RoleBasedOutputMixin
-from account.serializers import UserSerializer, ChangePasswordSerializer
+from account.serializers import UserSerializer, ChangePasswordSerializer, SetPasswordSerializer
 from account.services import user_service, exceptions
 
 
@@ -74,60 +76,167 @@ class ChangePasswordView(APIView):
 
 
 # ---------- List users (admin) ----------
+class AdminUserListView(APIView): 
+    """
+    GET /api/account/admin/users/   (admin only)
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_service = user_service 
+
+    def get(self, request):
+        try:
+            # Service returns a list of DOMAIN ENTITIES
+            user_domains: list[UserDomain] = self.user_service.list_all_users_for_admin()
+            
+            # Converts Domain -> DTO (using Pydantic)
+            output_dtos = [
+                UserAdminOutput.model_validate(domain) for domain in user_domains
+            ]
+            
+            # Serialize the list of DTOs into JSON
+            json_data = [dto.model_dump() for dto in output_dtos]
+            
+            # Return the JSON list
+            return Response(json_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {"detail": f"An error occurred: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+logger = logging.getLogger(__name__)
 class AdminUserDetailView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/account/users/{id}/    (by owner or admin)
-    PATCH /api/account/users/{id}/  (by owner or admin)
+    GET /api/account/admin/users/{pk}/    (admin)
+    PATCH /api/account/admin/users/{pk}/  (admin)
+    DELETE /api/account/admin/users/{pk}/   (admin)
     """
-    queryset = UserModel.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdmin]
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
 
     output_dto_public = UserPublicOutput
     output_dto_admin  = UserAdminOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.user_service = user_service  # Khởi tạo service
+        self.user_service = user_service  
 
-    def get_object(self):
-        return self.request.user
+    def get_object(self, pk):
+        """
+        Helper method to get the user *model* from the DB.
+        This is an infrastructure concern, which is fine for the View.
+        """
+        try:
+            # Fetches the user specified by the URL's primary key (pk)
+            return UserModel.objects.get(pk=pk)
+        except UserModel.DoesNotExist:
+            raise Http404
 
-    def retrieve(self, request, *args, **kwargs):
-        return Response({"instance": self.get_object()})
+    def get(self, request, pk, *args, **kwargs):
+        """
+        Handles GET requests to retrieve a single user.
+        """
+        instance = self.get_object(pk)
+        
+        # The 'RoleBasedOutputMixin' will intercept raw model instance and 
+        # convert it to the correct DTO (UserAdminOutput).
+        return Response({"instance": instance})
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
+    def patch(self, request, pk, *args, **kwargs):
+        """
+        Handles PATCH requests to update a single user.
+        This follows the DDD "Command" flow.
+        """
+        instance = self.get_object(pk)
 
-        # Validate input qua serializer
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        # Validate input using the serializer
+        serializer = UserSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
-        if not request.user.is_staff:
-            allowed_fields = {"username", "email", "phone"}
-            validated_data = {k: v for k, v in validated_data.items() if k in allowed_fields}
+        
+        # Create Input DTO
         user_update_dto = UpdateUserInput(**validated_data)
+        
+        # Exclude 'None' values 
+        updates_payload = user_update_dto.model_dump(exclude_unset=True)
+        
+        if not updates_payload:
+            # Nothing to update, just return the current state
+            return Response({"instance": instance}, status=status.HTTP_200_OK)
 
         try:
-            # Gọi service với validated data (dict)
-            updated_domain = user_service.update_user(user_id=instance.id, updates=user_update_dto.to_dict())
+            updated_domain = self.user_service.update_user(
+                user_id=instance.id, 
+                updates=updates_payload
+            )
+            
+            # Return the Domain Entity for the mixin to process
             return Response({"instance": updated_domain}, status=status.HTTP_200_OK)
-            # # Serialize domain object thành response
-            # response_serializer = self.get_serializer(updated_domain)
-            # user_output_dto = UserOutput(**response_serializer.data)
-            # return Response(user_output_dto.to_dict(), status=status.HTTP_200_OK)
         
-        except ValidationError as e:
-            # Handle domain validation errors
+        except ValidationError as e: # Or DomainError
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Handle unexpected errors
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Unexpected error in AdminUserDetailView: {e}", exc_info=True)
+            return Response({"detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def delete(self, request, pk, *args, **kwargs):
+        """
+        Handles DELETE requests to remove a single user.
+        """
+        # Get the object. This will raise Http404 if not found.
+        instance = self.get_object(pk)
+        
+        try:
+            # Delegate the deletion logic to the application service
+            self.user_service.delete_user(user_id=instance.id)
+            
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except ValidationError as e: # Or a specific DomainError
+            # e.g., "Cannot delete the last admin user"
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error in AdminUserDetailView delete: {e}", exc_info=True)
+            return Response({"detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-class AdminUserListView(generics.ListAPIView):
-    queryset = UserModel.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
-    # add filtering/pagination as needed
+class AdminChangePasswordView(APIView):
+    """
+    Allows admin users to change any user's password.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, user_id):
+        """
+        Handles the POST request to change a user's password.
+        The user_id is taken from the URL.
+        """
+        serializer = SetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            # Use a new service function designed for admins
+            user_service.admin_set_password(
+                user_id=user_id,
+                new_password=data["new_password"]
+            )
+            
+        except exceptions.UserNotFoundError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # Catch other potential errors
+            return Response(
+                {"detail": f"An unexpected error occurred: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response(
+            {"detail": "Password changed successfully."}, 
+            status=status.HTTP_200_OK
+        )
+    

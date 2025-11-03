@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime, date
 
 class ProfileUpdateInput(BaseModel):
@@ -44,10 +44,12 @@ class ProfilePublicOutput(BaseModel):
     
 
 class ProfileAdminOutput(BaseModel):
-    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
     display_name: str | None = None
     avatar_url: str | None = None
-    dob: str | None = None
+    dob: date | None = None
     gender: str | None = None
     language: str | None = None
     metadata: dict | None = None

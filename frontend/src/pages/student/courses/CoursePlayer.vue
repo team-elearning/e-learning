@@ -170,7 +170,7 @@ const nextLesson = computed<UiLesson | null>(() => {
   return (idx >= 0 && idx < flat.value.length - 1) ? flat.value[idx + 1] : null
 })
 
-const currentSrc = computed(() => 'https://pub-52a4bc53687a4601ac29f7d454bef601.r2.dev/test2.mp4')
+const currentSrc = computed(() => 'https://pub-52a4bc53687a4601ac29f7d454bef601.r2.dev/test')
 
 function formatDuration(min?: number){
   if (!min || min <= 0) return '—'

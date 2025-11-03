@@ -129,7 +129,7 @@ class RegisterSerializer(serializers.Serializer):
         """Convert validated data into a UserDomain object"""
         return UserDomain(**self.validated_data)
     
- 
+
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
@@ -140,6 +140,10 @@ class ChangePasswordSerializer(serializers.Serializer):
             old_password=self.validated_data["old_password"],
             new_password=self.validated_data["new_password"]
         )
+    
+
+class SetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, required=True)
     
 
 class ResetPasswordSerializer(serializers.Serializer):

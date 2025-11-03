@@ -1,13 +1,13 @@
 <template>
-  <div class="kids-auth-layout-green">
+  <div class="kids-auth-layout-pink">
     <!-- Minimal Background -->
-    <div class="green-background">
-      <div class="green-orb orb-1"></div>
-      <div class="green-orb orb-2"></div>
+    <div class="pink-background">
+      <div class="pink-orb orb-1"></div>
+      <div class="pink-orb orb-2"></div>
     </div>
 
     <!-- Home Button -->
-    <router-link to="/" class="home-btn-green">
+    <router-link to="/" class="home-btn-pink">
       <div class="home-icon-wrapper">
         <svg class="home-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -26,11 +26,6 @@
       <!-- Left Column -->
       <section class="welcome-column">
         <div class="welcome-content">
-          <!-- Mascot -->
-          <div class="mascot-area">
-            <div class="mascot-glow-green"></div>
-            <div class="mascot-char">🦁</div>
-          </div>
 
           <!-- Title -->
           <h1 class="main-title">Chào bạn nhỏ! 👋</h1>
@@ -53,9 +48,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Single Float -->
-        <div class="float-emoji">📚</div>
       </section>
 
       <!-- Right Column -->
@@ -80,11 +72,6 @@
               </transition>
             </router-view>
           </div>
-
-          <!-- Footer -->
-          <p class="form-footer">
-            © {{ new Date().getFullYear() }} EDURIOT - Học vui mỗi ngày! 🌈
-          </p>
         </div>
       </section>
     </div>
@@ -109,14 +96,14 @@ const stats = ref([
 </script>
 
 <style scoped>
-/* 🌿 BASE */
-.kids-auth-layout-green {
+/* 🌸 BASE (Pink theme) */
+.kids-auth-layout-pink {
   width: 100vw;
   height: 100vh;
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0, #6ee7b7);
+  background: linear-gradient(135deg, #fce7f3, #fbcfe8, #f9a8d4);
   animation: fade-in 0.5s ease-out;
 }
 
@@ -129,15 +116,15 @@ const stats = ref([
   }
 }
 
-/* 🍃 BACKGROUND */
-.green-background {
+/* 🌸 BACKGROUND */
+.pink-background {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
 }
 
-.green-orb {
+.pink-orb {
   position: absolute;
   border-radius: 50%;
   filter: blur(40px);
@@ -159,7 +146,7 @@ const stats = ref([
 .orb-1 {
   width: 350px;
   height: 350px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.4), transparent);
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.4), transparent);
   top: -10%;
   left: -10%;
 }
@@ -167,14 +154,14 @@ const stats = ref([
 .orb-2 {
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.4), transparent);
+  background: radial-gradient(circle, rgba(219, 39, 119, 0.4), transparent);
   bottom: -10%;
   right: -10%;
   animation-delay: 0.4s;
 }
 
-/* 🏠 HOME BUTTON */
-.home-btn-green {
+/* 🏠 HOME BUTTON (Pink) */
+.home-btn-pink {
   position: fixed;
   top: 1.5rem;
   left: 1.5rem;
@@ -197,16 +184,16 @@ const stats = ref([
   position: relative;
   width: 3.5rem;
   height: 3.5rem;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #ec4899, #db2777);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
   transition: transform 0.2s;
 }
 
-.home-btn-green:hover .home-icon-wrapper {
+.home-btn-pink:hover .home-icon-wrapper {
   transform: translateY(-2px);
 }
 
@@ -233,7 +220,7 @@ const stats = ref([
   transition: opacity 0.2s;
 }
 
-.home-btn-green:hover .home-tooltip {
+.home-btn-pink:hover .home-tooltip {
   opacity: 1;
 }
 
@@ -245,6 +232,7 @@ const stats = ref([
   grid-template-columns: 1fr 1fr;
   height: 100vh;
   width: 100vw;
+  min-height: 0; /* Critical for overflow */
 }
 
 /* 🌟 LEFT COLUMN */
@@ -254,9 +242,10 @@ const stats = ref([
   align-items: center;
   justify-content: center;
   padding: 2rem 1.5rem;
-  background: rgba(16, 185, 129, 0.08);
+  background: rgba(236, 72, 153, 0.08);
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 0; /* Critical for flex overflow */
   animation: slide-in-left 0.7s ease-out 0.2s both;
 }
 
@@ -265,13 +254,6 @@ const stats = ref([
   max-width: 550px;
 }
 
-.mascot-area {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 1.5rem;
-  animation: scale-in 0.6s ease-out 0.4s both;
-}
 
 @keyframes scale-in {
   from {
@@ -284,15 +266,6 @@ const stats = ref([
   }
 }
 
-.mascot-glow-green {
-  position: absolute;
-  inset: -10px;
-  background: linear-gradient(135deg, #10b981, #14b8a6);
-  border-radius: 50%;
-  filter: blur(15px);
-  opacity: 0.4;
-  animation: pulse 4s ease-in-out infinite;
-}
 
 @keyframes pulse {
   0%,
@@ -304,18 +277,7 @@ const stats = ref([
   }
 }
 
-.mascot-char {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 4rem;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
-}
+
 
 .main-title {
   font-size: 2.25rem;
@@ -340,7 +302,7 @@ const stats = ref([
 .main-subtitle {
   font-size: 1.125rem;
   font-weight: 700;
-  color: #10b981;
+  color: #ec4899;
   text-align: center;
   margin-bottom: 2rem;
   animation: fade-in-up 0.6s ease-out 0.6s both;
@@ -358,8 +320,8 @@ const stats = ref([
   background: white;
   border-radius: 16px;
   text-align: center;
-  border: 2px solid rgba(16, 185, 129, 0.2);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  border: 2px solid rgba(236, 72, 153, 0.2);
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.08);
   transition:
     transform 0.2s,
     box-shadow 0.2s;
@@ -378,14 +340,13 @@ const stats = ref([
 
 .feature-box:hover {
   transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.15);
 }
 
 .feature-emoji {
   font-size: 1.75rem;
   margin-bottom: 0.5rem;
 }
-
 .feature-name {
   font-size: 0.875rem;
   font-weight: 700;
@@ -403,8 +364,8 @@ const stats = ref([
   background: white;
   border-radius: 16px;
   text-align: center;
-  border: 2px solid rgba(16, 185, 129, 0.2);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+  border: 2px solid rgba(236, 72, 153, 0.2);
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.08);
   animation: fade-in-up 0.5s ease-out both;
 }
 
@@ -426,7 +387,7 @@ const stats = ref([
 .stat-num {
   font-size: 1.25rem;
   font-weight: 900;
-  color: #10b981;
+  color: #ec4899;
   margin-bottom: 0.25rem;
 }
 
@@ -436,28 +397,7 @@ const stats = ref([
   font-weight: 600;
 }
 
-.float-emoji {
-  position: absolute;
-  bottom: 15%;
-  right: 15%;
-  font-size: 2.5rem;
-  opacity: 0;
-  animation:
-    float 6s ease-in-out infinite,
-    fade-in 0.6s ease-out 1.3s forwards;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-15px);
-  }
-}
-
-/* 📝 RIGHT COLUMN */
+/* 📝 RIGHT COLUMN - FIX OVERFLOW ISSUE */
 .form-column {
   position: relative;
   display: flex;
@@ -466,8 +406,9 @@ const stats = ref([
   padding: 2rem 1.5rem;
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(8px);
-  overflow-y: auto;
+  overflow-y: auto; /* Enable scroll */
   overflow-x: hidden;
+  min-height: 0; /* Critical for flex item overflow */
   animation: slide-in-right 0.7s ease-out 0.3s both;
 }
 
@@ -488,20 +429,24 @@ const stats = ref([
   padding: 2.5rem 2rem;
   background: white;
   border-radius: 24px;
-  border: 2px solid rgba(16, 185, 129, 0.2);
-  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.12);
+  border: 2px solid rgba(236, 72, 153, 0.2);
+  box-shadow: 0 12px 40px rgba(236, 72, 153, 0.12);
   animation: scale-in 0.6s ease-out 0.5s both;
+  margin: auto; /* Center vertically when scrolling */
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .logo-area {
   display: flex;
   justify-content: center;
   margin-bottom: 1.5rem;
+  flex-shrink: 0; /* Prevent logo from shrinking */
 }
 
 .form-heading {
   text-align: center;
   margin-bottom: 2rem;
+  flex-shrink: 0;
 }
 
 .form-title {
@@ -519,13 +464,7 @@ const stats = ref([
 
 .form-body {
   margin-bottom: 1.5rem;
-}
-
-.form-footer {
-  text-align: center;
-  font-size: 0.8125rem;
-  color: #9ca3af;
-  font-weight: 600;
+  flex-shrink: 0;
 }
 
 /* 🎬 TRANSITION */
@@ -533,16 +472,16 @@ const stats = ref([
 .fade-leave-active {
   transition: opacity 0.15s;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
 
-/* 📱 RESPONSIVE */
+/* 📱 RESPONSIVE - FIXED */
 @media (max-width: 1024px) {
   .auth-container-equal {
     grid-template-columns: 1fr;
+    overflow: hidden; /* Prevent double scroll */
   }
 
   .welcome-column {
@@ -552,15 +491,18 @@ const stats = ref([
   .form-column {
     padding: 1.5rem 1rem;
     animation: fade-in 0.5s ease-out;
+    overflow-y: auto; /* Ensure scroll works */
+    min-height: 100vh; /* Full height for scroll */
   }
 
   .form-box {
     padding: 2rem 1.5rem;
-    max-width: 100%;
+    max-width: 500px;
     animation: fade-in-up 0.6s ease-out 0.2s both;
+    margin: 1rem auto; /* Add margin for breathing room */
   }
 
-  .home-btn-green {
+  .home-btn-pink {
     top: 1rem;
     left: 1rem;
   }
@@ -583,11 +525,13 @@ const stats = ref([
 @media (max-width: 640px) {
   .form-column {
     padding: 1rem 0.75rem;
+    min-height: 100vh;
   }
 
   .form-box {
     padding: 1.5rem 1.25rem;
     border-radius: 20px;
+    margin: 0.75rem auto;
   }
 
   .form-title {
@@ -602,7 +546,7 @@ const stats = ref([
     margin-bottom: 1.25rem;
   }
 
-  .home-btn-green {
+  .home-btn-pink {
     top: 0.75rem;
     left: 0.75rem;
   }
@@ -614,8 +558,13 @@ const stats = ref([
 }
 
 @media (max-width: 480px) {
+  .form-column {
+    padding: 0.75rem 0.5rem;
+  }
+
   .form-box {
     padding: 1.25rem 1rem;
+    margin: 0.5rem auto;
   }
 
   .form-title {
@@ -624,6 +573,30 @@ const stats = ref([
 
   .form-heading {
     margin-bottom: 1.5rem;
+  }
+
+  .logo-area {
+    margin-bottom: 1rem;
+  }
+}
+
+/* Fix for very small screens */
+@media (max-height: 600px) {
+  .form-box {
+    margin: 0.5rem auto;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .logo-area {
+    margin-bottom: 1rem;
+  }
+
+  .form-heading {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-body {
+    margin-bottom: 1rem;
   }
 }
 </style>

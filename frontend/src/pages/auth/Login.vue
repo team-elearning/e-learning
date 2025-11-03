@@ -87,13 +87,13 @@
           <input
             v-model="form.remember"
             type="checkbox"
-            class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-2 focus:ring-emerald-500/30 transition"
+            class="w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-2 focus:ring-pink-500/30 transition"
           />
           <span class="ml-2 text-sm text-gray-600 group-hover:text-gray-900 transition">Ghi nhớ đăng nhập</span>
         </label>
         <RouterLink
           to="/auth/forgot-password"
-          class="text-sm font-medium text-emerald-600 hover:text-emerald-700 transition"
+          class="text-sm font-medium text-pink-600 hover:text-pink-700 transition"
         >
           Quên mật khẩu?
         </RouterLink>
@@ -150,7 +150,7 @@
       Chưa có tài khoản?
       <RouterLink
         to="/auth/register"
-        class="font-medium text-emerald-600 hover:text-emerald-700 transition"
+        class="font-medium text-pink-600 hover:text-pink-700 transition"
       >
         Đăng ký ngay
       </RouterLink>
@@ -240,7 +240,7 @@ const loginWithGoogle = async () => {
 function showToast(message: string, type: 'success' | 'error') {
   const toast = document.createElement('div')
   toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 animate-slide-in ${
-    type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+    type === 'success' ? 'bg-pink-600' : 'bg-red-600'
   }`
   toast.textContent = message
   document.body.appendChild(toast)
@@ -263,7 +263,7 @@ function showToast(message: string, type: 'success' | 'error') {
 
 .form-input {
   @apply w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400;
-  @apply focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500;
+  @apply focus:outline-none focus:ring-2 focus:ring-pink-500/30 focus:border-pink-500;
   @apply transition duration-200;
 }
 
@@ -279,6 +279,7 @@ function showToast(message: string, type: 'success' | 'error') {
   @apply text-xs text-red-600 mt-1.5 flex items-start gap-1.5;
 }
 
+/* Primary Button — Pink gradient */
 .btn-primary {
   width: 100% !important;
   display: flex !important;
@@ -286,21 +287,21 @@ function showToast(message: string, type: 'success' | 'error') {
   justify-content: center !important;
   padding: 0.75rem 1.5rem !important;
   border-radius: 0.75rem !important;
-  background: linear-gradient(to right, rgb(5, 150, 105), rgb(20, 184, 166)) !important;
+  background: linear-gradient(to right, rgb(236, 72, 153), rgb(219, 39, 119)) !important; /* #ec4899 → #db2777 */
   color: white !important;
   font-weight: 600 !important;
   transition: all 0.2s !important;
   transform-origin: center !important;
-  box-shadow: 0 10px 15px -3px rgba(5, 150, 105, 0.25) !important;
+  box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.25) !important;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(to right, rgb(4, 120, 87), rgb(13, 148, 136)) !important;
+  background: linear-gradient(to right, rgb(219, 39, 119), rgb(190, 24, 93)) !important; /* #db2777 → #be185d */
 }
 
 .btn-primary:focus {
   outline: none !important;
-  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.5), 0 10px 15px -3px rgba(5, 150, 105, 0.25) !important;
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.5), 0 10px 15px -3px rgba(236, 72, 153, 0.25) !important;
 }
 
 .btn-primary:active:not(:disabled) {
@@ -312,6 +313,7 @@ function showToast(message: string, type: 'success' | 'error') {
   cursor: not-allowed !important;
 }
 
+/* Google Button giữ nguyên */
 .btn-google {
   width: 100% !important;
   display: flex !important;
@@ -341,33 +343,15 @@ function showToast(message: string, type: 'success' | 'error') {
   transform: scale(0.98) !important;
 }
 
+/* Toast animation */
 @keyframes slide-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
 }
-
 @keyframes slide-out {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
 }
-
-.animate-slide-in {
-  animation: slide-in 0.3s ease-out;
-}
-
-.animate-slide-out {
-  animation: slide-out 0.3s ease-in;
-}
+.animate-slide-in { animation: slide-in 0.3s ease-out; }
+.animate-slide-out { animation: slide-out 0.3s ease-in; }
 </style>
