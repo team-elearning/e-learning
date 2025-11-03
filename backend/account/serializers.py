@@ -188,7 +188,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'user': {
                 'username': user.username,
                 'email': user.email,
-                'role': user.role,
+                'role': "admin" if user.is_staff else user.role,
                 'full_name': profile.display_name if profile.display_name else user.username,
             }
         }
