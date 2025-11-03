@@ -176,8 +176,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Get profile
         profile = profile_service.get_profile_by_user(user.id)
-        if not profile:
-            raise AuthenticationFailed("User profile not found", code="authentication")
 
         # Generate tokens manually
         refresh = RefreshToken.for_user(user)
@@ -189,7 +187,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'full_name': profile.display_name,
+                'full_name': profile.display_name if profile.display_name else user.username,
             }
         }
         return data
