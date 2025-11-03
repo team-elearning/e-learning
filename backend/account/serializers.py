@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
 from account.models import UserModel, Profile, ParentalConsent
 from account.domains.user_domain import UserDomain
@@ -175,7 +175,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         self.user = user
 
         # Get profile
-        profile = profile_service.get_profile_by_user(user.id)
+        try:
+            profile = profile_service.get_profile_by_user(user.id)
+        except ObjectDoesNotExist:
+            profile = profile_service.create_default_profile(user.id)
 
         # Generate tokens manually
         refresh = RefreshToken.for_user(user)
