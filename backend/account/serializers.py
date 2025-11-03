@@ -10,7 +10,7 @@ from account.domains.profile_domain import ProfileDomain
 from account.domains.parental_consent_domain import ParentalConsentDomain
 from account.domains.change_password_domain import ChangePasswordDomain
 from account.domains.reset_password_domain import ResetPasswordDomain
-from account.services import auth_service
+from account.services import auth_service, profile_service
 
 """Serializer for sending user data in responses."""
 class UserSerializer(serializers.ModelSerializer):
@@ -174,6 +174,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Set user to bypass parent authentication
         self.user = user
 
+        # Get profile
+        profile = profile_service.get_profile_by_user(user.id)
+
         # Generate tokens manually
         refresh = RefreshToken.for_user(user)
         data = {
@@ -184,7 +187,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'full_name': f"{user.first_name} {user.last_name}".strip(),
+                'full_name': profile.display_name,
             }
         }
         return data
