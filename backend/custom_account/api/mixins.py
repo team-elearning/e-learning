@@ -5,6 +5,13 @@ from rest_framework.views import APIView
 from django.db.models.query import QuerySet
 
 
+
+class DtoMappingError(APIException):
+    status_code = 500
+    default_detail = 'DTO mapping failed.'
+    default_code = 'dto_mapping_error'
+
+
 class RoleBasedOutputMixin:
     """
     Choose the correct *output* DTO based on the requesting user.
@@ -52,7 +59,7 @@ class RoleBasedOutputMixin:
             try:
                 dto_cls = self._select_dto_class(instance_data, request)
             except Exception as e:
-                raise APIException(f"Failed to select DTO class: {e}")
+                raise DtoMappingError(f"DTO mapping failed: {e}")
             
             try:
                 if isinstance(instance_data, (list, QuerySet)):
@@ -92,6 +99,6 @@ class RoleBasedOutputMixin:
                     response.data = dto_instance.model_dump()
             
             except Exception as e:
-                raise APIException(f"DTO mapping failed: {e}")
+                raise DtoMappingError(f"DTO mapping failed: {e}")
 
         return APIView.finalize_response(self, request, response, *args, **kwargs)
