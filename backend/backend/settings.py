@@ -89,6 +89,7 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'infrastructure.middleware.GlobalExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -138,6 +139,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",
     'USE_TZ': True,
+    'EXCEPTION_HANDLER': 'infrastructure.exceptions.custom_exception_handler'
 }
 
 SIMPLE_JWT = {
