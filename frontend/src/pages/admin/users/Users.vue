@@ -150,7 +150,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column
+        <!-- <el-table-column
           prop="lastLoginAt"
           label="Lần đăng nhập cuối"
           min-width="170"
@@ -159,7 +159,7 @@
           <template #default="{ row }">
             <span class="text-gray-700">{{ fmtDate(row.lastLoginAt) || '—' }}</span>
           </template>
-        </el-table-column>
+        </el-table-column> -->
 
         <el-table-column prop="createdAt" label="Ngày tạo" min-width="150" sortable="custom">
           <template #default="{ row }">
@@ -280,10 +280,10 @@ type Role = 'admin' | 'teacher' | 'student'
 type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval'
 interface User {
   id: ID
-  name: string
+  name?: string
   username: string
   email: string
-  phone?: string
+  phone?: string | null
   avatar?: string
   role: Role
   status: UserStatus

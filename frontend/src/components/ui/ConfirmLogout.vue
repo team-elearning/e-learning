@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { defineProps, defineEmits } from 'vue'
+import type { CSSProperties } from 'vue'
 
 type AnchorRect = { top: number; left: number; width: number; height: number } | null
 
@@ -51,12 +52,14 @@ function confirm() {
   emit('update:open', false)
 }
 
-const containerStyle = computed(() => {
-  const base = {
+const containerStyle = computed<CSSProperties>(() => {
+  const base: CSSProperties = {
+    position: 'fixed',
     left: '50%',
     top: '50%',
     transform: 'translate(-50%, -50%)',
-  } as Record<string, string>
+    width: 'min(520px, 90vw)',
+  }
 
   if (props.anchor) {
     const top = props.anchor.top + props.anchor.height + 8
@@ -70,13 +73,7 @@ const containerStyle = computed(() => {
     }
   }
 
-  return {
-    position: 'fixed',
-    top: base.top,
-    left: base.left,
-    transform: base.transform,
-    width: 'min(520px, 90vw)',
-  }
+  return base
 })
 </script>
 

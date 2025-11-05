@@ -7,7 +7,10 @@
           <img :src="detail.avatar || fallbackAvatar" class="h-16 w-16 rounded-full object-cover" />
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="truncate text-xl font-semibold text-gray-800">{{ detail.name || '—' }}</h2>
+              <!-- thay dòng hiển thị tên thành fallback về username nếu name rỗng -->
+              <h2 class="truncate text-xl font-semibold text-gray-800">
+                {{ detail.name || detail.username || '—' }}
+              </h2>
               <el-tag size="small" :type="roleTagType(detail.role)">{{
                 roleLabel(detail.role)
               }}</el-tag>
@@ -72,18 +75,18 @@
               ><el-input v-model="form.phone"
             /></el-form-item>
 
-            <el-form-item label="Ngôn ngữ">
+            <!-- <el-form-item label="Ngôn ngữ">
               <el-select v-model="form.language"
                 ><el-option label="Tiếng Việt" value="vi" /><el-option label="English" value="en"
               /></el-select>
             </el-form-item>
             <el-form-item label="Múi giờ"
               ><el-input v-model="form.timezone" placeholder="Asia/Bangkok"
-            /></el-form-item>
+            /></el-form-item> -->
 
-            <el-form-item label="Bio" class="md:col-span-2">
+            <!-- <el-form-item label="Bio" class="md:col-span-2">
               <el-input v-model="form.bio" type="textarea" :rows="3" />
-            </el-form-item>
+            </el-form-item> -->
 
             <div class="md:col-span-2">
               <el-button type="primary" :loading="savingProfile" @click="saveProfile"
@@ -437,8 +440,9 @@ const newNote = ref('')
 const profileRef = ref<FormInstance>()
 const editRef = ref<FormInstance>()
 const form = reactive<any>({})
+// sửa rules: name không bắt buộc vì backend có thể không trả
 const profileRules = {
-  name: [{ required: true, message: 'Nhập họ tên', trigger: 'blur' }],
+  name: [], // không bắt buộc
   username: [{ required: true, message: 'Nhập username', trigger: 'blur' }],
   email: [{ required: true, type: 'email', message: 'Email không hợp lệ', trigger: 'blur' }],
 }
@@ -479,6 +483,10 @@ async function load() {
     const d = await userService.detail(id.value)
     Object.assign(detail, d)
     Object.assign(form, JSON.parse(JSON.stringify(d))) // clone nông để form độc lập
+
+    // fallback name nếu backend không trả
+    if (!form.name && form.username) form.name = form.username
+
     // preload
     fetchSessions()
     fetchLogins()
@@ -549,11 +557,13 @@ async function saveProfile() {
   if (!ok) return
   savingProfile.value = true
   try {
+    // gửi payload theo field backend chấp nhận
     await userService.update(detail.id, {
-      name: form.name,
       username: form.username,
       email: form.email,
       phone: form.phone,
+      // optional: chỉ gửi name nếu backend chấp nhận/ lưu
+      name: form.name || undefined,
       language: form.language,
       timezone: form.timezone,
       bio: form.bio,
@@ -570,6 +580,7 @@ async function saveProfile() {
 }
 function openEdit() {
   Object.assign(form, JSON.parse(JSON.stringify(detail)))
+  if (!form.name && form.username) form.name = form.username
   editDialog.value = true
 }
 

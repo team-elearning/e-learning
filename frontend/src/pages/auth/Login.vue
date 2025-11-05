@@ -257,7 +257,7 @@ import { useAuthStore } from '@/store/auth.store'
 const auth = useAuthStore()
 
 const loading = ref(false)
-const loadingGoogle = ref(false)
+// const loadingGoogle = ref(false)
 const showPassword = ref(false)
 
 const form = reactive({
@@ -307,23 +307,24 @@ const onSubmit = async () => {
     await auth.login(form.email, form.password, form.remember)
     showToast('Đăng nhập thành công!', 'success')
   } catch (e: any) {
-    showToast(e?.message || 'Đăng nhập thất bại', 'error')
+    // showToast(e?.message || 'Đăng nhập thất bại', 'error')
+    showToast('Đăng nhập thất bại', 'error')
   } finally {
     loading.value = false
   }
 }
 
-const loginWithGoogle = async () => {
-  loadingGoogle.value = true
-  try {
-    await auth.loginWithGoogle()
-    showToast('Đăng nhập Google thành công!', 'success')
-  } catch (e: any) {
-    showToast(e?.message || 'Đăng nhập Google thất bại', 'error')
-  } finally {
-    loadingGoogle.value = false
-  }
-}
+// const loginWithGoogle = async () => {
+//   loadingGoogle.value = true
+//   try {
+//     await auth.loginWithGoogle()
+//     showToast('Đăng nhập Google thành công!', 'success')
+//   } catch (e: any) {
+//     showToast(e?.message || 'Đăng nhập Google thất bại', 'error')
+//   } finally {
+//     loadingGoogle.value = false
+//   }
+// }
 
 function showToast(message: string, type: 'success' | 'error') {
   const toast = document.createElement('div')

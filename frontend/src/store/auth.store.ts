@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import router from '@/router'
 import { authService, type Role, type AuthUser } from '@/services/auth.service'
+import { ElMessage } from 'element-plus'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -19,25 +20,33 @@ export const useAuthStore = defineStore('auth', {
   }, // [ADD]
 
   actions: {
-    async login(email: string, password: string, remember = true) {
-      const { token, user } = await authService.login(email, password)
-      this.token = token
-      this.user = user
-      if (remember) {
-        localStorage.setItem('auth', JSON.stringify({ token, user }))
-        // this.persist()
+    async login(identifier: string, password: string, remember = true) {
+      try {
+        const { token, user } = await authService.login(identifier, password)
+        this.token = token
+        this.user = user
+        if (remember) {
+          localStorage.setItem('auth', JSON.stringify({ token, user }))
+          localStorage.setItem('accessToken', token)
+        } else {
+          sessionStorage.setItem('accessToken', token)
+        }
+        this.redirectByRole(user.role)
+        return { token, user }
+      } catch (err: any) {
+        ElMessage.error(err?.message || 'Đăng nhập thất bại')
+        throw err
       }
-      this.redirectByRole(user.role)
     },
 
-    async loginWithGoogle() {
-      const { token, user } = await authService.loginWithGoogle()
-      this.token = token
-      this.user = user
-      localStorage.setItem('auth', JSON.stringify({ token, user }))
-      // this.persist() // [ADD-OPTIONAL]
-      this.redirectByRole(user.role)
-    },
+    // async loginWithGoogle() {
+    //   const { token, user } = await authService.loginWithGoogle()
+    //   this.token = token
+    //   this.user = user
+    //   localStorage.setItem('auth', JSON.stringify({ token, user }))
+    //   // this.persist() // [ADD-OPTIONAL]
+    //   this.redirectByRole(user.role)
+    // },
 
     hydrateFromStorage() {
       const raw = localStorage.getItem('auth')

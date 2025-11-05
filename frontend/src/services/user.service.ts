@@ -7,13 +7,14 @@ export type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval'
 
 export interface User {
     id: ID
-    name: string
     username: string
+    name?: string
     email: string
-    phone?: string
+    phone?: string | null
     avatar?: string
     role: Role
-    status: UserStatus
+    // backend có "is_active" -> map sang status
+    status: UserStatus | 'active' | 'inactive'
     lastLoginAt?: string
     createdAt: string
 }
@@ -28,31 +29,19 @@ export interface UserDetail extends User {
     timezone?: string
     address?: { country?: string; city?: string }
 
-    updatedAt: string
+    updatedAt?: string
 
-    // security
+    // security / extra
     mfaEnabled?: boolean
-    backupCodesLeft?: number
-    passwordUpdatedAt?: string
-    failedAttempts?: number
-    lockedUntil?: string | null
-    banReason?: string | null
     providers?: ('password' | 'google')[]
-    ipAllowlist?: string[]
-
-    // role-specific (optional)
+    // role-specific optional fields:
     subjects?: string[]
     grades?: number[]
     totalCourses?: number
-    pendingApprovalsCount?: number
     rating?: number
-
-    grade?: number
-    classCode?: string
-    enrolledCount?: number
-    certificatesCount?: number
-    parentConsent?: boolean
-    guardians?: { name: string; phone?: string; email?: string }[]
+    // other optional fields
+    isStaff?: boolean
+    isActive?: boolean
 }
 
 export interface PageParams {
@@ -77,49 +66,57 @@ export interface SessionRow {
     lastActiveAt: string
 }
 
-export interface LoginEvent {
-    time: string
-    result: 'success' | 'fail'
-    ip: string
-    device?: string
-    reason?: string
-    userAgent?: string
-}
+export interface LoginEvent { time: string; result: 'success' | 'fail'; ip: string; device?: string; reason?: string; userAgent?: string }
+export interface ActivityLog { time: string; action: string; entity?: string; by?: string; status: 'ok' | 'error'; meta?: Record<string, any> }
+export interface Transaction { id: string; courseTitle: string; amount: number; gateway: 'Momo' | 'VNPay' | 'QR' | 'Bank'; status: 'Pending' | 'Processing' | 'Succeeded' | 'Failed' | 'Refunded' | 'Disputed'; time: string }
+export interface NoteItem { id: string; author?: string; note: string; time: string }
 
-export interface ActivityLog {
-    time: string
-    action: string
-    entity?: string
-    by?: string
-    status: 'ok' | 'error'
-    meta?: Record<string, any>
-}
+const USE_MOCK = false // chuyển sang dùng API thật
 
-export interface Transaction {
-    id: string
-    courseTitle: string
-    amount: number
-    gateway: 'Momo' | 'VNPay' | 'QR' | 'Bank'
-    status: 'Pending' | 'Processing' | 'Succeeded' | 'Failed' | 'Refunded' | 'Disputed'
-    time: string
+function mapServerToUser(s: any): User {
+    // server sample fields: id, username, email, created_on, updated_on, phone, role, is_active
+    const status: User['status'] = s.is_active === false ? 'inactive' : 'active'
+    return {
+        id: s.id,
+        username: s.username,
+        name: s.username ?? s.name ?? undefined, // giữ username làm name nếu backend không trả name
+        email: s.email ?? '',
+        phone: s.phone ?? null,
+        avatar: s.avatar ?? undefined,
+        role: (s.role as Role) ?? 'student',
+        status,
+        lastLoginAt: s.last_login_at ?? s.lastLoginAt ?? undefined,
+        createdAt: s.created_on ?? s.createdAt ?? '',
+    }
 }
-
-export interface NoteItem {
-    id: string
-    author?: string
-    note: string
-    time: string
-}
-
-const USE_MOCK = true
 
 export const userService = {
-    // ==== LIST (đã có ở trước) ====
+    // LIST: call /api/account/admin/users/
     async list(params: PageParams): Promise<PageResult<User>> {
         if (!USE_MOCK) {
-            const { data } = await api.get('/admin/users', { params })
-            return data
+            const { data } = await api.get('/account/admin/users/', { params })
+            // backend may return array or paginated object { results, count }
+            let itemsRaw: any[] = []
+            let total = 0
+            if (Array.isArray(data)) {
+                itemsRaw = data
+                total = data.length
+            } else if (Array.isArray(data.results)) {
+                itemsRaw = data.results
+                total = Number(data.count ?? data.total ?? itemsRaw.length)
+            } else if (Array.isArray(data.items)) {
+                itemsRaw = data.items
+                total = Number(data.total ?? itemsRaw.length)
+            } else {
+                // fallback try to treat data as array-like
+                itemsRaw = []
+                total = 0
+            }
+            const items = itemsRaw.map(mapServerToUser)
+            return { items, total }
         }
+
+        // MOCK (unchanged)
         const total = 128
         const size = params.pageSize ?? 20
         const page = params.page ?? 1
@@ -129,11 +126,11 @@ export const userService = {
             const id = (page - 1) * size + i + 1
             return {
                 id,
-                name: `User ${id}`,
                 username: `user${id}`,
+                name: `User ${id}`,
                 email: `user${id}@example.com`,
                 role: roles[id % 3],
-                status: statuses[id % 4],
+                status: statuses[id % 4] as any,
                 lastLoginAt: new Date(Date.now() - id * 36e5).toISOString(),
                 createdAt: new Date(Date.now() - id * 864e5).toISOString(),
             }
@@ -141,17 +138,36 @@ export const userService = {
         return { items, total }
     },
 
-    // ==== DETAIL ====
+    // DETAIL: call /api/account/admin/users/:id/
     async detail(id: ID): Promise<UserDetail> {
         if (!USE_MOCK) {
-            const { data } = await api.get(`/admin/users/${id}`)
-            return data
+            const { data } = await api.get(`/account/admin/users/${id}/`)
+            const base = mapServerToUser(data)
+            const detail: UserDetail = {
+                ...base,
+                emailVerified: data.email_verified ?? undefined,
+                phoneVerified: data.phone_verified ?? undefined,
+                bio: data.bio ?? undefined,
+                tags: data.tags ?? undefined,
+                notes: data.notes ?? undefined,
+                language: data.language ?? undefined,
+                timezone: data.timezone ?? undefined,
+                address: data.address ?? undefined,
+                updatedAt: data.updated_on ?? data.updatedAt ?? undefined,
+                mfaEnabled: data.mfa_enabled ?? undefined,
+                providers: data.providers ?? undefined,
+                isStaff: data.is_staff ?? undefined,
+                isActive: data.is_active ?? undefined,
+            }
+            return detail
         }
+
+        // MOCK fallback
         const now = new Date()
         return {
             id,
-            name: `User ${id}`,
             username: `user${id}`,
+            name: `User ${id}`,
             email: `user${id}@example.com`,
             emailVerified: Number(id) % 2 === 0,
             phone: '0901234567',
@@ -164,28 +180,26 @@ export const userService = {
             timezone: 'Asia/Bangkok',
             bio: 'Đây là bio mẫu.',
             mfaEnabled: Number(id) % 2 === 0,
-            passwordUpdatedAt: new Date(now.getTime() - 10 * 864e5).toISOString(),
-            failedAttempts: 1,
             providers: ['password', 'google'],
             address: { city: 'Hà Nội', country: 'VN' },
         }
     },
 
-    // ==== CRUD ====
-    create(payload: Partial<User>) { return api.post('/admin/users', payload) },
-    update(id: ID, payload: Partial<UserDetail>) { return api.put(`/admin/users/${id}`, payload) },
+    // CRUD
+    create(payload: Partial<User>) { return api.post('/account/admin/users/', payload) },
+    update(id: ID, payload: Partial<UserDetail>) { return api.put(`/account/admin/users/${id}/`, payload) },
 
-    // ==== ROLE & SECURITY ====
-    changeRole(id: ID, role: Role) { return api.post(`/admin/users/${id}/role`, { role }) },
-    resetPassword(id: ID) { return api.post(`/admin/users/${id}/reset-password`) },
-    lock(id: ID) { return api.post(`/admin/users/${id}/lock`) },
-    unlock(id: ID) { return api.post(`/admin/users/${id}/unlock`) },
-    ban(id: ID) { return api.post(`/admin/users/${id}/ban`) },
+    // ROLE & SECURITY (adjust endpoints if backend different)
+    changeRole(id: ID, role: Role) { return api.post(`/account/admin/users/${id}/role/`, { role }) },
+    resetPassword(id: ID) { return api.post(`/account/admin/users/${id}/reset-password/`) },
+    lock(id: ID) { return api.post(`/account/admin/users/${id}/lock/`) },
+    unlock(id: ID) { return api.post(`/account/admin/users/${id}/unlock/`) },
+    ban(id: ID) { return api.post(`/account/admin/users/${id}/ban/`) },
 
-    // ==== SESSIONS ====
+    // SESSIONS
     async sessions(id: ID): Promise<SessionRow[]> {
         if (!USE_MOCK) {
-            const { data } = await api.get(`/admin/users/${id}/sessions`)
+            const { data } = await api.get(`/account/admin/users/${id}/sessions/`)
             return data
         }
         const now = Date.now()
@@ -198,15 +212,18 @@ export const userService = {
             lastActiveAt: new Date(now - i * 36e5).toISOString(),
         }))
     },
-    revokeSession(id: ID, sid: string) { return api.delete(`/admin/users/${id}/sessions/${sid}`) },
-    revokeAll(id: ID) { return api.delete(`/admin/users/${id}/sessions`) },
+    revokeSession(id: ID, sid: string) { return api.delete(`/account/admin/users/${id}/sessions/${sid}/`) },
+    revokeAll(id: ID) { return api.delete(`/account/admin/users/${id}/sessions/`) },
 
-    // ==== LOGINS ====
+    // other helpers same as before...
     async loginHistory(id: ID, params: { page?: number; pageSize?: number; from?: string; to?: string; result?: 'success' | 'fail' }): Promise<PageResult<LoginEvent>> {
         if (!USE_MOCK) {
-            const { data } = await api.get(`/admin/users/${id}/logins`, { params })
-            return data
+            const { data } = await api.get(`/account/admin/users/${id}/logins/`, { params })
+            if (Array.isArray(data)) return { items: data, total: data.length }
+            if (Array.isArray(data.results)) return { items: data.results, total: data.count ?? data.total ?? data.results.length }
+            return { items: [], total: 0 }
         }
+        // MOCK...
         const total = 42
         const size = params.pageSize ?? 20
         const page = params.page ?? 1
@@ -223,34 +240,14 @@ export const userService = {
         return { items, total }
     },
 
-    // ==== ACTIVITY ====
-    async activity(id: ID, params: { page?: number; pageSize?: number }): Promise<PageResult<ActivityLog>> {
-        if (!USE_MOCK) {
-            const { data } = await api.get(`/admin/users/${id}/activity`, { params })
-            return data
-        }
-        const total = 35
-        const size = params.pageSize ?? 20
-        const page = params.page ?? 1
-        const items: ActivityLog[] = Array.from({ length: size }).map((_, i) => {
-            const idx = (page - 1) * size + i
-            return {
-                time: new Date(Date.now() - (idx + 1) * 6e5).toISOString(),
-                action: idx % 2 ? 'course.update' : 'auth.login',
-                entity: idx % 2 ? `course#${100 + idx}` : undefined,
-                status: idx % 7 === 0 ? 'error' : 'ok',
-                meta: { ip: `10.0.0.${idx % 200}` },
-            }
-        })
-        return { items, total }
-    },
-
-    // ==== TRANSACTIONS (by user) ====
+    // ...keep other mock implementations for transactions/notes/exportCsv if needed...
     async transactionsByUser(id: ID, params: { page?: number; pageSize?: number }): Promise<PageResult<Transaction>> {
         if (!USE_MOCK) {
-            const { data } = await api.get(`/admin/users/${id}/transactions`, { params })
-            return data
+            const { data } = await api.get(`/account/admin/users/${id}/transactions/`, { params })
+            if (Array.isArray(data)) return { items: data, total: data.length }
+            return { items: data.items ?? [], total: data.total ?? 0 }
         }
+        // MOCK fallback...
         const total = 18
         const size = params.pageSize ?? 20
         const page = params.page ?? 1
@@ -268,54 +265,35 @@ export const userService = {
         return { items, total }
     },
 
-    // ==== NOTES ====
     async listNotes(id: ID): Promise<NoteItem[]> {
-        if (!USE_MOCK) { const { data } = await api.get(`/admin/users/${id}/notes`); return data }
+        if (!USE_MOCK) { const { data } = await api.get(`/account/admin/users/${id}/notes/`); return data }
         return [
             { id: 'n1', author: 'Admin', note: 'HS học chăm, tiến bộ tốt.', time: new Date(Date.now() - 864e5).toISOString() },
             { id: 'n2', author: 'QA', note: 'Yêu cầu xác minh số điện thoại.', time: new Date(Date.now() - 2 * 864e5).toISOString() },
         ]
     },
     async addNote(id: ID, note: string) {
-        if (!USE_MOCK) { return api.post(`/admin/users/${id}/notes`, { note }) }
+        if (!USE_MOCK) { return api.post(`/account/admin/users/${id}/notes/`, { note }) }
         return { ok: true }
     },
-    // ==== BULK ACTIONS ====
-    bulkChangeRole(ids: ID[], role: Role) {
-        if (!USE_MOCK) return api.post('/admin/users/bulk/role', { ids, role })
-        return Promise.resolve({ ok: true })
-    },
-    bulkLock(ids: ID[]) {
-        if (!USE_MOCK) return api.post('/admin/users/bulk/lock', { ids })
-        return Promise.resolve({ ok: true })
-    },
-    bulkUnlock(ids: ID[]) {
-        if (!USE_MOCK) return api.post('/admin/users/bulk/unlock', { ids })
-        return Promise.resolve({ ok: true })
-    },
-    bulkBan(ids: ID[]) {
-        if (!USE_MOCK) return api.post('/admin/users/bulk/ban', { ids })
-        return Promise.resolve({ ok: true })
-    },
 
-    // ==== EXPORT CSV ====
+    // bulk actions
+    bulkChangeRole(ids: ID[], role: Role) { return api.post('/account/admin/users/bulk/role/', { ids, role }) },
+    bulkLock(ids: ID[]) { return api.post('/account/admin/users/bulk/lock/', { ids }) },
+    bulkUnlock(ids: ID[]) { return api.post('/account/admin/users/bulk/unlock/', { ids }) },
+    bulkBan(ids: ID[]) { return api.post('/account/admin/users/bulk/ban/', { ids }) },
+
     async exportCsv(params: PageParams): Promise<Blob> {
         if (!USE_MOCK) {
-            const { data } = await api.get('/admin/users/export', {
-                params,
-                responseType: 'blob',
-            })
+            const { data } = await api.get('/account/admin/users/export/', { params, responseType: 'blob' })
             return data
         }
-        // MOCK CSV cho môi trường dev
-        const headers = [
-            'id', 'name', 'username', 'email', 'role', 'status', 'createdAt', 'lastLoginAt'
-        ]
+        // MOCK CSV...
+        const headers = ['id', 'name', 'username', 'email', 'role', 'status', 'createdAt', 'lastLoginAt']
         const size = params.pageSize ?? 50
         const page = params.page ?? 1
         const roles: Role[] = ['admin', 'teacher', 'student']
         const statuses: UserStatus[] = ['active', 'locked', 'banned', 'pending_approval']
-
         const rows = Array.from({ length: size }).map((_, i) => {
             const id = (page - 1) * size + i + 1
             return [
@@ -329,9 +307,7 @@ export const userService = {
                 new Date(Date.now() - id * 36e5).toISOString(),
             ]
         })
-
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
         return new Blob([csv], { type: 'text/csv;charset=utf-8' })
     },
-
 }
