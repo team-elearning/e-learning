@@ -1,8 +1,8 @@
-from django.urls import path
+from django.urls import path, re_path
 from rest_framework_simplejwt.views import TokenRefreshView  # For token refresh endpoint
-from dj_rest_auth.views import LoginView, LogoutView, PasswordResetView, PasswordResetConfirmView
+from dj_rest_auth.views import LoginView, LogoutView, PasswordResetView
 
-from custom_account.api.views.auth_view import RegisterView, ResetPasswordRequestView, ResetPasswordConfirmView, AdminLoginAsUserView, AdminRefreshUserAccessView, AdminLogoutUserView
+from custom_account.api.views.auth_view import RegisterView, AdminLoginAsUserView, AdminRefreshUserAccessView, AdminLogoutUserView, AdvancedPasswordResetConfirmView
 from custom_account.api.views.user_view import AdminUserListView, CurrentUserDetailView, ChangePasswordView, AdminUserDetailView, AdminChangePasswordView, AdminMaintenanceView
 from custom_account.api.views.profile_view import UserProfileView, AdminProfileListView, AdminProfileDetailView
 
@@ -14,11 +14,8 @@ urlpatterns = [
     path("user/", CurrentUserDetailView.as_view(), name="current-user"),
     path("profile/", UserProfileView.as_view(), name="account-profile"),
     path("password/change/", ChangePasswordView.as_view(), name="account-change-password"),
-    path("password/reset/", ResetPasswordRequestView.as_view(), name="account-reset-request"),
-    path("password/reset/confirm/", ResetPasswordConfirmView.as_view(), name="account-reset-confirm"),
-
-    path('password2/reset/', PasswordResetView.as_view(), name='password_reset_request'),
-    path('password2/reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('password/reset/', PasswordResetView.as_view(), name='password_reset_request'),
+    re_path(r'^password/reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$', AdvancedPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     
     # path("consents/", ParentalConsentListView.as_view(), name="account-consents-list"),
     # path("consents/grant/", ParentalConsentCreateView.as_view(), name="account-consents-grant"),

@@ -30,10 +30,17 @@ class UserProfileView(RoleBasedOutputMixin, APIView):
         """
         Handle GET requests to retrieve the user's profile.
         """
-        profile_domain = profile_service.get_profile_by_user(user_id=request.user.id)
-        
-        # Put the domain object in the response for the mixin to serialize
-        return Response({"instance": profile_domain}, status=status.HTTP_200_OK)
+        try:
+            profile_domain = profile_service.get_profile_by_user(user_id=request.user.id)
+            
+            # Put the domain object in the response for the mixin to serialize
+            return Response({"instance": profile_domain}, status=status.HTTP_200_OK)
+        except Profile.DoesNotExist:
+            # If it doesn't exist, return a 404 error instead of crashing
+            return Response(
+                {"detail": "Profile not found for this user."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     def patch(self, request):
         """

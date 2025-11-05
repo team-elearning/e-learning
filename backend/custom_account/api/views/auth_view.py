@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
+from dj_rest_auth.views import PasswordResetConfirmView
 
 from custom_account.api.dtos.user_dto import UserInput, UserPublicOutput, UserAdminOutput
 from custom_account.api.mixins import RoleBasedOutputMixin
@@ -54,76 +55,76 @@ class RegisterView(RoleBasedOutputMixin, APIView):
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
 
-# # ---------- Logout ----------
-# class LogoutView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
+
+# # ---------- Reset password request (send email) ----------
+# class ResetPasswordRequestView(APIView):
+#     permission_classes = [permissions.AllowAny]
 
 #     def post(self, request):
+#         serializer = ResetPasswordSerializer(data=request.data)
+#         # For request we only need email; ResetPasswordSerializer can accept email only for request step
+#         # but for simplicity we accept serializer (it may validate other fields too)
+#         serializer.is_valid(raise_exception=False)
+#         email = request.data.get("email")
+#         if not email:
+#             return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
 #         try:
-#             # Get the refresh token from the request body
-#             refresh_token = request.data.get("refresh")
-#             if not refresh_token:
-#                 return Response(
-#                     {"detail": "Refresh token is required"},
-#                     status=status.HTTP_400_BAD_REQUEST
-#                 )
-#             token = RefreshToken(refresh_token)
-#             token.blacklist()  # Add the refresh token to the blacklist
-#             return Response(status=status.HTTP_204_NO_CONTENT)
-#         except (InvalidToken, TokenError) as e:
-#             return Response(
-#                 {"detail": str(e)},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-    
+#             # call auth service: it will generate token and call email adapter
+#             success = auth_service.reset_password_request(email=email)
 
-# ---------- Reset password request (send email) ----------
-class ResetPasswordRequestView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        serializer = ResetPasswordSerializer(data=request.data)
-        # For request we only need email; ResetPasswordSerializer can accept email only for request step
-        # but for simplicity we accept serializer (it may validate other fields too)
-        serializer.is_valid(raise_exception=False)
-        email = request.data.get("email")
-        if not email:
-            return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # call auth service: it will generate token and call email adapter
-            success = auth_service.reset_password_request(email=email)
-
-            if success:
-                return Response({"detail": "Password reset email sent successfully"}, status=status.HTTP_200_OK)
-            else:
-                return Response({"detail": "Email not found or failed to send"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"detail": f"Error sending email: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#             if success:
+#                 return Response({"detail": "Password reset email sent successfully"}, status=status.HTTP_200_OK)
+#             else:
+#                 return Response({"detail": "Email not found or failed to send"}, status=status.HTTP_404_NOT_FOUND)
+#         except Exception as e:
+#             return Response({"detail": f"Error sending email: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        # # don't reveal whether email exists (security): respond 204
-        # return Response(status=status.HTTP_204_NO_CONTENT)
+#         # # don't reveal whether email exists (security): respond 204
+#         # return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ---------- Reset password confirm ----------
-class ResetPasswordConfirmView(APIView):
-    permission_classes = [permissions.AllowAny]
+# # ---------- Reset password confirm ----------
+# class ResetPasswordConfirmView(APIView):
+#     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
-        # expected: {email, token, new_password}
-        serializer = ResetPasswordSerializer(data=request.data)
+#     def post(self, request):
+#         # expected: {email, token, new_password}
+#         serializer = ResetPasswordSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         data = serializer.validated_data
+
+#         ok = auth_service.reset_password_confirm(
+#             email=data["email"],
+#             token=data["reset_token"],
+#             new_password=data["new_password"]
+#         )
+#         if not ok:
+#             return Response({"detail": "Invalid token or request"}, status=status.HTTP_400_BAD_REQUEST)
+#         return Response({"success": True}, status=status.HTTP_200_OK)
+
+# ---------- Custom reset password confirm ----------
+class AdvancedPasswordResetConfirmView(PasswordResetConfirmView):
+    """
+    View này kế thừa view gốc và tùy chỉnh lại hàm post
+    để tự động lấy 'uid' và 'token' từ URL.
+    """
+    def post(self, request, *args, **kwargs):
+        # Lấy data từ body (chứa 'new_password1' và 'new_password2')
+        data = request.data.copy()
+
+        # Lấy 'uidb64' và 'token' từ URL (do re_path bắt được) và "auto-fill" vào data.
+        # Serializer mong đợi tên là 'uid' và 'token'
+        data['uid'] = self.kwargs['uidb64']
+        data['token'] = self.kwargs['token']
+
+        # Khởi tạo serializer với data đã được bổ sung
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        ok = auth_service.reset_password_confirm(
-            email=data["email"],
-            token=data["reset_token"],
-            new_password=data["new_password"]
-        )
-        if not ok:
-            return Response({"detail": "Invalid token or request"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"success": True}, status=status.HTTP_200_OK)
-    
+        serializer.save() # Lưu mật khẩu mới
+        
+        # Trả về response thành công
+        return Response({"detail": "Password has been reset with the new password."})
 
 
 
@@ -263,6 +264,8 @@ class AdminLogoutUserView(APIView):
             {"detail": f"Successfully logged out user {user_to_logout.username}. Blacklisted {count} refresh token(s)."},
             status=status.HTTP_200_OK
         )
+    
+
     
 
 
