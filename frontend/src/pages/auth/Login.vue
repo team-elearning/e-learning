@@ -4,7 +4,7 @@
       <!-- Email -->
       <div class="form-group">
         <label for="email" class="form-label">
-          Email
+          Email hoặc Username
           <span class="text-red-500">*</span>
         </label>
         <div class="relative">
@@ -26,9 +26,9 @@
           <input
             id="email"
             v-model="form.email"
-            type="email"
+            type="text"
             name="email-field"
-            placeholder="you@example.com"
+            placeholder="you@example.com hoặc username"
             autocomplete="off"
             class="form-input"
             :class="{ 'border-red-300': errors.email }"
@@ -184,17 +184,17 @@
     </form>
 
     <!-- Divider -->
-    <div class="relative">
+    <!-- <div class="relative">
       <div class="absolute inset-0 flex items-center">
         <div class="w-full border-t border-gray-200"></div>
       </div>
       <div class="relative flex justify-center text-sm">
         <span class="px-4 bg-white text-gray-500">hoặc tiếp tục với</span>
       </div>
-    </div>
+    </div> -->
 
     <!-- Google Login -->
-    <button type="button" class="btn-google" :disabled="loadingGoogle" @click="loginWithGoogle">
+    <!-- <button type="button" class="btn-google" :disabled="loadingGoogle" @click="loginWithGoogle">
       <svg v-if="!loadingGoogle" class="w-5 h-5" viewBox="0 0 24 24">
         <path
           fill="#4285F4"
@@ -235,7 +235,7 @@
         ></path>
       </svg>
       <span class="ml-3 font-medium">{{ loadingGoogle ? 'Đang kết nối...' : 'Google' }}</span>
-    </button>
+    </button> -->
 
     <!-- Register Link -->
     <p class="text-center text-sm text-gray-600">
@@ -272,12 +272,8 @@ const errors = reactive({
 })
 
 function validateEmail() {
-  if (!form.email) {
-    errors.email = 'Vui lòng nhập email'
-    return false
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = 'Email không hợp lệ'
+  if (!form.email.trim()) {
+    errors.email = 'Vui lòng nhập email hoặc username'
     return false
   }
   errors.email = ''

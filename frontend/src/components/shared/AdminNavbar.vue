@@ -50,18 +50,24 @@
 
       <button
         class="ml-2 inline-flex items-center gap-2 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
-        @click="onLogout"
+        @click="showConfirm = true"
       >
         <LogOut class="h-4 w-4" /> Đăng xuất
       </button>
     </div>
+    <ConfirmLogout
+      :open="showConfirm"
+      @update:open="showConfirm = $event"
+      @confirm="handleLogout"
+    />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, defineEmits } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, defineEmits } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
+import ConfirmLogout from '@/components/ui/ConfirmLogout.vue'
 import { Bell, LogOut } from 'lucide-vue-next'
 
 const emit = defineEmits(['toggle-sidebar'])
@@ -70,10 +76,28 @@ const auth = useAuthStore()
 const user = computed(() => auth.user)
 
 const route = useRoute()
+const router = useRouter()
+
 const pageTitle = computed(() => {
   const matched = [...route.matched].reverse().find((r) => r.meta?.title) as any
   return matched?.meta?.title || 'Admin'
 })
 
-const onLogout = () => auth.logout()
+// Confirm popup
+const showConfirm = ref(false)
+
+async function handleLogout() {
+  try {
+    if (typeof auth.logout === 'function') {
+      await auth.logout()
+    } else {
+      // localStorage.removeItem('access')
+      // localStorage.removeItem('accessToken')
+      // localStorage.removeItem('refresh')
+      localStorage.clear()
+    }
+  } finally {
+    router.push({ name: 'Login', query: {} })
+  }
+}
 </script>

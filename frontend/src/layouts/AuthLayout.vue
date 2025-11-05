@@ -26,7 +26,6 @@
       <!-- Left Column -->
       <section class="welcome-column">
         <div class="welcome-content">
-
           <!-- Title -->
           <h1 class="main-title">Chào bạn nhỏ! 👋</h1>
           <p class="main-subtitle">Sẵn sàng học bài mới chưa?</p>
@@ -60,8 +59,8 @@
 
           <!-- Title -->
           <div class="form-heading">
-            <h2 class="form-title">Đăng nhập 🎓</h2>
-            <p class="form-desc">Nhập thông tin để vào lớp học nhé!</p>
+            <h2 class="form-title">{{ route.meta.title }}</h2>
+            <p class="form-desc">{{ route.meta.desc }}</p>
           </div>
 
           <!-- Form -->
@@ -80,7 +79,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+
 import LogoEduriot from '@/components/ui/LogoEduriot.vue'
+
+const route = useRoute()
 
 const features = ref([
   { icon: '🎮', text: 'Học qua trò chơi' },
@@ -254,7 +257,6 @@ const stats = ref([
   max-width: 550px;
 }
 
-
 @keyframes scale-in {
   from {
     opacity: 0;
@@ -266,7 +268,6 @@ const stats = ref([
   }
 }
 
-
 @keyframes pulse {
   0%,
   100% {
@@ -276,8 +277,6 @@ const stats = ref([
     opacity: 0.6;
   }
 }
-
-
 
 .main-title {
   font-size: 2.25rem;
@@ -597,6 +596,21 @@ const stats = ref([
 
   .form-body {
     margin-bottom: 1rem;
+  }
+}
+/* 📌 Form vừa đẹp trên màn hình laptop 13–14 inch */
+@media (min-width: 1024px) and (max-width: 1440px) {
+  .form-box {
+    max-width: 380px; /* Thu nhỏ form */
+    padding: 2rem 1.75rem;
+  }
+
+  .form-title {
+    font-size: 1.75rem;
+  }
+
+  .form-desc {
+    font-size: 0.9rem;
   }
 }
 </style>

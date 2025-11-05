@@ -27,12 +27,18 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'login',
         component: () => import('@/pages/auth/Login.vue'),
-        meta: { title: 'Đăng nhập' },
+        meta: {
+          title: 'Đăng nhập 🎓',
+          desc: 'Nhập thông tin để vào lớp học nhé!',
+        },
       },
       {
         path: 'register',
         component: () => import('@/pages/auth/Register.vue'),
-        meta: { title: 'Đăng ký' },
+        meta: {
+          title: 'Đăng ký ✨',
+          desc: 'Tạo tài khoản mới để bắt đầu hành trình học tập!',
+        },
       },
       {
         path: 'forgot-password',
