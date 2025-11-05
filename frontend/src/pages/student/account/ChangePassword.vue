@@ -4,9 +4,9 @@
     <div class="container">
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab" type="button" @click="goProfile">THÔNG TIN CÁ NHÂN</button>
+        <button class="tab" type="button" @click="goProfile">CÁ NHÂN</button>
         <button class="tab active" type="button">ĐỔI MẬT KHẨU</button>
-        <button class="tab" type="button" @click="goParent">THÔNG TIN PHỤ HUYNH</button>
+        <button class="tab" type="button" @click="goParent">PHỤ HUYNH</button>
       </div>
 
       <!-- Card -->
