@@ -37,6 +37,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'User',
                 'verbose_name_plural': 'Users',
                 'ordering': ['email'],
+		'db_table': 'account_usermodel',
             },
         ),
         migrations.CreateModel(
