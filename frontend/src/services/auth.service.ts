@@ -1,41 +1,12 @@
-//frontend/src/services/auth.service.ts
-
-
-import http from '@/config/axios'
-import { jwtDecode } from 'jwt-decode'
-
+// src/services/auth.service.ts
 export type Role = 'admin' | 'teacher' | 'student'
-
-export const getRoleFromToken = (token: string): Role | null => {
-  if (!token) return null
-  try {
-    const raw = token.startsWith('Bearer ') ? token.slice(7) : token
-    const decoded: any = jwtDecode(raw)
-
-    const maybeRole =
-      decoded.role ||
-      decoded.roles ||
-      decoded.user?.role ||
-      (Array.isArray(decoded.roles) && decoded.roles[0]) ||
-      null
-
-    if (!maybeRole) return null
-
-    const r = String(maybeRole).toLowerCase()
-    if (r === 'admin') return 'admin'
-    if (r === 'teacher') return 'teacher'
-    return 'student'
-  } catch (error) {
-    console.error('Invalid token:', error)
-    return null
-  }
-}
 
 export interface AuthUser {
   id: number
   name: string
   email: string
   role: Role
+  // các field optional để trang Profile có thể dùng
   phone?: string
   title?: string
   bio?: string
@@ -47,104 +18,70 @@ export interface AuthPayload {
   user: AuthUser
 }
 
+// DTO cho cập nhật hồ sơ
 export interface UpdateProfileDto extends Partial<AuthUser> {
   avatar?: string
 }
 
 export const authService = {
-  async login(identifier: string, password: string): Promise<AuthPayload> {
-    if (!identifier || !password) throw new Error('Thiếu thông tin đăng nhập')
+  async login(email: string, password: string): Promise<AuthPayload> {
+    if (!email || !password) throw new Error('Thiếu thông tin đăng nhập')
 
-    // xác định là email hay username
-    const isEmail = /\S+@\S+\.\S+/.test(identifier)
-    const body = isEmail
-      ? { email: identifier, password }
-      : { username: identifier, password }
+    const role: Role = email.includes('admin')
+      ? 'admin'
+      : email.includes('teacher')
+        ? 'teacher'
+        : 'student'
 
-    const { data } = await http.post('/account/login/', body)
-
-    const token = (data.access || data.access_token || data.token) as string
-    if (!token) throw new Error('Không nhận được token từ server')
-
-    const role = (getRoleFromToken(token) || (data.user?.role as Role) || 'student') as Role
-
-    const user: AuthUser = {
-      id: Number(data.user?.id ?? data.user_id ?? 0),
-      name: data.user?.username ?? data.user?.name ?? 'User',
-      email: data.user?.email ?? '',
-      role,
+    return {
+      token: 'mock-token-' + Date.now(),
+      user: {
+        id: 1,
+        name: 'User ' + role,
+        email,
+        role,
+      },
     }
-
-    localStorage.setItem('access', token)
-    localStorage.setItem('accessToken', token)
-    if (data.refresh) localStorage.setItem('refresh', data.refresh)
-
-    return { token, user }
   },
 
-  // Nếu backend hỗ trợ social login bằng token từ client
-  // async loginWithGoogle(googleToken: string): Promise<AuthPayload> {
-  //   const { data } = await http.post('/account/social/google/', { token: googleToken })
-  //   const token = (data.access || data.access_token || data.token) as string
-  //   if (!token) throw new Error('Không nhận được token từ server')
-
-  //   const role = (getRoleFromToken(token) || (data.user?.role as Role) || 'student') as Role
-  //   const user: AuthUser = {
-  //     id: Number(data.user?.id ?? 0),
-  //     name: data.user?.username ?? data.user?.name ?? 'User',
-  //     email: data.user?.email ?? '',
-  //     role,
-  //   }
-
-  //   localStorage.setItem('access', token)
-  //   localStorage.setItem('accessToken', token)
-  //   if (data.refresh) localStorage.setItem('refresh', data.refresh)
-
-  //   return { token, user }
-  // },
-
-  async register(payload: {
-    username: string
-    email: string
-    phone: string
-    password: string
-  }): Promise<{ ok: boolean }> {
-    const body = {
-      username: payload.username,
-      email: payload.email,
-      password: payload.password,
-      phone: payload.phone,
+  async loginWithGoogle(): Promise<AuthPayload> {
+    return {
+      token: 'mock-google-' + Date.now(),
+      user: {
+        id: 2,
+        name: 'Google User',
+        email: 'googleuser@example.com',
+        role: 'student',
+      },
     }
+  },
 
-    await http.post('/account/register/', body)
-
+  async register(_payload: any): Promise<{ ok: boolean }> {
+    // call API thật ở đây nếu có
     return { ok: true }
   },
 
-
+  // Hàm phục vụ trang Profile; backend thật thì PATCH /me
   async updateProfile(payload: UpdateProfileDto): Promise<{ user: AuthUser }> {
-    const { data } = await http.patch('/account/profile/', payload)
-    // giả sử backend trả về { user: {...} } hoặc trả user trực tiếp
-    const returnedUser = data.user ?? data
-    const user: AuthUser = {
-      id: Number(returnedUser.id ?? 0),
-      name: returnedUser.username ?? returnedUser.name ?? 'User',
-      email: returnedUser.email ?? '',
-      role: (returnedUser.role as Role) || 'student',
-      phone: returnedUser.phone,
-      title: returnedUser.title,
-      bio: returnedUser.bio,
-      avatar: returnedUser.avatar,
+    // mock: trả về user đã merge
+    return {
+      user: {
+        id: 1,
+        name: payload.name ?? 'User teacher',
+        email: payload.email ?? 'teacher@example.com',
+        role: 'teacher',
+        phone: payload.phone,
+        title: payload.title,
+        bio: payload.bio,
+        avatar: payload.avatar,
+      },
     }
-    return { user }
   },
 
+  // [ADD] Đổi mật khẩu (mock). Backend thật: POST/PATCH /auth/change-password
   async changePassword(oldPassword: string, newPassword: string): Promise<{ ok: boolean }> {
-    if (!oldPassword || !newPassword) throw new Error('Thiếu mật khẩu')
-    await http.post('/account/change-password/', {
-      old_password: oldPassword,
-      new_password: newPassword,
-    })
-    return { ok: true }
+    if (!oldPassword || !newPassword) throw new Error('Thiếu mật khẩu') // ADD
+    await new Promise((r) => setTimeout(r, 400)) // ADD giả lập gọi API
+    return { ok: true } // [ADD]
   },
 }
