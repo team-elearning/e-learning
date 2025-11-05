@@ -167,9 +167,6 @@
             >
               ✓ Đánh dấu tất cả đã đọc
             </button>
-            <span class="text-xs text-gray-500 whitespace-nowrap">
-              Tối đa 5 TB mới
-            </span>
           </div>
         </div>
       </div>
