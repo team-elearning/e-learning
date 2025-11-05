@@ -11,6 +11,7 @@ from custom_account.api.dtos.user_dto import UpdateUserInput, UserPublicOutput, 
 from custom_account.api.mixins import RoleBasedOutputMixin
 from custom_account.serializers import UserSerializer, ChangePasswordSerializer, SetPasswordSerializer, RegisterSerializer
 from custom_account.services import user_service, exceptions
+from custom_account.services.exceptions import DomainError
 
 
 
@@ -132,7 +133,7 @@ class AdminUserListView(RoleBasedOutputMixin, APIView):
                 status=status.HTTP_201_CREATED
             )
         
-        except ValidationError as e: # Or your specific DomainError
+        except DomainError as e: # Or your specific DomainError
             # Handle business logic errors (e.g., "Email already exists")
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
