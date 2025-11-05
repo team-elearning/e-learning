@@ -167,6 +167,9 @@
             >
               ✓ Đánh dấu tất cả đã đọc
             </button>
+            <span class="text-xs text-gray-500 whitespace-nowrap">
+              Tối đa 5 TB mới
+            </span>
           </div>
         </div>
       </div>
@@ -204,15 +207,13 @@ const isOpen = ref(false)
 const loading = ref(false)
 const notifications = ref<Notification[]>([])
 const notificationRef = ref<HTMLElement | null>(null)
-const maxNotifications = 5 // ⭐ ĐỔI TỪ 10 → 5
+const maxNotifications = 5
 
 // ===== COMPUTED =====
 const displayedNotifications = computed(() => {
-  // Sắp xếp từ mới nhất đến cũ nhất
   const sorted = [...notifications.value].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
-  // Lấy tối đa 5 thông báo mới nhất
   return sorted.slice(0, maxNotifications)
 })
 
@@ -260,7 +261,6 @@ async function fetchNotifications() {
     const url = new URL(import.meta.env.VITE_API_URL || 'http://localhost:8000')
     url.pathname = apiEndpoint.value
     url.searchParams.append('user_id', String(userId))
-    // Fetch nhiều hơn max để có đủ data
     url.searchParams.append('limit', String(maxNotifications * 2))
 
     const response = await fetch(url.toString(), {
@@ -288,8 +288,8 @@ function getMockNotificationsByRole(): Notification[] {
   const generateNotifications = (baseId: number, count: number): Notification[] => {
     return Array.from({ length: count }, (_, i) => ({
       id: baseId + i,
-      title: `Thông báo #${count - i}`,
-      message: `Đây là thông báo mẫu số ${count - i}. Bạn có thể xem và tương tác với nó.`,
+      title: 'demo',
+      message: 'demo',
       type: ['info', 'success', 'warning', 'error'][i % 4] as any,
       is_read: i % 3 === 0,
       created_at: new Date(Date.now() - i * 3600000).toISOString(),
@@ -300,32 +300,32 @@ function getMockNotificationsByRole(): Notification[] {
     student: [
       {
         id: 1,
-        title: 'Khóa học "Vue 3 Advanced" mới',
-        message: 'Khóa học "Vue 3 Advanced" đã được cập nhật với nội dung mới về Composition API',
+        title: 'demo',
+        message: 'demo',
         type: 'info' as const,
         is_read: false,
         created_at: new Date(Date.now() - 3600000).toISOString(),
       },
       {
         id: 2,
-        title: 'Kết quả thi JavaScript',
-        message: 'Điểm thi môn JavaScript Fundamentals đã được công bố. Bạn đạt 85 điểm',
+        title: 'demo',
+        message: 'demo',
         type: 'success' as const,
         is_read: false,
         created_at: new Date(Date.now() - 7200000).toISOString(),
       },
       {
         id: 3,
-        title: 'Bài tập mới - TypeScript',
-        message: 'Có bài tập mới trong khóa học TypeScript Basics. Hạn chót là 3 ngày',
+        title: 'demo',
+        message: 'demo',
         type: 'info' as const,
         is_read: true,
         created_at: new Date(Date.now() - 86400000).toISOString(),
       },
       {
         id: 4,
-        title: 'Thời gian thi hết',
-        message: 'Bạn đã hết thời gian làm bài thi. Bài thi của bạn sẽ được chấm sau 24 giờ',
+        title: 'demo',
+        message: 'demo',
         type: 'warning' as const,
         is_read: true,
         created_at: new Date(Date.now() - 172800000).toISOString(),
@@ -335,24 +335,24 @@ function getMockNotificationsByRole(): Notification[] {
     teacher: [
       {
         id: 101,
-        title: 'Nguyễn Văn A nộp bài tập',
-        message: 'Nguyễn Văn A vừa nộp bài tập "Bài tập Vue Router" cho khóa học Vue 3 Advanced',
+        title: 'demo',
+        message: 'demo',
         type: 'info' as const,
         is_read: false,
         created_at: new Date(Date.now() - 1800000).toISOString(),
       },
       {
         id: 102,
-        title: 'Trần Thị B hỏi câu hỏi',
-        message: 'Trần Thị B đã đặt câu hỏi về bài giảng "Composition API". Hãy trả lời sớm',
+        title: 'demo',
+        message: 'demo',
         type: 'warning' as const,
         is_read: false,
         created_at: new Date(Date.now() - 5400000).toISOString(),
       },
       {
         id: 103,
-        title: 'Hoàn thành chấm bài',
-        message: 'Bạn đã chấm xong 15 bài kiểm tra của khóa TypeScript Basics. Tốt lắm!',
+        title: 'demo',
+        message: 'demo',
         type: 'success' as const,
         is_read: true,
         created_at: new Date(Date.now() - 86400000).toISOString(),
@@ -362,24 +362,24 @@ function getMockNotificationsByRole(): Notification[] {
     admin: [
       {
         id: 201,
-        title: '10 người dùng mới đăng ký',
-        message: '10 người dùng mới đã đăng ký trong 1 giờ qua',
+        title: 'demo',
+        message: 'demo',
         type: 'info' as const,
         is_read: false,
         created_at: new Date(Date.now() - 3600000).toISOString(),
       },
       {
         id: 202,
-        title: 'Lỗi hệ thống phát hiện',
-        message: 'Phát hiện lỗi 404 trên trang dashboard. Vui lòng kiểm tra',
+        title: 'demo',
+        message: 'demo',
         type: 'error' as const,
         is_read: false,
         created_at: new Date(Date.now() - 1800000).toISOString(),
       },
       {
         id: 203,
-        title: 'Doanh thu tháng này',
-        message: 'Doanh thu tháng này đạt $5,000. Cao hơn 20% so với tháng trước',
+        title: 'demo',
+        message: 'demo',
         type: 'success' as const,
         is_read: true,
         created_at: new Date(Date.now() - 86400000).toISOString(),
@@ -487,7 +487,6 @@ function getNotificationIconPath(type: string): string {
   return paths[type as keyof typeof paths] || paths.info
 }
 
-// Click outside to close
 onClickOutside(notificationRef, () => {
   isOpen.value = false
 })
