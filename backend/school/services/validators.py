@@ -1,5 +1,5 @@
 
-from account.models import UserModel
+from custom_account.models import UserModel
 from school.models import ClassroomModel, MembershipModel
 from school.services.exceptions import PermissionDenied
 

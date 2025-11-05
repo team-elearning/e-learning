@@ -1,7 +1,7 @@
 from typing import Optional, Callable, List
 from django.db import transaction
 
-from account.models import UserModel
+from custom_account.models import UserModel
 from school.models import ClassroomModel, MembershipModel, InvitationModel
 from school.domains.membership_domain import MembershipDomain
 from school.domains.invitation_domain import InvitationDomain

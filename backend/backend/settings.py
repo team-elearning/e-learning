@@ -48,14 +48,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
 
     # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'rest_framework.authtoken',                                                                                                 
 
     # Project apps
-    'account',
+    'custom_account',
     'school',
     'content',
     'activities',
@@ -66,6 +68,13 @@ INSTALLED_APPS = [
     'ai_personalization',
     'events',
     'payments',
+
+    # Allauth                                                                                                            
+    'allauth',                                                                                                                  
+    'allauth.account',                                                                                                                                                                                                     
+    'allauth.socialaccount',                                                                                                    
+    'allauth.socialaccount.providers.google',
+    'dj_rest_auth', 
 ]
 
 # -------------------------------
@@ -77,6 +86,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -122,6 +132,7 @@ DATABASES = {
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -138,7 +149,7 @@ SIMPLE_JWT = {
 # -------------------------------
 # Authentication / User model
 # -------------------------------
-AUTH_USER_MODEL = 'account.UserModel'
+AUTH_USER_MODEL = 'custom_account.UserModel'
 
 
 # -------------------------------
@@ -240,3 +251,46 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024 # 1GB
 # HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CORS_ALLOW_CREDENTIALS = True
+
+# Cho allauth
+SITE_ID = 1
+AUTHENTICATION_BACKENDS = (                    
+    # `allauth` specific authentication methods, such as login by e-mail                                                                                 
+    'allauth.account.auth_backends.AuthenticationBackend',   
+
+    # Needed to login by username in Django admin, regardless of `allauth`                                                                   
+    'django.contrib.auth.backends.ModelBackend',                                                                                
+)                                                                                                                               
+
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_HTTPONLY': True,
+
+    'JWT_AUTH_REFRESH_COOKIE': 'refresh_token_cookie',
+    'USER_DETAILS_SERIALIZER': 'custom_account.serializers.UserPublicOutputSerializer',
+}
+
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+                                                                                                                                                                                                                                                                                        
+ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'allauth.socialaccount.adapter.DefaultSocialAccountAdapter'
+
+SOCIALACCOUNT_PROVIDERS = {                                                                                                     
+    'google': {                                                                                                                 
+        'SCOPE': [
+            'profile',                                                                                                          
+            'email',                                                                                                            
+        ],                                                                                                                      
+        'AUTH_PARAMS': {                                                                                                        
+            'access_type': 'online',                                                                                            
+        },                                                                                                                      
+        # 'APP': {                                                                                                                
+        #     'client_id': '{GOOGLE_CLIENT_ID}',                                                                               
+        #     'secret': '{GOOGLE_CLIENT_SECRET}',                                                                                 
+        # }                                                                                                                       
+    }                                                                                                                           
+}  

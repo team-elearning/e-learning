@@ -19,7 +19,7 @@ from content.serializers import (
     LessonVersionReadSerializer
 )
 
-from account.api.permissions import IsOwnerOrAdmin
+from custom_account.api.permissions import IsOwnerOrAdmin
 from content.services.subject_service import SubjectService
 from content.services.course_service import CourseService
 from content.services.module_service import ModuleService

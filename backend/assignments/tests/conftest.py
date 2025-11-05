@@ -9,7 +9,7 @@ from unittest.mock import Mock
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from assignments.infrastructure.models import (
+from assignments.models import (
     Assignment,
     Submission,
     Grade

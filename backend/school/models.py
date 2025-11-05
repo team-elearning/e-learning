@@ -4,7 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-from account.models import UserModel
+from custom_account.models import UserModel
 
 
 

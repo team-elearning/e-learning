@@ -6,7 +6,7 @@ from uuid import UUID
 from ...domain.entities.submission import Submission
 from ...domain.value_objects import SubmissionStatus
 from ...domain.interfaces import ISubmissionRepository
-from ..models import Submission
+from ...models import Submission
 
 
 class SubmissionRepository(ISubmissionRepository):

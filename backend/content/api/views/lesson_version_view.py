@@ -6,7 +6,7 @@ from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from account.api.permissions import IsOwnerOrAdmin
+from custom_account.api.permissions import IsOwnerOrAdmin
 from content import models
 from content.serializers import (
     SubjectSerializer, CourseSerializer, ModuleSerializer, LessonSerializer,

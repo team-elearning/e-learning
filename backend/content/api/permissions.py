@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from account.services import user_service
+from custom_account.services import user_service
 
 class IsAdminOrReadOnly(BasePermission):
     """

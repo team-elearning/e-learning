@@ -17,6 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import path, include
+from dj_rest_auth.jwt_auth import get_refresh_view
+
+from custom_account.api.views.auth_view import GoogleLogin
+
 
 
 def home(request):
@@ -24,8 +28,13 @@ def home(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/account/', include("account.urls")),
+    path('api/account/', include("custom_account.urls")),
     path('api/ai_personalization/', include('ai_personalization.urls')),
     path("", home),
-]
 
+    path("api/auth/", include("dj_rest_auth.urls")),
+    path('api/auth/', include('allauth.socialaccount.urls')),
+    path('api/auth/google/', GoogleLogin.as_view(), name='google_login'),
+
+    path('api/auth/token/refresh/', get_refresh_view().as_view(), name='token_refresh'),
+]
