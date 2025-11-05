@@ -4,7 +4,7 @@
       <!-- Email -->
       <div class="form-group">
         <label for="email" class="form-label">
-          Email
+          Email hoặc Username
           <span class="text-red-500">*</span>
         </label>
         <div class="relative">
@@ -26,9 +26,9 @@
           <input
             id="email"
             v-model="form.email"
-            type="email"
+            type="text"
             name="email-field"
-            placeholder="you@example.com"
+            placeholder="you@example.com hoặc username"
             autocomplete="off"
             class="form-input"
             :class="{ 'border-red-300': errors.email }"
@@ -272,12 +272,8 @@ const errors = reactive({
 })
 
 function validateEmail() {
-  if (!form.email) {
-    errors.email = 'Vui lòng nhập email'
-    return false
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = 'Email không hợp lệ'
+  if (!form.email.trim()) {
+    errors.email = 'Vui lòng nhập email hoặc username'
     return false
   }
   errors.email = ''
