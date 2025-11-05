@@ -7,7 +7,7 @@ from decimal import Decimal
 from ...domain.entities.grade import Grade
 from ...domain.value_objects import Score
 from ...domain.interfaces import IGradeRepository
-from ..models import Grade
+from ...models import Grade
 
 
 class GradeRepository(IGradeRepository):

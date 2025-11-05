@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 # import project models
-from account.models import UserModel
+from custom_account.models import UserModel
 from content import models as content_models
 
 class UserFactory(factory.django.DjangoModelFactory):

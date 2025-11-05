@@ -6,7 +6,7 @@ from uuid import UUID
 from ...domain.entities.assignment import Assignment
 from ...domain.value_objects import DueDate, LatePenalty, AssignmentType
 from ...domain.interfaces import IAssignmentRepository
-from assignments.infrastructure.models import Assignment
+from assignments.models import Assignment
 
 
 class AssignmentRepository(IAssignmentRepository):

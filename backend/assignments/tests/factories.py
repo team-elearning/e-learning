@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from assignments.infrastructure.models import (
+from assignments.models import (
     Assignment,
     Submission,
     Grade

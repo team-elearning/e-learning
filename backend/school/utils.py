@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from account.models import UserModel
+from custom_account.models import UserModel
 from school.models import MembershipModel, ClassroomModel
 from school.domains.class_domain import ClassroomDomain
 from school.api.permissions import NotFoundError
