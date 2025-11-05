@@ -99,23 +99,23 @@ export const authService = {
   },
 
   async register(payload: {
-    fullName?: string
     username: string
-    phone?: string
+    email: string
+    phone: string
     password: string
-    email?: string
-    confirm?: string
-    agree?: boolean
   }): Promise<{ ok: boolean }> {
     const body = {
       username: payload.username,
+      email: payload.email,
       password: payload.password,
-      email: payload.email ?? undefined,
-      phone: payload.phone ?? undefined,
+      phone: payload.phone,
     }
+
     await http.post('/account/register/', body)
+
     return { ok: true }
   },
+
 
   async updateProfile(payload: UpdateProfileDto): Promise<{ user: AuthUser }> {
     const { data } = await http.patch('/account/profile/', payload)
