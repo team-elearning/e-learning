@@ -31,7 +31,8 @@ def env_list(name, default=""):
 # Core settings
 # -------------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+DEBUG = True
+# DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
