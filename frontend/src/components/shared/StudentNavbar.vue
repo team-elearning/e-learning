@@ -260,7 +260,6 @@ const menu = [
   { path: '/student/courses', label: 'Khóa học' },
   { path: '/student/exams', label: 'Ôn luyện & Thi' },
   { path: '/student/payments', label: 'Thanh toán' },
-  { path: '/student/account/profile', label: 'Tài khoản của tôi' },
 ]
 
 // Avatar dropdown click outside
