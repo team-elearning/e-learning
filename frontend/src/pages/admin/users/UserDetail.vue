@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="">
     <!-- Header -->
     <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -24,6 +24,28 @@
             <div class="mt-1 text-xs text-gray-500">
               Lần đăng nhập cuối: <b>{{ fmtDate(detail.lastLoginAt) || '—' }}</b> • Tạo lúc:
               <b>{{ fmtDate(detail.createdAt) }}</b>
+            </div>
+          </div>
+
+          <!-- Change Password -->
+          <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
+            <h3 class="text-lg font-semibold text-gray-800">Đổi mật khẩu</h3>
+            <p class="text-sm text-gray-500">Đặt mật khẩu mới cho người dùng này.</p>
+            <div class="mt-4">
+              <el-button type="warning" @click="openChangePasswordDialog"> Đổi mật khẩu </el-button>
+            </div>
+          </div>
+
+          <!-- Delete Account -->
+          <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
+            <h3 class="text-lg font-semibold text-gray-800">Xóa tài khoản</h3>
+            <p class="text-sm text-gray-500">
+              Xóa tài khoản này vĩnh viễn. Hành động này không thể hoàn tác.
+            </p>
+            <div class="mt-4">
+              <el-button type="danger" :loading="deletingAccount" @click="deleteAccount">
+                Xóa tài khoản
+              </el-button>
             </div>
           </div>
         </div>
@@ -59,29 +81,25 @@
       </el-form>
     </div>
 
-    <!-- Reset Password -->
-    <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
-      <h3 class="text-lg font-semibold text-gray-800">Reset mật khẩu</h3>
-      <p class="text-sm text-gray-500">Đặt lại mật khẩu cho người dùng này.</p>
-      <div class="mt-4">
-        <el-button type="warning" :loading="resettingPassword" @click="resetPassword">
-          Reset mật khẩu
+    <!-- Change Password Dialog -->
+    <el-dialog
+      title="Đổi mật khẩu"
+      v-model="changePasswordDialogVisible"
+      width="400px"
+      @close="resetChangePasswordForm"
+    >
+      <el-form :model="changePasswordForm" :rules="changePasswordRules" ref="changePasswordRef">
+        <el-form-item label="Mật khẩu mới" prop="newPassword">
+          <el-input v-model="changePasswordForm.newPassword" type="password" />
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="changePasswordDialogVisible = false">Hủy</el-button>
+        <el-button type="primary" :loading="changingPassword" @click="changePassword">
+          Xác nhận
         </el-button>
       </div>
-    </div>
-
-    <!-- Delete Account -->
-    <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
-      <h3 class="text-lg font-semibold text-gray-800">Xóa tài khoản</h3>
-      <p class="text-sm text-gray-500">
-        Xóa tài khoản này vĩnh viễn. Hành động này không thể hoàn tác.
-      </p>
-      <div class="mt-4">
-        <el-button type="danger" :loading="deletingAccount" @click="deleteAccount">
-          Xóa tài khoản
-        </el-button>
-      </div>
-    </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -117,14 +135,22 @@ const detail = reactive<UserDetail>({
 const form = reactive<any>({})
 const profileRef = ref<FormInstance>()
 const savingProfile = ref(false)
-const resettingPassword = ref(false)
 const deletingAccount = ref(false)
+
+// Change Password State
+const changePasswordDialogVisible = ref(false)
+const changePasswordForm = reactive({ newPassword: '' })
+const changePasswordRef = ref<FormInstance>()
+const changingPassword = ref(false)
 
 // Rules
 const profileRules = {
   name: [],
   username: [{ required: true, message: 'Nhập username', trigger: 'blur' }],
   email: [{ required: true, type: 'email', message: 'Email không hợp lệ', trigger: 'blur' }],
+}
+const changePasswordRules = {
+  newPassword: [{ required: true, message: 'Nhập mật khẩu mới', trigger: 'blur' }],
 }
 
 // Helpers
@@ -177,16 +203,27 @@ async function saveProfile() {
   }
 }
 
-// Reset password
-async function resetPassword() {
-  resettingPassword.value = true
+// Change password
+function openChangePasswordDialog() {
+  console.log('Opening change password dialog')
+  changePasswordDialogVisible.value = true
+  console.log('Dialog visibility:', changePasswordDialogVisible.value)
+}
+function resetChangePasswordForm() {
+  changePasswordForm.newPassword = ''
+}
+async function changePassword() {
+  const valid = await changePasswordRef.value?.validate().catch(() => false)
+  if (!valid) return
+  changingPassword.value = true
   try {
-    await userService.resetPassword(detail.id)
-    ElMessage.success('Đã reset mật khẩu')
+    await userService.setPassword(detail.id, { new_password: changePasswordForm.newPassword })
+    ElMessage.success('Đã đổi mật khẩu')
+    changePasswordDialogVisible.value = false
   } catch {
-    ElMessage.error('Reset mật khẩu thất bại')
+    ElMessage.error('Đổi mật khẩu thất bại')
   } finally {
-    resettingPassword.value = false
+    changingPassword.value = false
   }
 }
 
@@ -210,3 +247,8 @@ async function deleteAccount() {
 
 onMounted(load)
 </script>
+<style>
+.el-dialog {
+  z-index: 9999 !important; /* Đảm bảo dialog không bị che khuất */
+}
+</style>

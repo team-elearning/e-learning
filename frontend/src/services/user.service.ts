@@ -199,12 +199,17 @@ export const userService = {
         await api.delete(`/account/admin/users/${id}/`)
     },
 
+    // PASSWORD MANAGEMENT
+    setPassword(id: ID, payload: { new_password: string }) {
+        return api.post(`/account/admin/password/set/${id}/`, payload)
+    },
+
     // ROLE & SECURITY (adjust endpoints if backend different)
-    changeRole(id: ID, role: Role) { return api.post(`/account/admin/users/${id}/role/`, { role }) },
-    resetPassword(id: ID) { return api.post(`/account/admin/users/${id}/reset-password/`) },
-    lock(id: ID) { return api.post(`/account/admin/users/${id}/lock/`) },
-    unlock(id: ID) { return api.post(`/account/admin/users/${id}/unlock/`) },
-    ban(id: ID) { return api.post(`/account/admin/users/${id}/ban/`) },
+    // changeRole(id: ID, role: Role) { return api.post(`/account/admin/users/${id}/role/`, { role }) },
+    // resetPassword(id: ID) { return api.post(`/account/admin/users/${id}/reset-password/`) },
+    // lock(id: ID) { return api.post(`/account/admin/users/${id}/lock/`) },
+    // unlock(id: ID) { return api.post(`/account/admin/users/${id}/unlock/`) },
+    // ban(id: ID) { return api.post(`/account/admin/users/${id}/ban/`) },
 
     // SESSIONS
     async sessions(id: ID): Promise<SessionRow[]> {
