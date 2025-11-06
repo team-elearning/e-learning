@@ -2,7 +2,7 @@
 import api from '@/config/axios'
 
 export type ID = string | number
-export type Role = 'admin' | 'teacher' | 'student'
+export type Role = 'admin' | 'instructor' | 'student'
 export type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval'
 
 export interface User {
@@ -120,7 +120,7 @@ export const userService = {
         const total = 128
         const size = params.pageSize ?? 20
         const page = params.page ?? 1
-        const roles: Role[] = ['admin', 'teacher', 'student']
+        const roles: Role[] = ['admin', 'instructor', 'student']
         const statuses: UserStatus[] = ['active', 'locked', 'banned', 'pending_approval']
         const items: User[] = Array.from({ length: size }).map((_, i) => {
             const id = (page - 1) * size + i + 1
@@ -171,7 +171,7 @@ export const userService = {
             email: `user${id}@example.com`,
             emailVerified: Number(id) % 2 === 0,
             phone: '0901234567',
-            role: (['admin', 'teacher', 'student'] as Role[])[Number(id) % 3],
+            role: (['admin', 'instructor', 'student'] as Role[])[Number(id) % 3],
             status: (['active', 'locked', 'banned', 'pending_approval'] as UserStatus[])[Number(id) % 4],
             createdAt: new Date(now.getTime() - 30 * 864e5).toISOString(),
             updatedAt: now.toISOString(),
@@ -186,8 +186,18 @@ export const userService = {
     },
 
     // CRUD
-    create(payload: Partial<User>) { return api.post('/account/admin/users/', payload) },
-    update(id: ID, payload: Partial<UserDetail>) { return api.put(`/account/admin/users/${id}/`, payload) },
+    create(payload: { username: string; email: string; password: string; role: Role }) {
+        return api.post('/account/admin/users/', payload)
+    },
+    update(id: ID, payload: { username: string; email: string; phone?: string | null }) {
+        return api.patch(`/account/admin/users/${id}/`, payload)
+    },
+    delete(id: ID) {
+        return api.delete(`/account/admin/users/${id}/`)
+    },
+    async deleteAccount(id: ID): Promise<void> {
+        await api.delete(`/account/admin/users/${id}/`)
+    },
 
     // ROLE & SECURITY (adjust endpoints if backend different)
     changeRole(id: ID, role: Role) { return api.post(`/account/admin/users/${id}/role/`, { role }) },
@@ -292,7 +302,7 @@ export const userService = {
         const headers = ['id', 'name', 'username', 'email', 'role', 'status', 'createdAt', 'lastLoginAt']
         const size = params.pageSize ?? 50
         const page = params.page ?? 1
-        const roles: Role[] = ['admin', 'teacher', 'student']
+        const roles: Role[] = ['admin', 'instructor', 'student']
         const statuses: UserStatus[] = ['active', 'locked', 'banned', 'pending_approval']
         const rows = Array.from({ length: size }).map((_, i) => {
             const id = (page - 1) * size + i + 1

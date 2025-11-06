@@ -6,7 +6,7 @@ const http = axios.create({
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' }
 })
- /*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
+/*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
 function translateMessage(message: string): string {
   const translations: Record<string, string> = {
     // Login errors
@@ -14,7 +14,7 @@ function translateMessage(message: string): string {
     'Invalid email or password': 'Tài khoản hoặc mật khẩu không chính xác',
     'Email not found': 'Tài khoản không tồn tại',
     'User not found': 'Tài khoản không tồn tại',
-    
+
     // Register errors
     'Username already taken': 'Username đã tồn tại',
     'Email already taken': 'Email đã tồn tại',
@@ -25,6 +25,21 @@ function translateMessage(message: string): string {
   }
   return translations[message] || message
 }
+
+// Interceptor để thêm token vào tất cả các request
+http.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+    // Bỏ qua thêm token nếu là login hoặc register
+    if (config.url && !config.url.includes('/login') && !config.url.includes('/register')) {
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}` // Thêm token vào header Authorization
+      }
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
 
 http.interceptors.response.use(
   (response) => response,
