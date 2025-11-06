@@ -2,10 +2,11 @@
 import axios from 'axios'
 
 const http = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE + import.meta.env.VITE_API_PREFIX,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' }
-})
+});
+
 
 /*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
 function translateMessage(message: string): string {
