@@ -41,7 +41,6 @@
             <option value="active">Đang hoạt động</option>
             <option value="locked">Khoá tạm</option>
             <option value="banned">Cấm</option>
-            <option value="pending_approval">Chờ duyệt</option>
           </select>
           <span class="select-chevron" aria-hidden="true">
             <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
@@ -285,7 +284,7 @@ const list = computed(() => {
   if (key) {
     arr = arr.filter(
       (u) =>
-        u.name.toLowerCase().includes(key) ||
+        (u.name ?? '').toLowerCase().includes(key) ||
         u.username.toLowerCase().includes(key) ||
         u.email.toLowerCase().includes(key),
     )
@@ -302,7 +301,7 @@ const list = computed(() => {
       )
       break
     default:
-      arr.sort((a, b) => a.name.localeCompare(b.name))
+      arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
   }
   if (sortDir.value === 'descending') arr.reverse()
 
@@ -332,7 +331,7 @@ function fmt(iso?: string) {
 function fallbackAvatar(u: User) {
   return `https://i.pravatar.cc/100?u=${encodeURIComponent(String(u.id))}`
 }
-function badgeClass(s: UserStatus) {
+function badgeClass(s: UserStatus | 'inactive') {
   switch (s) {
     case 'active':
       return 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -340,7 +339,7 @@ function badgeClass(s: UserStatus) {
       return 'border-amber-200 bg-amber-50 text-amber-700'
     case 'banned':
       return 'border-rose-200 bg-rose-50 text-rose-700'
-    case 'pending_approval':
+    case 'inactive':
       return 'border-sky-200 bg-sky-50 text-sky-700'
   }
 }

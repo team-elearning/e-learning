@@ -3,7 +3,7 @@ import api from '@/config/axios'
 
 export type ID = string | number
 export type Role = 'admin' | 'instructor' | 'student'
-export type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval'
+export type UserStatus = 'active' | 'locked' | 'banned' | 'inactive'
 
 export interface User {
     id: ID
@@ -14,7 +14,7 @@ export interface User {
     avatar?: string
     role: Role
     // backend có "is_active" -> map sang status
-    status: UserStatus | 'active' | 'inactive'
+    status: UserStatus // 'active' | 'locked' | 'banned' | 'inactive'
     lastLoginAt?: string
     createdAt: string
 }
@@ -121,7 +121,7 @@ export const userService = {
         const size = params.pageSize ?? 20
         const page = params.page ?? 1
         const roles: Role[] = ['admin', 'instructor', 'student']
-        const statuses: UserStatus[] = ['active', 'locked', 'banned', 'pending_approval']
+        const statuses: UserStatus[] = ['active', 'locked', 'banned', 'inactive']
         const items: User[] = Array.from({ length: size }).map((_, i) => {
             const id = (page - 1) * size + i + 1
             return {
@@ -189,9 +189,10 @@ export const userService = {
     create(payload: { username: string; email: string; password: string; role: Role }) {
         return api.post('/account/admin/users/', payload)
     },
-    update(id: ID, payload: { username: string; email: string; phone?: string | null }) {
+    update(id: ID, payload: { username: string; email: string; phone?: string | null; name?: string }) {
         return api.patch(`/account/admin/users/${id}/`, payload)
     },
+
     delete(id: ID) {
         return api.delete(`/account/admin/users/${id}/`)
     },
@@ -308,7 +309,7 @@ export const userService = {
         const size = params.pageSize ?? 50
         const page = params.page ?? 1
         const roles: Role[] = ['admin', 'instructor', 'student']
-        const statuses: UserStatus[] = ['active', 'locked', 'banned', 'pending_approval']
+        const statuses: UserStatus[] = ['active', 'locked', 'banned', 'inactive']
         const rows = Array.from({ length: size }).map((_, i) => {
             const id = (page - 1) * size + i + 1
             return [

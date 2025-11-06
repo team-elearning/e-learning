@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div>
     <!-- Header + actions -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="space-y-1">
@@ -47,7 +47,6 @@
         <el-option label="Hoạt động" value="active" />
         <el-option label="Tạm khoá" value="locked" />
         <el-option label="Cấm vĩnh viễn" value="banned" />
-        <el-option label="Chờ duyệt" value="pending_approval" />
       </el-select>
 
       <!-- Bọc DatePicker để nó co đúng, chiếm 2 cột ở md/xl -->
@@ -275,7 +274,7 @@ import { userService } from '@/services/user.service'
 
 type ID = string | number
 type Role = 'admin' | 'instructor' | 'student'
-type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval' | 'inactive'
+type UserStatus = 'active' | 'locked' | 'banned' | 'inactive'
 interface User {
   id: ID
   name?: string
@@ -431,11 +430,11 @@ function onSelectionChange(val: User[]) {
 }
 
 // row actions
-async function resetPassword(row: User) {
-  await ElMessageBox.confirm(`Reset mật khẩu cho “${row.name}”?`, 'Xác nhận', { type: 'warning' })
-  await userService.resetPassword(row.id)
-  ElMessage.success('Đã gửi hướng dẫn reset mật khẩu')
-}
+// async function resetPassword(row: User) {
+//   await ElMessageBox.confirm(`Reset mật khẩu cho “${row.name}”?`, 'Xác nhận', { type: 'warning' })
+//   await userService.resetPassword(row.id)
+//   ElMessage.success('Đã gửi hướng dẫn reset mật khẩu')
+// }
 
 async function deleteUser(row: User) {
   try {
@@ -450,26 +449,26 @@ async function deleteUser(row: User) {
     ElMessage.error('Không thể xóa người dùng')
   }
 }
-async function lock(row: User) {
-  await ElMessageBox.confirm(`Khoá tài khoản “${row.name}”?`, 'Xác nhận', { type: 'warning' })
-  await userService.lock(row.id)
-  ElMessage.success('Đã khoá tài khoản')
-  fetchList()
-}
-async function unlock(row: User) {
-  await ElMessageBox.confirm(`Mở khoá tài khoản “${row.name}”?`, 'Xác nhận')
-  await userService.unlock(row.id)
-  ElMessage.success('Đã mở khoá')
-  fetchList()
-}
-async function ban(row: User) {
-  await ElMessageBox.confirm(`Cấm vĩnh viễn “${row.name}”? Không thể hoàn tác.`, 'Cảnh báo', {
-    type: 'error',
-  })
-  await userService.ban(row.id)
-  ElMessage.success('Đã cấm tài khoản')
-  fetchList()
-}
+// async function lock(row: User) {
+//   await ElMessageBox.confirm(`Khoá tài khoản “${row.name}”?`, 'Xác nhận', { type: 'warning' })
+//   await userService.lock(row.id)
+//   ElMessage.success('Đã khoá tài khoản')
+//   fetchList()
+// }
+// async function unlock(row: User) {
+//   await ElMessageBox.confirm(`Mở khoá tài khoản “${row.name}”?`, 'Xác nhận')
+//   await userService.unlock(row.id)
+//   ElMessage.success('Đã mở khoá')
+//   fetchList()
+// }
+// async function ban(row: User) {
+//   await ElMessageBox.confirm(`Cấm vĩnh viễn “${row.name}”? Không thể hoàn tác.`, 'Cảnh báo', {
+//     type: 'error',
+//   })
+//   await userService.ban(row.id)
+//   ElMessage.success('Đã cấm tài khoản')
+//   fetchList()
+// }
 function gotoDetail(row: User) {
   // đảm bảo bạn đã có route /admin/users/:id
   router.push(`/admin/users/${row.id}`)
@@ -610,7 +609,7 @@ async function exportCsv() {
     const blob = await userService.exportCsv({
       q: query.q,
       role: query.role,
-      status: query.status,
+      status: query.status || undefined, // ✅ sửa ở đây
       from: query.from,
       to: query.to,
       sortBy: query.sortBy,

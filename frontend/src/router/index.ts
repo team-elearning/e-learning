@@ -76,7 +76,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'users/:id',
         component: () => import('@/pages/admin/users/UserDetail.vue'),
-        meta: { title: (to: any) => `Người dùng #${to.params.id}` },
+        // meta: { title: (to: any) => `Người dùng #${to.params.id}` },
+        meta: { title: `Hồ sơ người dùng` },
+
       },
 
       // Courses
