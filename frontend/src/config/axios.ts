@@ -2,10 +2,9 @@
 import axios from 'axios'
 
 const http = axios.create({
-  baseURL: `${import.meta.env.VITE_API_BASE}${import.meta.env.VITE_API_PREFIX}`,
+  baseURL: '/api',
   timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,  // nếu dùng cookie auth
+  headers: { 'Content-Type': 'application/json' }
 })
 
 /*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
