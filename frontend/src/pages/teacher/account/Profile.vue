@@ -24,6 +24,7 @@
             <div class="flex items-center gap-4">
               <!-- Hidden input -->
               <input
+                ref="avatarInputRef"
                 id="avatarInput"
                 type="file"
                 class="hidden"
@@ -57,7 +58,9 @@
 
             <div class="space-y-2">
               <p class="text-xs text-slate-500">Chấp nhận PNG, JPG, WebP. Kích thước tối đa 2MB.</p>
-              <p v-if="errors.avatar" class="text-xs text-red-600">{{ errors.avatar }}</p>
+              <p v-if="errors.avatar" class="text-xs text-red-600" aria-live="polite">
+                {{ errors.avatar }}
+              </p>
             </div>
           </div>
 
@@ -72,7 +75,9 @@
                 class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-800 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="Nguyễn Văn A"
               />
-              <p v-if="errors.name" class="mt-1 text-xs text-red-600">{{ errors.name }}</p>
+              <p v-if="errors.name" class="mt-1 text-xs text-red-600" aria-live="polite">
+                {{ errors.name }}
+              </p>
             </div>
 
             <div class="space-y-1.5">
@@ -84,7 +89,9 @@
                 class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-800 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="teacher@example.com"
               />
-              <p v-if="errors.email" class="mt-1 text-xs text-red-600">{{ errors.email }}</p>
+              <p v-if="errors.email" class="mt-1 text-xs text-red-600" aria-live="polite">
+                {{ errors.email }}
+              </p>
             </div>
 
             <div class="space-y-1.5">
@@ -146,7 +153,12 @@
               leave-from-class="transform opacity-100 scale-100"
               leave-to-class="transform opacity-0 scale-95"
             >
-              <span v-if="saved" class="flex items-center gap-2 text-sm text-green-600">
+              <span
+                v-if="saved"
+                class="flex items-center gap-2 text-sm text-green-600"
+                role="status"
+                aria-live="polite"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
@@ -166,16 +178,75 @@
         </form>
       </section>
     </div>
+
+    <!-- ===== Modal thông báo dung lượng ảnh (giống student) ===== -->
+    <transition
+      enter-active-class="transition-opacity duration-150 ease-out"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="limitModal.open"
+        class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="limit-title"
+        @click.self="closeLimitModal"
+      >
+        <div
+          ref="limitCard"
+          tabindex="-1"
+          class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl outline-none"
+        >
+          <div class="mb-2 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-amber-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+            </svg>
+            <h3 id="limit-title" class="text-base font-bold text-slate-800">Không thể tải ảnh</h3>
+          </div>
+          <div class="mb-3 text-sm text-slate-800">
+            <p>{{ limitModal.message }}</p>
+            <small class="mt-1 block text-slate-500">Vui lòng chọn tệp PNG/JPG ≤ 2MB.</small>
+          </div>
+          <div class="flex justify-end">
+            <button
+              type="button"
+              class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              @click="closeLimitModal"
+            >
+              ĐÃ HIỂU
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+    <!-- ===== /Modal ===== -->
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/store/auth.store'
 import type { AuthUser } from '@/services/auth.service'
 
 const auth = useAuthStore()
 const user = computed<AuthUser | null>(() => auth.user)
+
+/** constants */
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
+const OVER_LIMIT_MSG = 'File ảnh vượt quá dung lượng cho phép (2MB)'
 
 /** fallback */
 const fallback120 = computed(() => user.value?.avatar || 'https://i.pravatar.cc/120?img=5')
@@ -197,19 +268,56 @@ const saved = ref(false)
 /** dirty */
 const isDirty = computed(() => JSON.stringify(form) !== JSON.stringify(original))
 
-/** preview avatar */
+/** file input ref + preview */
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 const preview = ref<string | null>(null)
+
+/** ===== Modal state & handlers (giống student) ===== */
+const limitModal = reactive<{ open: boolean; message: string }>({ open: false, message: '' })
+const limitCard = ref<HTMLElement | null>(null)
+function showLimitModal(msg = OVER_LIMIT_MSG) {
+  limitModal.message = msg
+  limitModal.open = true
+  queueMicrotask(() => limitCard.value?.focus())
+}
+function closeLimitModal() {
+  limitModal.open = false
+}
+
+function handleEsc(e: KeyboardEvent) {
+  if (e.key === 'Escape' && limitModal.open) {
+    e.stopPropagation()
+    closeLimitModal()
+  }
+}
+onMounted(() => window.addEventListener('keydown', handleEsc))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleEsc))
+
+/** helpers */
+function resetFile() {
+  if (avatarInputRef.value) avatarInputRef.value.value = ''
+  preview.value = null
+  // không set errors.avatar ở đây vì oversize dùng modal thông báo
+}
+
 const onPick = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
+
+  // type check (vẫn giữ PNG/JPG/WebP như bản teacher)
   if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
     errors.avatar = 'Chỉ nhận PNG/JPG/WebP'
+    resetFile()
     return
   }
-  if (file.size > 2 * 1024 * 1024) {
-    errors.avatar = 'Ảnh vượt quá 2MB'
+
+  // size check -> MỞ MODAL giống student
+  if (file.size > MAX_AVATAR_SIZE) {
+    showLimitModal() // Hiển thị hộp thoại
+    resetFile() // Reset input file & preview
     return
   }
+
   errors.avatar = ''
   const reader = new FileReader()
   reader.onload = () => (preview.value = reader.result as string)
@@ -217,9 +325,10 @@ const onPick = (e: Event) => {
 }
 
 /** validate */
+const isEmail = (v: string) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 const validate = () => {
   errors.name = form.name ? '' : 'Vui lòng nhập họ tên'
-  errors.email = /\S+@\S+\.\S+/.test(form.email) ? '' : 'Email không hợp lệ'
+  errors.email = isEmail(form.email) ? '' : 'Email không hợp lệ'
   return !errors.name && !errors.email
 }
 
@@ -243,7 +352,7 @@ const onSave = async () => {
 /** reset */
 const resetForm = () => {
   Object.assign(form, original)
-  preview.value = null
+  resetFile()
   Object.keys(errors).forEach((k) => (errors[k] = ''))
 }
 
@@ -261,3 +370,5 @@ watch(user, (u) => {
   resetForm()
 })
 </script>
+
+<style scoped></style>

@@ -28,7 +28,7 @@
         <!-- advanced -->
         <section class="rounded-2xl border border-slate-200 bg-white p-5">
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-extrabold text-slate-900">Khối 3–5 (Mở rộng)</h2>
+            <h2 class="text-lg font-extrabold text-slate-900">Khối 3–5 (Nâng cao)</h2>
             <span class="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">Mở rộng</span>
           </div>
           <p class="mt-2 text-slate-700">Hệ thống hoá & luyện thi: Toán, TV, Anh + Khoa học/Lịch sử.</p>

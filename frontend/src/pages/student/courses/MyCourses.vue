@@ -12,7 +12,7 @@
           </p>
         </div>
 
-        <!-- [THÊM] Lối tắt -->
+        <!-- Quick Links -->
         <div class="quick">
           <router-link class="ghost" :to="{ name: 'student-learning-path' }">Lộ trình</router-link>
           <router-link class="ghost" :to="{ name: 'student-catalog' }">Catalog</router-link>
@@ -27,8 +27,6 @@
         </div>
 
         <div class="tools">
-          <button class="ghost" type="button">Lọc theo</button>
-
           <div class="select" @mouseleave="open=false">
             <button class="select-btn" @click="open = !open">
               {{ level || 'Tất cả trình độ' }}
@@ -59,7 +57,6 @@
             </div>
             <div class="rh">
               <span class="trophy">🏆 {{ baseTrophies.earned }}/{{ baseTrophies.total }}</span>
-              <!-- [THÊM] xem tất cả -->
               <router-link class="ghost sm" :to="{ name:'student-catalog', query: { grade: 1 } }">Xem tất cả ›</router-link>
             </div>
           </div>
@@ -90,12 +87,11 @@
         <section class="section" v-if="midList.length">
           <div class="section-head">
             <div>
-              <h3>Khối 3–5 (Mở rộng)</h3>
+              <h3>Khối 3–5 (Nâng cao)</h3>
               <span class="sub">{{ midList.length }} môn</span>
             </div>
             <div class="rh">
               <span class="trophy">🏆 {{ midTrophies.earned }}/{{ midTrophies.total }}</span>
-              <!-- [THÊM] xem tất cả -->
               <router-link class="ghost sm" :to="{ name:'student-catalog', query: { grade: 3 } }">Xem tất cả ›</router-link>
             </div>
           </div>
@@ -131,12 +127,16 @@
               <h3>Khóa học bổ trợ</h3>
               <span class="sub">{{ suppList.length }} khóa</span>
             </div>
-            <!-- [THÊM] nhảy sang catalog luôn -->
             <router-link class="ghost sm" :to="{ name:'student-catalog' }">Tìm thêm ›</router-link>
           </div>
 
           <div class="grid">
-            <article v-for="s in suppList" :key="s.id" class="card" @click="openDetail(s.id)">
+            <article 
+              v-for="s in suppList" 
+              :key="s.id" 
+              class="card"
+              @click="enroll(s.id)"
+            >
               <div class="thumb">
                 <img :src="s.thumbnail" :alt="s.title" />
                 <span class="chip">{{ s.tag }}</span>
@@ -192,12 +192,13 @@ const err = ref('')
 type Item = CourseSummary & {
   progress: number
   done: boolean
-  score: string // "x/5"
+  score: string
   tag?: string
+  isPurchased?: boolean
 }
 
 const all = ref<Item[]>([])
-const detailsMap = ref(new Map<string, CourseDetail>()) // [THÊM] cache detail để mở player nhanh
+const detailsMap = ref(new Map<string, CourseDetail>())
 
 function toLevelLabel(grade: number) { return grade <= 2 ? 'Khối 1–2' : 'Khối 3–5' }
 
@@ -208,9 +209,8 @@ function calcScore(progress: number) {
 
 function calcProgressFromDetail(d: CourseDetail, id: number | string) {
   const total = d.lessonsCount || d.sections?.reduce((a, s) => a + (s.lessons?.length || 0), 0) || 0
-  // giả lập số bài đã học ổn định theo id:
   let done = Number(id) % (total || 1)
-  if (total > 0 && done === 0) done = total   // cho 1 số khoá đạt 100%
+  if (total > 0 && done === 0) done = total
   const pct = total ? Math.round((done / total) * 100) : 0
   return Math.max(0, Math.min(100, pct))
 }
@@ -222,7 +222,6 @@ async function load() {
       status: 'published', sortBy: 'updatedAt', sortDir: 'descending'
     })
 
-    // Lấy detail để tính progress + cache cho nút Play
     const limited = (items || []).slice(0, 24)
     const details = await Promise.all(limited.map(i => courseService.detail(i.id)))
     const map = new Map<string, CourseDetail>()
@@ -232,12 +231,16 @@ async function load() {
     all.value = (items || []).map(i => {
       const d = map.get(String(i.id))
       const progress = d ? calcProgressFromDetail(d, i.id) : ((Number(i.id) * 13) % 100)
+      
+      const isPurchased = i.grade <= 2
+      
       return {
         ...i,
         progress,
         done: progress >= 100,
         score: calcScore(progress),
-        tag: i.subject?.toUpperCase?.()
+        tag: i.subject?.toUpperCase?.(),
+        isPurchased
       }
     })
   } catch (e: any) {
@@ -276,16 +279,14 @@ const suppList = computed(() => {
 })
 
 /* ====== ACTIONS ====== */
-// mở CourseDetail
 function openDetail(id: number | string){
   if (router.hasRoute('student-course-detail')) router.push({ name:'student-course-detail', params:{ id } })
   else router.push(`/student/courses/${id}`)
 }
 
-// mở CoursePlayer tới bài đầu tiên
 async function playFirst(id: number | string){
   let d = detailsMap.value.get(String(id))
-  if (!d) { // chưa có trong cache thì fetch
+  if (!d) {
     d = await courseService.detail(id)
     detailsMap.value.set(String(id), d)
   }
@@ -297,9 +298,8 @@ async function playFirst(id: number | string){
     router.push(`/student/courses/${id}/player/${first}`)
 }
 
-// tham gia (đẩy sang giỏ hàng nếu có)
+
 function enroll(id: number | string){
-  // @ts-ignore
   if (router.hasRoute('student-payments-cart')) router.push({ name: 'student-payments-cart', query: { add: String(id) } })
   else router.push({ path: '/student/payments/cart', query: { add: String(id) } })
 }
@@ -390,6 +390,8 @@ h1{ font-size:28px; font-weight:800; margin:8px 0 6px; }
 .stats-bottom{ margin-top:20px; display:flex; justify-content:flex-end; }
 .pill{ display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fff; border:1px solid #e5e7eb; border-radius:999px; font-weight:800; }
 .pill .emoji{ font-size:16px; }
+
+.empty{ text-align:center; padding:40px 20px; color:var(--muted); }
 
 @media (max-width: 1200px){ .grid{ grid-template-columns:repeat(3, 1fr); } }
 @media (max-width: 880px){

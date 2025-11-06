@@ -1,92 +1,72 @@
 <!-- src/components/navbar/StudentNavbar.vue -->
 <template>
-  <nav
-    class="sticky top-0 z-50 h-16 bg-white/90 backdrop-blur-lg border-b border-gray-200/80 shadow-sm"
-  >
+  <nav class="sticky top-0 z-50 h-16 bg-white/90 backdrop-blur-lg border-b border-gray-200/80 shadow-sm">
     <div class="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <!-- Logo -->
       <div class="flex items-center gap-3">
-        <RouterLink to="/student/dashboard" class="logo-wrapper group relative">
-          <div class="logo-glow-bg"></div>
+        <RouterLink 
+          to="/student/dashboard" 
+          class="logo-wrapper group relative inline-block transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-[1.08] hover:-rotate-[3deg]"
+        >
+          <div class="logo-glow absolute inset-[-15px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.3)_0%,rgba(20,184,166,0.2)_30%,transparent_70%)] opacity-0 blur-[20px] transition-all duration-500 ease-out animate-float group-hover:opacity-100 group-hover:scale-110"></div>
           <LogoEduriot :size="90" primary="#3B82F6" accent="#14B8A6" class="relative z-10" />
         </RouterLink>
       </div>
 
+      <!-- Desktop Menu -->
       <ul class="hidden items-center gap-2 md:flex">
         <li v-for="item in menu" :key="item.path">
           <RouterLink
             :to="item.path"
             @click="handleClick(item.path)"
-            class="nav-link group relative rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            class="group relative rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
             :class="isActive(item.path) ? 'text-emerald-600' : 'text-gray-600 hover:text-gray-900'"
           >
-            <span
-              class="absolute inset-0 -z-10 rounded-lg bg-gradient-to-r from-emerald-50 to-blue-50 opacity-0 transition-all duration-300 group-hover:opacity-100"
-            ></span>
+            <span class="absolute inset-0 -z-10 rounded-lg bg-gradient-to-r from-emerald-50 to-blue-50 opacity-0 transition-all duration-300 group-hover:opacity-100"></span>
             <span class="relative z-10">{{ item.label }}</span>
-            <span
+            <span 
               class="absolute bottom-0 left-1/2 h-0.5 -translate-x-1/2 rounded-full bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 bg-[length:200%_100%] transition-all duration-500"
               :class="isActive(item.path) ? 'w-4/5 animate-gradient-x' : 'w-0 group-hover:w-4/5'"
             ></span>
-            <span v-if="clickedItem === item.path" class="ripple-effect"></span>
+            <span 
+              v-if="clickedItem === item.path" 
+              class="absolute inset-0 rounded-lg bg-[radial-gradient(circle,rgba(16,185,129,0.4)_0%,transparent_70%)] pointer-events-none animate-ripple-out"
+            ></span>
           </RouterLink>
         </li>
       </ul>
 
+      <!-- Right side actions -->
       <div class="flex items-center gap-3">
-        <button
-          class="group relative rounded-full p-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
-          :class="
-            hasNotifications
-              ? 'text-emerald-600 hover:bg-gradient-to-br hover:from-emerald-50 hover:to-blue-50'
-              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-          "
-          aria-label="Thông báo"
-          aria-live="polite"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6 transition-transform duration-300"
-            :class="
-              hasNotifications
-                ? 'group-hover:rotate-12 group-hover:scale-110'
-                : 'group-hover:rotate-6 group-hover:scale-105'
-            "
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-            />
-          </svg>
-          <span v-if="hasNotifications" class="notification-badge">
-            <span class="notification-ping"></span>
-            <span class="notification-dot"></span>
-          </span>
-        </button>
+        <!-- Notification Bell Component -->
+        <NotificationBell :user-id="auth.user?.id" role="student" />
 
+        <!-- Avatar Dropdown -->
         <div class="relative" ref="avatarWrapper">
           <button
             @click="avatarOpen = !avatarOpen"
-            class="avatar-btn group relative flex items-center gap-2 transition-all duration-300 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            class="group relative flex items-center gap-2 transition-all duration-300 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
           >
-            <div class="avatar-container relative">
-              <div class="avatar-glow-ring"></div>
+            <div class="relative">
+              <!-- Glow ring -->
+              <div class="absolute inset-[-4px] rounded-full bg-gradient-to-br from-emerald-500/50 via-blue-500/50 to-emerald-500/50 bg-[length:200%_200%] opacity-0 blur-[8px] transition-opacity duration-400 animate-gradient-rotate group-hover:opacity-100"></div>
+              
+              <!-- Avatar image -->
               <img
                 class="relative z-10 h-10 w-10 rounded-full object-cover ring-2 ring-white shadow-md transition-all duration-300 group-hover:ring-emerald-400"
                 :src="avatarSrc"
                 alt="avatar"
               />
-              <span class="online-status">
-                <span class="online-pulse"></span>
-                <span class="online-dot"></span>
+              
+              <!-- Online status indicator -->
+              <span class="absolute -bottom-0.5 -right-0.5 flex items-center justify-center z-20">
+                <span class="absolute h-3 w-3 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-400 animate-pulse-custom"></span>
+                <span class="relative h-2.5 w-2.5 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-400 border-2 border-white shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_2px_4px_rgba(0,0,0,0.2)]"></span>
               </span>
             </div>
           </button>
 
+          <!-- Dropdown Menu -->
           <Transition
             enter-active-class="transition ease-out duration-200"
             enter-from-class="transform opacity-0 scale-90 -translate-y-3"
@@ -97,20 +77,23 @@
           >
             <div
               v-if="avatarOpen"
-              class="dropdown-menu absolute right-0 z-30 mt-3 w-56 origin-top-right rounded-2xl border border-gray-200/50 bg-white/95 p-2 shadow-2xl shadow-gray-400/20 backdrop-blur-xl ring-1 ring-black/5"
+              class="absolute right-0 z-30 mt-3 w-56 origin-top-right rounded-2xl border border-gray-200/50 bg-white/95 p-2 shadow-2xl shadow-gray-400/20 backdrop-blur-xl ring-1 ring-black/5"
             >
-              <div class="user-info px-3 py-3 border-b border-gray-100 mb-2">
+              <!-- User info -->
+              <div class="px-3 py-3 border-b border-gray-100 mb-2">
                 <div class="flex items-center gap-2 mb-1">
                   <p class="text-sm font-semibold text-gray-800">{{ displayName }}</p>
-                  <span class="status-badge">
-                    <span class="status-dot"></span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 text-[10px] font-semibold text-emerald-700">
+                    <span class="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-400 animate-pulse"></span>
                     Online
                   </span>
                 </div>
                 <p class="text-xs text-gray-500 truncate">{{ displayEmail }}</p>
               </div>
 
+              <!-- Menu items -->
               <div class="py-1 space-y-1">
+                <!-- ⭐ THÊM LẠI PROFILE LINK ⭐ -->
                 <RouterLink
                   to="/student/account/profile"
                   class="menu-item group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-all duration-300 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 hover:text-emerald-700 hover:translate-x-1"
@@ -132,6 +115,7 @@
                   <span>Tài khoản</span>
                 </RouterLink>
 
+                <!-- Logout button -->
                 <button
                   @click="showConfirm = true"
                   class="menu-item group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-600 transition-all duration-300 hover:bg-red-50 hover:translate-x-1"
@@ -156,22 +140,33 @@
           </Transition>
         </div>
 
+        <!-- Mobile Menu Button -->
         <div class="md:hidden">
           <button
             @click="open = !open"
-            class="hamburger-btn relative h-11 w-11 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-emerald-50 hover:to-blue-50 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            class="relative h-11 w-11 rounded-xl transition-all duration-300 hover:bg-gradient-to-br hover:from-emerald-50 hover:to-blue-50 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
             aria-label="Mở menu"
           >
-            <div class="hamburger-icon">
-              <span :class="{ 'rotate-45 translate-y-2': open }"></span>
-              <span :class="{ 'opacity-0 scale-0': open }"></span>
-              <span :class="{ '-rotate-45 -translate-y-2': open }"></span>
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[5px]">
+              <span 
+                class="block w-5 h-0.5 bg-gradient-to-r from-gray-600 to-gray-800 rounded-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-center"
+                :class="{ 'rotate-45 translate-y-[7px]': open }"
+              ></span>
+              <span 
+                class="block w-5 h-0.5 bg-gradient-to-r from-gray-600 to-gray-800 rounded-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                :class="{ 'opacity-0 scale-0': open }"
+              ></span>
+              <span 
+                class="block w-5 h-0.5 bg-gradient-to-r from-gray-600 to-gray-800 rounded-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-center"
+                :class="{ '-rotate-45 -translate-y-[7px]': open }"
+              ></span>
             </div>
           </button>
         </div>
       </div>
     </div>
 
+    <!-- Mobile Menu -->
     <Transition
       enter-active-class="transition ease-out duration-300"
       enter-from-class="opacity-0 -translate-y-4"
@@ -183,7 +178,7 @@
       <div
         v-if="open"
         ref="mobileMenuWrapper"
-        class="mobile-menu md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl"
+        class="md:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-xl animate-slide-down"
       >
         <div class="space-y-2 px-3 pt-3 pb-4">
           <RouterLink
@@ -220,7 +215,6 @@
     </Transition>
   </nav>
 
-  <!-- Confirm modal moved OUTSIDE nav so it can overlay header -->
   <ConfirmLogout
     :open="showConfirm"
     :loading="isLoggingOut"
@@ -236,6 +230,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
 import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 import ConfirmLogout from '@/components/ui/ConfirmLogout.vue'
+import NotificationBell from '@/components/shared/NotificationBell.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -247,13 +242,9 @@ const showConfirm = ref(false)
 const isLoggingOut = ref(false)
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
-
 const avatarSrc = computed(() => auth.user?.avatar || defaultAvatar)
 const displayName = computed(() => auth.user?.name || 'Học sinh')
 const displayEmail = computed(() => auth.user?.email || 'student@example.com')
-
-const unreadCount = ref(0)
-const hasNotifications = computed(() => unreadCount.value > 0)
 
 const menu = [
   { path: '/student/dashboard', label: 'Trang chủ' },
@@ -262,19 +253,16 @@ const menu = [
   { path: '/student/payments', label: 'Thanh toán' },
 ]
 
-// Avatar dropdown click outside
+// Click outside handlers
 const avatarWrapper = ref<HTMLElement | null>(null)
 onClickOutside(avatarWrapper, () => {
   avatarOpen.value = false
 })
 
-// Mobile menu click outside
 const mobileMenuWrapper = ref<HTMLElement | null>(null)
 onClickOutside(mobileMenuWrapper, (event) => {
-  // Kiểm tra xem click có phải từ hamburger button không
   const target = event.target as HTMLElement
-  const isHamburgerClick = target.closest('.hamburger-btn')
-
+  const isHamburgerClick = target.closest('button[aria-label="Mở menu"]')
   if (!isHamburgerClick) {
     open.value = false
   }
@@ -288,18 +276,15 @@ function isActive(path: string) {
 async function handleLogout() {
   try {
     isLoggingOut.value = true
-    // đóng dropdown để tránh bị che UI khi điều hướng
     avatarOpen.value = false
     open.value = false
 
     if (typeof auth.logout === 'function') {
       await auth.logout()
     }
-    // Xoá toàn bộ localStorage (nếu bạn chỉ muốn xoá một số key thì thay bằng removeItem)
     localStorage.clear()
   } finally {
     isLoggingOut.value = false
-    // Điều hướng về Login
     router.push({ name: 'Login' })
   }
 }
@@ -317,201 +302,12 @@ function handleClick(path: string) {
 </script>
 
 <style scoped>
-.logo-wrapper {
-  position: relative;
-  display: inline-block;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.logo-glow-bg {
-  position: absolute;
-  inset: -15px;
-  background: radial-gradient(
-    circle,
-    rgba(59, 130, 246, 0.3) 0%,
-    rgba(20, 184, 166, 0.2) 30%,
-    transparent 70%
-  );
-  border-radius: 50%;
-  opacity: 0;
-  filter: blur(20px);
-  transition:
-    opacity 0.5s ease,
-    transform 0.5s ease;
-  animation: float 3s ease-in-out infinite;
-}
-.logo-wrapper:hover .logo-glow-bg {
-  opacity: 1;
-  transform: scale(1.2);
-}
-.logo-wrapper:hover {
-  transform: scale(1.08) rotate(-3deg);
-}
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-5px) scale(1.05);
-  }
-}
-.nav-link {
-  position: relative;
-}
-@keyframes gradient-x {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-.animate-gradient-x {
-  animation: gradient-x 3s ease infinite;
-}
-.ripple-effect {
-  position: absolute;
-  inset: 0;
-  border-radius: 0.5rem;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);
-  animation: ripple-out 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: none;
-}
-@keyframes ripple-out {
-  0% {
-    transform: scale(0);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(2.5);
-    opacity: 0;
-  }
-}
-.notification-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.notification-ping {
-  position: absolute;
-  height: 10px;
-  width: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ef4444, #f97316);
-  animation: ping-animation 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-.notification-dot {
-  position: relative;
-  height: 8px;
-  width: 8px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ef4444, #f97316);
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-@keyframes ping-animation {
-  75%,
-  100% {
-    transform: scale(2.5);
-    opacity: 0;
-  }
-}
-.avatar-container {
-  position: relative;
-}
-.avatar-glow-ring {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    rgba(16, 185, 129, 0.5),
-    rgba(59, 130, 246, 0.5),
-    rgba(16, 185, 129, 0.5)
-  );
-  background-size: 200% 200%;
-  opacity: 0;
-  filter: blur(8px);
-  transition: opacity 0.4s ease;
-  animation: gradient-rotate 3s ease infinite;
-}
-.avatar-btn:hover .avatar-glow-ring {
-  opacity: 1;
-}
-@keyframes gradient-rotate {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-.online-status {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 20;
-}
-.online-pulse {
-  position: absolute;
-  height: 12px;
-  width: 12px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #34d399);
-  animation: pulse-animation 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-.online-dot {
-  position: relative;
-  height: 10px;
-  width: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #34d399);
-  border: 2px solid white;
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.2),
-    0 2px 4px rgba(0, 0, 0, 0.2);
-}
-@keyframes pulse-animation {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(2);
-    opacity: 0;
-  }
-}
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  font-size: 10px;
-  font-weight: 600;
-  color: #059669;
-}
-.status-dot {
-  height: 6px;
-  width: 6px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #34d399);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
+/* Chỉ giữ lại CSS cho pseudo-elements không thể làm bằng Tailwind */
 .menu-item {
   position: relative;
   overflow: hidden;
 }
+
 .menu-item::before {
   content: '';
   position: absolute;
@@ -525,44 +321,16 @@ function handleClick(path: string) {
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   border-radius: 0 3px 3px 0;
 }
+
 .menu-item:hover::before {
   transform: scaleY(1);
 }
-.hamburger-icon {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.hamburger-icon span {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: linear-gradient(90deg, #6b7280, #374151);
-  border-radius: 2px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform-origin: center;
-}
-.mobile-menu {
-  animation: slide-down 0.3s ease-out;
-}
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+
 .mobile-link {
   position: relative;
   overflow: hidden;
 }
+
 .mobile-link::after {
   content: '';
   position: absolute;
@@ -575,12 +343,12 @@ function handleClick(path: string) {
   transform-origin: left;
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 .mobile-link:hover::after {
   transform: scaleX(1);
 }
-* {
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
+
+/* Accessibility: Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
