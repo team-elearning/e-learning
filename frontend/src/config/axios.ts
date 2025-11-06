@@ -2,11 +2,18 @@
 import axios from 'axios'
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE + import.meta.env.VITE_API_PREFIX,
+  baseURL: '/api',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' }
-});
+})
 
+http.interceptors.response.use(
+  (response) => {
+    console.log('Response Data:', response.data)
+    return response
+  },
+  (error) => Promise.reject(error)
+)
 
 /*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
 function translateMessage(message: string): string {
