@@ -67,7 +67,7 @@ export const useAuthStore = defineStore('auth', {
     redirectByRole(role: Role) {
       if (role === 'admin') {
         router.push('/admin/dashboard')
-      } else if (role === 'teacher') {
+      } else if (role === 'instructor') {
         router.push('/teacher/dashboard')
       } else {
         router.push('/student/dashboard')

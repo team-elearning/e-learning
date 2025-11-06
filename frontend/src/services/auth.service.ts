@@ -4,7 +4,7 @@
 import http from '@/config/axios'
 import { jwtDecode } from 'jwt-decode'
 
-export type Role = 'admin' | 'teacher' | 'student'
+export type Role = 'admin' | 'instructor' | 'student'
 
 export const getRoleFromToken = (token: string): Role | null => {
   if (!token) return null
@@ -23,7 +23,7 @@ export const getRoleFromToken = (token: string): Role | null => {
 
     const r = String(maybeRole).toLowerCase()
     if (r === 'admin') return 'admin'
-    if (r === 'teacher') return 'teacher'
+    if (r === 'instructor') return 'instructor'
     return 'student'
   } catch (error) {
     console.error('Invalid token:', error)
