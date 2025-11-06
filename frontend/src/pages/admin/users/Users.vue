@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div>
     <!-- Header + actions -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="space-y-1">
@@ -33,7 +33,7 @@
         class="w-full"
       >
         <el-option label="Admin" value="admin" />
-        <el-option label="Giáo viên" value="teacher" />
+        <el-option label="Giáo viên" value="instructor" />
         <el-option label="Học sinh" value="student" />
       </el-select>
 
@@ -47,7 +47,6 @@
         <el-option label="Hoạt động" value="active" />
         <el-option label="Tạm khoá" value="locked" />
         <el-option label="Cấm vĩnh viễn" value="banned" />
-        <el-option label="Chờ duyệt" value="pending_approval" />
       </el-select>
 
       <!-- Bọc DatePicker để nó co đúng, chiếm 2 cột ở md/xl -->
@@ -132,7 +131,7 @@
           <template #default="{ row }">
             <el-tag
               :type="
-                row.role === 'admin' ? 'danger' : row.role === 'teacher' ? 'warning' : 'success'
+                row.role === 'admin' ? 'danger' : row.role === 'instructor' ? 'warning' : 'success'
               "
               size="small"
               round
@@ -150,7 +149,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column
+        <!-- <el-table-column
           prop="lastLoginAt"
           label="Lần đăng nhập cuối"
           min-width="170"
@@ -159,7 +158,7 @@
           <template #default="{ row }">
             <span class="text-gray-700">{{ fmtDate(row.lastLoginAt) || '—' }}</span>
           </template>
-        </el-table-column>
+        </el-table-column> -->
 
         <el-table-column prop="createdAt" label="Ngày tạo" min-width="150" sortable="custom">
           <template #default="{ row }">
@@ -172,21 +171,7 @@
             <div class="flex flex-wrap items-center gap-1">
               <el-button size="small" @click="openEdit(row)">Sửa</el-button>
               <el-button size="small" @click="gotoDetail(row)">Chi tiết</el-button>
-              <el-dropdown>
-                <el-button size="small">Khác</el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="resetPassword(row)">Reset mật khẩu</el-dropdown-item>
-                    <el-dropdown-item v-if="row.status !== 'locked'" @click="lock(row)"
-                      >Khoá</el-dropdown-item
-                    >
-                    <el-dropdown-item v-else @click="unlock(row)">Mở khoá</el-dropdown-item>
-                    <el-dropdown-item divided @click="ban(row)" class="text-red-600">
-                      Cấm vĩnh viễn
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-button size="small" type="danger" @click="deleteUser(row)">Xóa</el-button>
             </div>
           </template>
         </el-table-column>
@@ -214,9 +199,9 @@
       width="520px"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
-        <el-form-item label="Họ và tên" prop="name">
+        <!-- <el-form-item label="Họ và tên" prop="name">
           <el-input v-model="form.name" />
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item label="Username" prop="username">
           <el-input v-model="form.username" />
         </el-form-item>
@@ -226,22 +211,34 @@
         <el-form-item label="Số điện thoại" prop="phone">
           <el-input v-model="form.phone" />
         </el-form-item>
+        <el-form-item v-if="formDialog.mode === 'create'" label="Password" prop="password">
+          <el-input
+            v-model="form.password"
+            :type="showPassword ? 'text' : 'password'"
+            :suffix-icon="showPassword ? 'el-icon-view' : 'el-icon-view-off'"
+            @click-suffix="togglePasswordVisibility"
+          />
+        </el-form-item>
         <div class="grid grid-cols-2 gap-3">
           <el-form-item label="Vai trò" prop="role">
-            <el-select v-model="form.role" placeholder="Chọn vai trò">
-              <el-option label="Admin" value="admin" />
-              <el-option label="Giáo viên" value="teacher" />
+            <el-select
+              v-model="form.role"
+              placeholder="Chọn vai trò"
+              :disabled="formDialog.mode === 'edit'"
+            >
+              <!-- <el-option label="Admin" value="admin" /> -->
+              <el-option label="Giáo viên" value="instructor" />
               <el-option label="Học sinh" value="student" />
             </el-select>
           </el-form-item>
-          <el-form-item label="Trạng thái" prop="status">
+          <!-- <el-form-item label="Trạng thái" prop="status">
             <el-select v-model="form.status" placeholder="Chọn trạng thái">
               <el-option label="Hoạt động" value="active" />
               <el-option label="Tạm khoá" value="locked" />
               <el-option label="Cấm vĩnh viễn" value="banned" />
               <el-option label="Chờ duyệt" value="pending_approval" />
             </el-select>
-          </el-form-item>
+          </el-form-item> -->
         </div>
       </el-form>
       <template #footer>
@@ -256,7 +253,7 @@
     <el-dialog v-model="bulkRoleDialog" title="Đổi vai trò (hàng loạt)" width="420px">
       <el-select v-model="bulkRoleValue" placeholder="Chọn vai trò mới" class="w-full">
         <el-option label="Admin" value="admin" />
-        <el-option label="Giáo viên" value="teacher" />
+        <el-option label="Giáo viên" value="instructor" />
         <el-option label="Học sinh" value="student" />
       </el-select>
       <template #footer>
@@ -276,19 +273,20 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { userService } from '@/services/user.service'
 
 type ID = string | number
-type Role = 'admin' | 'teacher' | 'student'
-type UserStatus = 'active' | 'locked' | 'banned' | 'pending_approval'
+type Role = 'admin' | 'instructor' | 'student'
+type UserStatus = 'active' | 'locked' | 'banned' | 'inactive'
 interface User {
   id: ID
-  name: string
+  name?: string
   username: string
   email: string
-  phone?: string
+  phone?: string | null
   avatar?: string
   role: Role
   status: UserStatus
   lastLoginAt?: string
   createdAt: string
+  password?: string // Added password property
 }
 interface PageResult<T> {
   items: T[]
@@ -329,7 +327,7 @@ function statusType(s: UserStatus) {
   return 'info'
 }
 const roleLabel = (r: Role) =>
-  r === 'admin' ? 'Admin' : r === 'teacher' ? 'Giáo viên' : 'Học sinh'
+  r === 'admin' ? 'Admin' : r === 'instructor' ? 'Giáo viên' : 'Học sinh'
 const statusLabel = (s: UserStatus) =>
   s === 'active'
     ? 'Hoạt động'
@@ -347,7 +345,7 @@ function pushQuery() {
       ...route.query,
       q: query.q || undefined,
       role: query.role || undefined,
-      status: query.status || undefined,
+      status: query.status === 'inactive' ? undefined : query.status || undefined,
       from: query.from || undefined,
       to: query.to || undefined,
       page: query.page.toString(),
@@ -362,20 +360,22 @@ function pushQuery() {
 async function fetchList() {
   loading.value = true
   try {
-    const res: PageResult<User> = await userService.list({
-      q: query.q,
-      role: query.role,
-      status: query.status,
-      from: query.from,
-      to: query.to,
+    const params = {
+      q: query.q || undefined,
+      role: query.role || undefined,
+      status: query.status || undefined,
+      from: query.from || undefined,
+      to: query.to || undefined,
       page: query.page,
       pageSize: query.pageSize,
-      sortBy: query.sortBy,
-      sortDir: query.sortDir,
-    })
+      sortBy: query.sortBy || 'createdAt',
+      sortDir: query.sortDir || 'descending',
+    }
+    const res: PageResult<User> = await userService.list(params)
     rows.value = res.items
     total.value = res.total
-  } catch {
+  } catch (error) {
+    console.error('Error fetching user list:', error)
     ElMessage.error('Không tải được danh sách người dùng')
   } finally {
     loading.value = false
@@ -394,7 +394,9 @@ function resetFilters() {
   dateRange.value = null
   query.from = ''
   query.to = ''
-  applyFilters()
+  query.page = 1
+  pushQuery()
+  fetchList()
 }
 function applyDateRange(val: [string, string] | null) {
   if (!val) {
@@ -428,31 +430,45 @@ function onSelectionChange(val: User[]) {
 }
 
 // row actions
-async function resetPassword(row: User) {
-  await ElMessageBox.confirm(`Reset mật khẩu cho “${row.name}”?`, 'Xác nhận', { type: 'warning' })
-  await userService.resetPassword(row.id)
-  ElMessage.success('Đã gửi hướng dẫn reset mật khẩu')
+// async function resetPassword(row: User) {
+//   await ElMessageBox.confirm(`Reset mật khẩu cho “${row.name}”?`, 'Xác nhận', { type: 'warning' })
+//   await userService.resetPassword(row.id)
+//   ElMessage.success('Đã gửi hướng dẫn reset mật khẩu')
+// }
+
+async function deleteUser(row: User) {
+  try {
+    await ElMessageBox.confirm(`Bạn có chắc chắn muốn xóa người dùng “${row.name}”?`, 'Cảnh báo', {
+      type: 'warning',
+    })
+    await userService.delete(row.id)
+    ElMessage.success('Người dùng đã được xóa thành công')
+    fetchList() // Refresh the user list after deletion
+  } catch (error) {
+    console.error('Error deleting user:', error)
+    ElMessage.error('Không thể xóa người dùng')
+  }
 }
-async function lock(row: User) {
-  await ElMessageBox.confirm(`Khoá tài khoản “${row.name}”?`, 'Xác nhận', { type: 'warning' })
-  await userService.lock(row.id)
-  ElMessage.success('Đã khoá tài khoản')
-  fetchList()
-}
-async function unlock(row: User) {
-  await ElMessageBox.confirm(`Mở khoá tài khoản “${row.name}”?`, 'Xác nhận')
-  await userService.unlock(row.id)
-  ElMessage.success('Đã mở khoá')
-  fetchList()
-}
-async function ban(row: User) {
-  await ElMessageBox.confirm(`Cấm vĩnh viễn “${row.name}”? Không thể hoàn tác.`, 'Cảnh báo', {
-    type: 'error',
-  })
-  await userService.ban(row.id)
-  ElMessage.success('Đã cấm tài khoản')
-  fetchList()
-}
+// async function lock(row: User) {
+//   await ElMessageBox.confirm(`Khoá tài khoản “${row.name}”?`, 'Xác nhận', { type: 'warning' })
+//   await userService.lock(row.id)
+//   ElMessage.success('Đã khoá tài khoản')
+//   fetchList()
+// }
+// async function unlock(row: User) {
+//   await ElMessageBox.confirm(`Mở khoá tài khoản “${row.name}”?`, 'Xác nhận')
+//   await userService.unlock(row.id)
+//   ElMessage.success('Đã mở khoá')
+//   fetchList()
+// }
+// async function ban(row: User) {
+//   await ElMessageBox.confirm(`Cấm vĩnh viễn “${row.name}”? Không thể hoàn tác.`, 'Cảnh báo', {
+//     type: 'error',
+//   })
+//   await userService.ban(row.id)
+//   ElMessage.success('Đã cấm tài khoản')
+//   fetchList()
+// }
 function gotoDetail(row: User) {
   // đảm bảo bạn đã có route /admin/users/:id
   router.push(`/admin/users/${row.id}`)
@@ -486,6 +502,11 @@ const rules = {
   status: [{ required: true, message: 'Chọn trạng thái', trigger: 'change' }],
 }
 const saving = ref(false)
+const showPassword = ref(false)
+
+function togglePasswordVisibility() {
+  showPassword.value = !showPassword.value
+}
 
 function openCreate() {
   formDialog.mode = 'create'
@@ -508,33 +529,31 @@ function openEdit(row: User) {
   formDialog.open = true
 }
 async function submitForm() {
-  await formRef.value?.validate()
+  await formRef.value?.validate() // Validate form trước khi gửi
   saving.value = true
   try {
     if (formDialog.mode === 'create') {
+      // Gửi payload tạo tài khoản
       await userService.create({
-        name: form.name,
         username: form.username,
         email: form.email,
-        phone: form.phone,
+        password: form.password || '', // Đảm bảo password được gửi
         role: form.role,
-        status: form.status,
       })
       ElMessage.success('Tạo người dùng thành công')
     } else {
+      // Gửi payload cập nhật tài khoản
       await userService.update(form.id, {
-        name: form.name,
         username: form.username,
         email: form.email,
         phone: form.phone,
-        role: form.role,
-        status: form.status,
       })
       ElMessage.success('Cập nhật thành công')
     }
     formDialog.open = false
-    fetchList()
-  } catch {
+    fetchList() // Refresh danh sách sau khi tạo/cập nhật
+  } catch (error) {
+    console.error('Error saving user:', error)
     ElMessage.error('Không thể lưu dữ liệu')
   } finally {
     saving.value = false
@@ -590,7 +609,7 @@ async function exportCsv() {
     const blob = await userService.exportCsv({
       q: query.q,
       role: query.role,
-      status: query.status,
+      status: query.status || undefined, // ✅ sửa ở đây
       from: query.from,
       to: query.to,
       sortBy: query.sortBy,

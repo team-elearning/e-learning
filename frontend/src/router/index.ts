@@ -76,7 +76,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'users/:id',
         component: () => import('@/pages/admin/users/UserDetail.vue'),
-        meta: { title: (to: any) => `Người dùng #${to.params.id}` },
+        // meta: { title: (to: any) => `Người dùng #${to.params.id}` },
+        meta: { title: `Hồ sơ người dùng` },
+
       },
 
       // Courses
@@ -158,9 +160,9 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/teacher',
     component: TeacherLayout,
-    meta: { role: 'teacher' },
+    meta: { role: 'instructor' },
     children: [
-      { path: '', redirect: '/teacher/dashboard' },
+      { path: '', redirect: '/instructor/dashboard' },
       {
         path: 'dashboard',
         component: () => import('@/pages/teacher/dashboard/dashboard.vue'),
@@ -423,6 +425,8 @@ router.beforeEach((to, _from, next) => {
   const auth = useAuthStore()
   if (!auth.user) auth.hydrateFromStorage()
 
+  console.log('User role:', auth.user?.role)
+
   // Đã đăng nhập mà vào /auth → đẩy về khu đúng role
   if (to.path.startsWith('/auth') && auth.user) {
     auth.redirectByRole(auth.user.role)
@@ -430,7 +434,7 @@ router.beforeEach((to, _from, next) => {
   }
 
   // Chưa đăng nhập mà vào khu riêng → đẩy về login
-  const needRole = to.meta.role as 'admin' | 'teacher' | 'student' | undefined
+  const needRole = to.meta.role as 'admin' | 'instructor' | 'student' | undefined
   if (needRole && !auth.user) {
     next('/auth/login')
     return

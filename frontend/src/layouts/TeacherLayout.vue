@@ -24,6 +24,6 @@
 </template>
 
 <script setup lang="ts">
-import TeacherSidebar from '@/components/shared/TeacherSidebar.vue'
+// import TeacherSidebar from '@/components/shared/TeacherSidebar.vue'
 import TeacherNavbar from '@/components/shared/TeacherNavbar.vue'
 </script>

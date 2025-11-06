@@ -1,8 +1,10 @@
+//frontend/src/services/auth.service.ts
+
 
 import http from '@/config/axios'
 import { jwtDecode } from 'jwt-decode'
 
-export type Role = 'admin' | 'teacher' | 'student'
+export type Role = 'admin' | 'instructor' | 'student'
 
 export const getRoleFromToken = (token: string): Role | null => {
   if (!token) return null
@@ -21,7 +23,7 @@ export const getRoleFromToken = (token: string): Role | null => {
 
     const r = String(maybeRole).toLowerCase()
     if (r === 'admin') return 'admin'
-    if (r === 'teacher') return 'teacher'
+    if (r === 'instructor') return 'instructor'
     return 'student'
   } catch (error) {
     console.error('Invalid token:', error)
@@ -50,13 +52,16 @@ export interface UpdateProfileDto extends Partial<AuthUser> {
 }
 
 export const authService = {
-  async login(emailOrUsername: string, password: string): Promise<AuthPayload> {
-    if (!emailOrUsername || !password) throw new Error('Thiếu thông tin đăng nhập')
+  async login(identifier: string, password: string): Promise<AuthPayload> {
+    if (!identifier || !password) throw new Error('Thiếu thông tin đăng nhập')
 
-    const { data } = await http.post('/account/login/', {
-      username_or_email: emailOrUsername,
-      password,
-    })
+    // xác định là email hay username
+    const isEmail = /\S+@\S+\.\S+/.test(identifier)
+    const body = isEmail
+      ? { email: identifier, password }
+      : { username: identifier, password }
+
+    const { data } = await http.post('/account/login/', body)
 
     const token = (data.access || data.access_token || data.token) as string
     if (!token) throw new Error('Không nhận được token từ server')
@@ -78,25 +83,25 @@ export const authService = {
   },
 
   // Nếu backend hỗ trợ social login bằng token từ client
-  async loginWithGoogle(googleToken: string): Promise<AuthPayload> {
-    const { data } = await http.post('/account/social/google/', { token: googleToken })
-    const token = (data.access || data.access_token || data.token) as string
-    if (!token) throw new Error('Không nhận được token từ server')
+  // async loginWithGoogle(googleToken: string): Promise<AuthPayload> {
+  //   const { data } = await http.post('/account/social/google/', { token: googleToken })
+  //   const token = (data.access || data.access_token || data.token) as string
+  //   if (!token) throw new Error('Không nhận được token từ server')
 
-    const role = (getRoleFromToken(token) || (data.user?.role as Role) || 'student') as Role
-    const user: AuthUser = {
-      id: Number(data.user?.id ?? 0),
-      name: data.user?.username ?? data.user?.name ?? 'User',
-      email: data.user?.email ?? '',
-      role,
-    }
+  //   const role = (getRoleFromToken(token) || (data.user?.role as Role) || 'student') as Role
+  //   const user: AuthUser = {
+  //     id: Number(data.user?.id ?? 0),
+  //     name: data.user?.username ?? data.user?.name ?? 'User',
+  //     email: data.user?.email ?? '',
+  //     role,
+  //   }
 
-    localStorage.setItem('access', token)
-    localStorage.setItem('accessToken', token)
-    if (data.refresh) localStorage.setItem('refresh', data.refresh)
+  //   localStorage.setItem('access', token)
+  //   localStorage.setItem('accessToken', token)
+  //   if (data.refresh) localStorage.setItem('refresh', data.refresh)
 
-    return { token, user }
-  },
+  //   return { token, user }
+  // },
 
   async register(payload: {
     username: string

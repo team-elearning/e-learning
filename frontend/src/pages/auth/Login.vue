@@ -4,7 +4,7 @@
       <!-- Email -->
       <div class="form-group">
         <label for="email" class="form-label">
-          Email hoặc Username
+          Tên đăng nhập
           <span class="text-red-500">*</span>
         </label>
         <div class="relative">
@@ -19,7 +19,13 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4.5 20.25a8.25 8.25 0 0115 0"
               />
             </svg>
           </div>
@@ -28,7 +34,7 @@
             v-model="form.email"
             type="text"
             name="email-field"
-            placeholder="you@example.com hoặc username"
+            placeholder="Email hoặc tên tài khoản"
             autocomplete="off"
             class="form-input"
             :class="{ 'border-red-300': errors.email }"
@@ -257,7 +263,7 @@ import { useAuthStore } from '@/store/auth.store'
 const auth = useAuthStore()
 
 const loading = ref(false)
-const loadingGoogle = ref(false)
+// const loadingGoogle = ref(false)
 const showPassword = ref(false)
 
 const form = reactive({
@@ -307,23 +313,24 @@ const onSubmit = async () => {
     await auth.login(form.email, form.password, form.remember)
     showToast('Đăng nhập thành công!', 'success')
   } catch (e: any) {
-    showToast(e?.message || 'Đăng nhập thất bại', 'error')
+    // showToast(e?.message || 'Đăng nhập thất bại', 'error')
+    showToast('Đăng nhập thất bại', 'error')
   } finally {
     loading.value = false
   }
 }
 
-const loginWithGoogle = async () => {
-  loadingGoogle.value = true
-  try {
-    await auth.loginWithGoogle()
-    showToast('Đăng nhập Google thành công!', 'success')
-  } catch (e: any) {
-    showToast(e?.message || 'Đăng nhập Google thất bại', 'error')
-  } finally {
-    loadingGoogle.value = false
-  }
-}
+// const loginWithGoogle = async () => {
+//   loadingGoogle.value = true
+//   try {
+//     await auth.loginWithGoogle()
+//     showToast('Đăng nhập Google thành công!', 'success')
+//   } catch (e: any) {
+//     showToast(e?.message || 'Đăng nhập Google thất bại', 'error')
+//   } finally {
+//     loadingGoogle.value = false
+//   }
+// }
 
 function showToast(message: string, type: 'success' | 'error') {
   const toast = document.createElement('div')
