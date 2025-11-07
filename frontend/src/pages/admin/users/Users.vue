@@ -579,7 +579,8 @@ async function submitForm() {
     formDialog.open = false
     fetchList() // Refresh danh sách sau khi tạo/cập nhật
   } catch (error: any) {
-    ElMessage.error(error.customMessage || 'Không thể lưu dữ liệu')
+    /// ElMessage.error(error.customMessage || 'Không thể lưu dữ liệu')
+    console.error(error)
   } finally {
     saving.value = false
   }
