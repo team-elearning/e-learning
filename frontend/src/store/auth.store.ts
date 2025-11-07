@@ -23,14 +23,19 @@ export const useAuthStore = defineStore('auth', {
     async login(identifier: string, password: string, remember = true) {
       try {
         const { token, user } = await authService.login(identifier, password)
+
         this.token = token
         this.user = user
+
+        const data = JSON.stringify({ token, user })
+
         if (remember) {
-          localStorage.setItem('auth', JSON.stringify({ token, user }))
+          localStorage.setItem('auth', data)
           localStorage.setItem('accessToken', token)
         } else {
           sessionStorage.setItem('accessToken', token)
         }
+
         this.redirectByRole(user.role)
         return { token, user }
       } catch (err: any) {
@@ -38,6 +43,7 @@ export const useAuthStore = defineStore('auth', {
         throw err
       }
     },
+
 
     // async loginWithGoogle() {
     //   const { token, user } = await authService.loginWithGoogle()
@@ -60,7 +66,11 @@ export const useAuthStore = defineStore('auth', {
     logout() {
       this.token = null
       this.user = null
+
       localStorage.removeItem('auth')
+      localStorage.removeItem('accessToken')
+      sessionStorage.removeItem('accessToken')
+
       router.push('/')
     },
 
@@ -135,7 +145,11 @@ export const useAuthStore = defineStore('auth', {
 
     // Khởi tạo nhanh khi app load
     init() {
-      this.hydrateFromStorage() // [ADD]
+      this.hydrateFromStorage()
+
+      if (!this.token) {
+        router.push('/login')
+      }
     },
 
     // (Tùy chọn) Cập nhật avatar ngay để UI mượt hơn (optimistic)

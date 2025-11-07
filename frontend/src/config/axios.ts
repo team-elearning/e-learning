@@ -1,5 +1,9 @@
 // src/config/axios.ts
+import router from '@/router'
+import { useAuthStore } from '@/store/auth.store'
 import axios from 'axios'
+import { ElMessage } from 'element-plus'
+
 
 const http = axios.create({
   baseURL: '/api',
@@ -7,14 +11,36 @@ const http = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
+// http.interceptors.response.use(
+//   (response) => {
+//     console.log('Response Data:', response.data)
+//     return response
+//   },
+//   (error) => Promise.reject(error)
+// )
 http.interceptors.response.use(
-  (response) => {
-    console.log('Response Data:', response.data)
-    return response
-  },
-  (error) => Promise.reject(error)
-)
+  (response) => response,
+  (error) => {
+    const auth = useAuthStore()
 
+    // ====== AUTO LOGOUT WHEN TOKEN EXPIRED ======
+    if (error.response?.status === 401) {
+      auth.logout()
+      ElMessage.error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại")
+      router.push('/auth/login')
+      return Promise.reject(error)
+    }
+
+    // ====== HANDLE BACKEND ERROR MESSAGE ======
+    let message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Có lỗi xảy ra'
+
+    return Promise.reject(new Error(message))
+  }
+)
 /*=============backend có phần nào sửa lại như này nhé để fortend dịch=========*/
 function translateMessage(message: string): string {
   const translations: Record<string, string> = {
@@ -79,7 +105,8 @@ http.interceptors.response.use(
       message = 'Lỗi kết nối. Kiểm tra internet'
     }
 
-    return Promise.reject(new Error(message))
+    error.customMessage = translateMessage(message)
+    return Promise.reject(error)
   }
 )
 

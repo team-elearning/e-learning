@@ -421,39 +421,68 @@ const router = createRouter({
 })
 
 // Guard đơn giản theo role + tự hydrate từ localStorage
+// router.beforeEach((to, _from, next) => {
+//   const auth = useAuthStore()
+//   if (!auth.user) auth.hydrateFromStorage()
+
+//   console.log('User role:', auth.user?.role)
+
+//   // Đã đăng nhập mà vào /auth → đẩy về khu đúng role
+//   if (to.path.startsWith('/auth') && auth.user) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   // Chưa đăng nhập mà vào khu riêng → đẩy về login
+//   const needRole = to.meta.role as 'admin' | 'instructor' | 'student' | undefined
+//   if (needRole && !auth.user) {
+//     next('/auth/login')
+//     return
+//   }
+
+//   // Sai role → đẩy về khu đúng
+//   if (needRole && auth.user && auth.user.role !== needRole) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   // Nếu đang ở "/" mà đã login → về dashboard theo role
+//   if (to.path === '/' && auth.user) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   next()
+// })
+
 router.beforeEach((to, _from, next) => {
   const auth = useAuthStore()
-  if (!auth.user) auth.hydrateFromStorage()
+  auth.hydrateFromStorage()
 
-  console.log('User role:', auth.user?.role)
+  const requiredRole = to.meta.role
+  const isLoggedIn = !!auth.user
 
-  // Đã đăng nhập mà vào /auth → đẩy về khu đúng role
-  if (to.path.startsWith('/auth') && auth.user) {
-    auth.redirectByRole(auth.user.role)
+  // Nếu route yêu cầu login và chưa login -> redirect login
+  if (requiredRole && !isLoggedIn) {
+    return next('/auth/login')
+  }
+
+  // Nếu user login nhưng vào /auth -> redirect theo role
+  if (to.path.startsWith('/auth') && isLoggedIn) {
+    auth.redirectByRole(auth.user!.role)
     return
   }
 
-  // Chưa đăng nhập mà vào khu riêng → đẩy về login
-  const needRole = to.meta.role as 'admin' | 'instructor' | 'student' | undefined
-  if (needRole && !auth.user) {
-    next('/auth/login')
-    return
-  }
-
-  // Sai role → đẩy về khu đúng
-  if (needRole && auth.user && auth.user.role !== needRole) {
-    auth.redirectByRole(auth.user.role)
-    return
-  }
-
-  // Nếu đang ở "/" mà đã login → về dashboard theo role
-  if (to.path === '/' && auth.user) {
-    auth.redirectByRole(auth.user.role)
+  // Chặn sai role, ví dụ teacher / admin swap đường dẫn
+  if (requiredRole && auth.user?.role !== requiredRole) {
+    auth.redirectByRole(auth.user!.role)
     return
   }
 
   next()
 })
+
+
 router.afterEach((to) => {
   // tìm route con có meta.title gần nhất
   const r = [...to.matched].reverse().find((r) => (r.meta as any)?.title !== undefined)
