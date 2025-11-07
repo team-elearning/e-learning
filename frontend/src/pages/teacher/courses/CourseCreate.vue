@@ -4,9 +4,19 @@
 
     <form @submit.prevent="submit" class="course-form">
       <div class="form-grid">
+        <!-- Tên khóa học -->
         <label class="form-field md:col-span-2">
           <span class="label-text">Tên khoá học <b class="text-rose-600">*</b></span>
-          <input v-model.trim="f.title" class="input-field" placeholder="Ví dụ: Luyện thi Toán lớp 3" required />
+          <input
+            ref="titleRef"
+            v-model.trim="f.title"
+            class="input-field"
+            :class="{ 'ring-2 ring-rose-500 border-rose-500': Boolean(titleErr) }"
+            placeholder="Ví dụ: Luyện thi Toán lớp 3"
+            aria-invalid="true"
+            @input="titleErr = ''"
+          />
+          <p v-if="titleErr" class="error-text">{{ titleErr }}</p>
         </label>
 
         <label class="form-field">
@@ -44,23 +54,23 @@
           <input v-model.number="f.lessonsCount" type="number" min="1" class="input-field" placeholder="Số lượng bài học" />
         </label>
 
+        <!-- Ảnh khoá học -->
         <div class="form-field md:col-span-2">
-          <span class="label-text">Ảnh khoá học <b class="text-rose-600">*</b></span>
+          <span class="label-text">Ảnh khoá học <i class="text-gray-500 font-normal">(tuỳ chọn)</i></span>
           <div class="file-upload-area">
             <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onPickCover" />
-            <button type="button" class="btn-secondary" @click="fileInput?.click()">
-              Chọn ảnh bìa
-            </button>
+            <button type="button" class="btn-secondary" @click="fileInput?.click()">Chọn ảnh bìa</button>
             <span v-if="coverFile" class="file-info">
               {{ coverFile.name }} — {{ Math.round(coverFile.size / 1024) }} KB
             </span>
             <span v-else class="file-info text-gray-500">Chưa có ảnh nào được chọn</span>
           </div>
           <img v-if="coverPreview" :src="coverPreview" alt="Xem trước ảnh" class="image-preview" />
-          <p class="hint-text">Hỗ trợ: JPG/PNG. Tối đa 2MB. (Bắt buộc)</p>
+          <p class="hint-text">Hỗ trợ: JPG/PNG. Tối đa 2MB. (Không bắt buộc)</p>
           <p v-if="coverErr" class="error-text">{{ coverErr }}</p>
         </div>
 
+        <!-- Video -->
         <div class="form-field md:col-span-2">
           <span class="label-text">Video bài học (tuỳ chọn)</span>
           <div class="file-upload-area">
@@ -72,21 +82,17 @@
               class="hidden"
               @change="onPickVideos"
             />
-            <button type="button" class="btn-secondary" @click="videosInput?.click()">
-              Thêm video
-            </button>
-            <span v-if="videoFiles.length" class="file-info">
-              Đã chọn {{ videoFiles.length }} video.
-            </span>
+            <button type="button" class="btn-secondary" @click="videosInput?.click()">Thêm video</button>
+            <span v-if="videoFiles.length" class="file-info">Đã chọn {{ videoFiles.length }} video.</span>
             <span v-else class="file-info text-gray-500">Chưa có video nào được chọn</span>
           </div>
 
           <video v-if="videoPreview" :src="videoPreview" controls class="video-preview"></video>
 
           <ul v-if="videoFiles.length" class="video-list">
-            <li v-for="(f, i) in videoFiles" :key="'v' + i" class="video-item">
-              <span class="truncate">{{ f.name }}</span>
-              <span class="video-size">{{ (f.size / 1024 / 1024).toFixed(1) }} MB</span>
+            <li v-for="(vf, i) in videoFiles" :key="'v' + i" class="video-item">
+              <span class="truncate">{{ vf.name }}</span>
+              <span class="video-size">{{ (vf.size / 1024 / 1024).toFixed(1) }} MB</span>
             </li>
           </ul>
           <p class="hint-text">Tối đa 200MB/video; tổng ≤500MB.</p>
@@ -108,26 +114,104 @@
       </div>
 
       <div class="form-actions">
-        <button :disabled="submitting || !canSubmit" class="btn-primary">
+        <button class="btn-primary" :class="{ 'opacity-60 pointer-events-none': submitting }">
           {{ submitting ? 'Đang lưu…' : 'Lưu khoá học' }}
         </button>
         <button type="button" class="btn-cancel" @click="router.back()">Huỷ</button>
       </div>
     </form>
+
+    <!-- ===== Modal ảnh >2MB — màu & style giống hồ sơ giảng viên ===== -->
+    <transition
+      enter-active-class="transition-opacity duration-150 ease-out"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="limitModal.open"
+        class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="limit-title"
+        @click.self="closeLimitModal"
+      >
+        <div
+          ref="limitCard"
+          tabindex="-1"
+          class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl outline-none"
+        >
+          <div class="mb-2 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <h3 id="limit-title" class="text-base font-bold text-slate-800">Không thể tải ảnh</h3>
+          </div>
+          <div class="mb-3 text-sm text-slate-800">
+            <p>{{ limitModal.message }}</p>
+            <small class="mt-1 block text-slate-500">Vui lòng chọn tệp PNG/JPG ≤ 2MB.</small>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700" @click="closeLimitModal">
+              ĐÃ HIỂU
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ===== Modal kết quả lưu — cùng palette với popup trên ===== -->
+    <transition
+      enter-active-class="transition-opacity duration-150 ease-out"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="resultModal.open"
+        class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="result-title"
+        @click.self="closeResultModal"
+      >
+        <div
+          ref="resultCard"
+          tabindex="-1"
+          class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl outline-none"
+        >
+          <div class="mb-2 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" :class="resultModal.type==='success' ? 'text-emerald-600' : 'text-amber-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path v-if="resultModal.type==='success'" stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <h3 id="result-title" class="text-base font-bold text-slate-800">
+              {{ resultModal.title }}
+            </h3>
+          </div>
+          <div class="mb-3 text-sm text-slate-800">
+            <p>{{ resultModal.message }}</p>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700" @click="handleResultConfirm">
+              {{ resultModal.type === 'success' ? 'OK' : 'Thử lại' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onBeforeUnmount, computed } from 'vue'
+import { reactive, ref, onBeforeUnmount, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { courseService, type CourseDetail, type Grade, type Level, type CourseStatus, type Subject } from '@/services/course.service'
 
 const router = useRouter()
 
 /** Form theo schema service */
-const f = reactive<Partial<CourseDetail> & {
-  lessonsCount?: number
-}>({
+const f = reactive<Partial<CourseDetail> & { lessonsCount?: number }>({
   title: '',
   subject: 'math' as Subject,
   grade: 3 as Grade,
@@ -137,19 +221,66 @@ const f = reactive<Partial<CourseDetail> & {
   status: 'draft' as CourseStatus
 })
 
+/* ---------- UI state cho lỗi tên ---------- */
+const titleRef = ref<HTMLInputElement | null>(null)
+const titleErr = ref('')
+
 /* ---------- ẢNH KHOÁ HỌC ---------- */
 const fileInput = ref<HTMLInputElement | null>(null)
 const coverFile = ref<File | null>(null)
 const coverPreview = ref<string>('')
 const coverErr = ref('')
 
+/** ===== Modal 2MB ===== */
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
+const OVER_LIMIT_MSG = 'File ảnh vượt quá dung lượng cho phép (2MB)'
+const limitModal = reactive<{ open: boolean; message: string }>({ open: false, message: '' })
+const limitCard = ref<HTMLElement | null>(null)
+function showLimitModal(msg = OVER_LIMIT_MSG) { limitModal.message = msg; limitModal.open = true; queueMicrotask(() => limitCard.value?.focus()) }
+function closeLimitModal() { limitModal.open = false }
+
+/** ===== Modal kết quả ===== */
+const resultModal = reactive<{ open: boolean; type: 'success' | 'error'; title: string; message: string }>({ open: false, type: 'success', title: '', message: '' })
+const resultCard = ref<HTMLElement | null>(null)
+function showResultModal(type: 'success' | 'error', title: string, message: string) {
+  resultModal.type = type; resultModal.title = title; resultModal.message = message;
+  resultModal.open = true; queueMicrotask(() => resultCard.value?.focus())
+}
+function closeResultModal() { resultModal.open = false }
+function handleResultConfirm() {
+  if (resultModal.type === 'success') { closeResultModal(); router.push({ path: '/teacher/courses' }) }
+  else { closeResultModal() }
+}
+
+/** ESC để đóng modal (nếu muốn) */
+function handleEsc(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (limitModal.open) { e.stopPropagation(); closeLimitModal() }
+  else if (resultModal.open) { e.stopPropagation(); closeResultModal() }
+}
+onMounted(() => window.addEventListener('keydown', handleEsc))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleEsc))
+
+/* ---------- Ảnh bìa ---------- */
 function onPickCover(e: Event) {
   coverErr.value = ''
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  if (!file.type.startsWith('image/')) { coverErr.value = 'Vui lòng chọn file ảnh (JPG/PNG).'; input.value=''; return }
-  if (file.size > 2 * 1024 * 1024) { coverErr.value = 'Ảnh tối đa 2MB.'; input.value=''; return }
+
+  if (!file.type.startsWith('image/')) {
+    coverErr.value = 'Vui lòng chọn file ảnh (JPG/PNG).'
+    input.value = ''
+    return
+  }
+  if (file.size > MAX_AVATAR_SIZE) {
+    showLimitModal()
+    input.value = ''
+    coverFile.value = null
+    if (coverPreview.value) { URL.revokeObjectURL(coverPreview.value); coverPreview.value = '' }
+    return
+  }
+
   coverFile.value = file
   if (coverPreview.value) URL.revokeObjectURL(coverPreview.value)
   coverPreview.value = URL.createObjectURL(file)
@@ -160,10 +291,7 @@ const videosInput = ref<HTMLInputElement | null>(null)
 const videoFiles = ref<File[]>([])
 const videoPreview = ref<string>('')
 const videoErr = ref('')
-
-const acceptVideos = computed(() =>
-  ['video/mp4', 'video/webm', 'video/quicktime'].join(',')
-)
+const acceptVideos = computed(() => ['video/mp4', 'video/webm', 'video/quicktime'].join(','))
 
 function onPickVideos(e: Event) {
   videoErr.value = ''
@@ -192,29 +320,21 @@ onBeforeUnmount(() => {
 })
 
 const submitting = ref(false)
-const canSubmit = computed(() => Boolean(f.title && coverFile.value))
 
 async function submit() {
-  if (!canSubmit.value) {
-    alert('Vui lòng điền đầy đủ Tên khoá học và chọn Ảnh khoá học.');
-    return;
+  titleErr.value = ''
+  if (!f.title || !f.title.trim()) {
+    titleErr.value = 'Vui lòng nhập tên khoá học.'
+    titleRef.value?.focus()
+    titleRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
   }
+
   submitting.value = true
   try {
-    // Nếu back-end của bạn nhận multipart, dùng FormData:
-    const fd = new FormData()
-    fd.append('title', f.title!)
-    fd.append('grade', String(f.grade!))
-    fd.append('subject', f.subject!)
-    fd.append('level', f.level!)
-    fd.append('status', f.status!)
-    if (f.description) fd.append('description', f.description)
-    if (f.lessonsCount) fd.append('lessonsCount', String(f.lessonsCount))
-    if (coverFile.value) fd.append('thumbnail', coverFile.value)       // ảnh
-    videoFiles.value.forEach(v => fd.append('videos[]', v)) // video optional
-    // await api.post('/admin/courses', fd)                // hoặc endpoint của bạn
+    // Nếu dùng upload file thật: tạo FormData ở đây (demo giữ nguyên)
+    // const fd = new FormData() ... append ...
 
-    // Với mock service hiện tại: truyền Partial<CourseDetail>
     await courseService.create({
       title: f.title,
       grade: f.grade,
@@ -222,128 +342,60 @@ async function submit() {
       level: f.level,
       status: f.status,
       description: f.description,
-      // mock không lưu file, nhưng bạn vẫn có thể lưu lessonsCount để hiển thị sau
-      durationMinutes: 0, // Giá trị mặc định
-      sections: [] // Giá trị mặc định
+      durationMinutes: 0,
+      sections: []
     } as Partial<CourseDetail>)
 
-    alert('Đã tạo khoá học (mock).');
-    router.push({ path: '/teacher/courses' });
+    showResultModal('success', 'Đã tạo khoá học thành công!', 'Khoá học của bạn đã được lưu.')
   } catch (e: any) {
-    alert(e?.message || 'Tạo khoá học thất bại.');
+    showResultModal('error', 'Tạo khoá học thất bại', e?.message || 'Có lỗi xảy ra. Vui lòng thử lại.')
   } finally {
-    submitting.value = false;
+    submitting.value = false
   }
 }
 </script>
 
 <style scoped>
 /* Base container */
-.container-wrapper {
-  @apply mx-auto max-w-4xl p-6 lg:p-8;
-}
-
-.page-title {
-  @apply mb-6 text-3xl font-extrabold text-gray-800 text-center;
-}
+.container-wrapper { @apply mx-auto max-w-4xl p-6 lg:p-8; }
+.page-title { @apply mb-6 text-3xl font-extrabold text-gray-800 text-center; }
 
 /* Form styling */
-.course-form {
-  @apply space-y-8 rounded-2xl bg-white p-8 shadow-xl border border-gray-100;
-}
-
-.form-grid {
-  @apply grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2;
-}
-
-.form-field {
-  @apply block;
-}
-
-.label-text {
-  @apply mb-2 block text-sm font-semibold text-gray-700;
-}
-
-.input-field {
-  @apply w-full rounded-lg border border-gray-300 px-4 py-2.5 
-         text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none
-         transition duration-200 ease-in-out;
-}
-
-textarea.input-field {
-  @apply resize-y;
-}
+.course-form { @apply space-y-8 rounded-2xl bg-white p-8 shadow-xl border border-gray-100; }
+.form-grid { @apply grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2; }
+.form-field { @apply block; }
+.label-text { @apply mb-2 block text-sm font-semibold text-gray-700; }
+.input-field { @apply w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition duration-200 ease-in-out; }
+textarea.input-field { @apply resize-y; }
 
 /* File Upload Specifics */
-.file-upload-area {
-  @apply flex flex-wrap items-center gap-4;
-}
-
-.btn-secondary {
-  @apply rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 
-         hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-         transition duration-200 ease-in-out;
-}
-
-.file-info {
-  @apply text-sm text-gray-600;
-}
-
-.image-preview, .video-preview {
-  @apply mt-4 w-full rounded-lg object-cover shadow-md;
-}
-
-.image-preview {
-  @apply h-48; /* Increased height for better preview */
-}
-
-.video-preview {
-  @apply max-h-[300px];
-}
-
-.hint-text {
-  @apply mt-2 text-xs text-gray-500;
-}
-
-.error-text {
-  @apply mt-2 text-sm text-rose-600 font-medium;
-}
-
-.video-list {
-  @apply mt-3 space-y-2 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200;
-}
-
-.video-item {
-  @apply flex items-center justify-between text-gray-700;
-}
-
-.video-size {
-  @apply ml-3 shrink-0 font-medium text-gray-600;
-}
+.file-upload-area { @apply flex flex-wrap items-center gap-4; }
+.btn-secondary { @apply rounded-lg border border-gray-300 px-5 py-2.5 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 ease-in-out; }
+.file-info { @apply text-sm text-gray-600; }
+.image-preview { @apply mt-4 w-full h-48 rounded-lg object-cover shadow-md; }
+.video-preview { @apply mt-4 w-full rounded-lg object-cover shadow-md max-h-[300px]; }
+.hint-text { @apply mt-2 text-xs text-gray-500; }
+.error-text { @apply mt-2 text-sm text-rose-600 font-medium; }
+.video-list { @apply mt-3 space-y-2 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200; }
+.video-item { @apply flex items-center justify-between text-gray-700; }
+.video-size { @apply ml-3 shrink-0 font-medium text-gray-600; }
 
 /* Form Actions */
-.form-actions {
-  @apply flex justify-end gap-4 pt-6 border-t border-gray-100 mt-8;
-}
+.form-actions { @apply flex justify-end gap-4 pt-6 border-t border-gray-100 mt-8; }
 
+/* ĐỒNG BỘ MÀU VỚI POPUP: dùng bg-blue-600 / hover:bg-blue-700 */
 .btn-primary {
-  @apply rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-3 
-         font-bold text-white shadow-lg hover:from-blue-700 hover:to-blue-900 
+  @apply rounded-xl bg-blue-600 px-6 py-3
+         font-bold text-white shadow-lg
+         hover:bg-blue-700
          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-         disabled:opacity-50 disabled:cursor-not-allowed transition duration-200 ease-in-out;
-}
-
-.btn-cancel {
-  @apply rounded-xl border border-gray-300 bg-white px-6 py-3 
-         font-semibold text-gray-700 shadow-sm hover:bg-gray-100 
-         focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+         disabled:opacity-50 disabled:cursor-not-allowed
          transition duration-200 ease-in-out;
 }
-
-/* Responsive adjustments */
-@media (min-width: 768px) {
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.btn-cancel {
+  @apply rounded-xl border border-gray-300 bg-white px-6 py-3
+         font-semibold text-gray-700 shadow-sm hover:bg-gray-100
+         focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
+         transition duration-200 ease-in-out;
 }
 </style>
