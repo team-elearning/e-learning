@@ -78,7 +78,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/users/UserDetail.vue'),
         // meta: { title: (to: any) => `Người dùng #${to.params.id}` },
         meta: { title: `Hồ sơ người dùng` },
-
       },
 
       // Courses
@@ -162,7 +161,7 @@ const routes: RouteRecordRaw[] = [
     component: TeacherLayout,
     meta: { role: 'instructor' },
     children: [
-      { path: '', redirect: '/instructor/dashboard' },
+      { path: '', redirect: '/teacher/dashboard' },
       {
         path: 'dashboard',
         component: () => import('@/pages/teacher/dashboard/dashboard.vue'),
@@ -255,6 +254,13 @@ const routes: RouteRecordRaw[] = [
         name: 'teacher-exam-grading',
         component: () => import('@/pages/teacher/exams/ExamGrading.vue'),
         meta: { title: 'Chấm bài' },
+      },
+      {
+        path: 'exams/:examId/submissions/:submissionId',
+        name: 'teacher-exam-submission-view',
+        component: () => import('@/pages/teacher/exams/SubmissionView.vue'),
+        props: true,
+        meta: { title: (to: any) => `Bài nộp #${to.params.submissionId}` },
       },
       {
         path: 'reports',
@@ -481,7 +487,6 @@ router.beforeEach((to, _from, next) => {
 
   next()
 })
-
 
 router.afterEach((to) => {
   // tìm route con có meta.title gần nhất

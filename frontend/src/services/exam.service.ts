@@ -164,6 +164,31 @@ const MOCK_EXAMS: ExamDetail[] = [
   buildMockExam(202, 'Khối 3–5'),
 ]
 
+// ---- Mock submissions cho trang chấm bài ----
+export type SubmissionStatus = 'pending' | 'graded'
+export interface SubmissionRow {
+  id: number
+  examId: ID
+  studentName: string
+  classCode: string
+  submittedAt: string
+  score: number | null
+  status: SubmissionStatus
+}
+
+function makeExamSubmissions(examId: number): SubmissionRow[] {
+  const total = (Number(examId) % 7) + 9
+  return Array.from({ length: total }).map((_, i) => {
+    const sid = Number(examId) * 1000 + i + 1
+    const graded = (i + Number(examId)) % 3 !== 0
+    const score = graded ? Math.round(((6 + ((i + Number(examId)) % 5)) + 0.1) * 10) / 10 : null
+    const cls = `L${(Number(examId) % 4) + 1}${String((i % 3) + 1).padStart(2, '0')}`
+    const name = `HS ${(Number(examId) % 9) + 1}${String(i + 1).padStart(2, '0')}`
+    const submittedAt = new Date(Date.now() - (i + 1) * 36e5).toLocaleString()
+    return { id: sid, examId: Number(examId), studentName: name, classCode: cls, submittedAt, score, status: graded ? 'graded' : 'pending' }
+  })
+}
+
 // ========= HELPERS =========
 function toSummary(d: ExamDetail): ExamSummary {
   return {
@@ -188,7 +213,6 @@ function scoreQuestion(q: Question, ans: any): number {
       const a = new Set((ans as string[]) || [])
       const gold = new Set(q.answer)
       const correctAll = q.answer.every(x => a.has(x)) && a.size === gold.size
-      // có thể thêm partial credit nếu muốn
       return correctAll ? q.score : 0
     }
     case 'boolean':
@@ -199,11 +223,9 @@ function scoreQuestion(q: Question, ans: any): number {
       for (let i = 0; i < q.blanks; i++) {
         if ((given[i] || '').trim().toLowerCase() === (q.answer[i] || '').toLowerCase()) c++
       }
-      // partial: mỗi blank 1/n điểm
       return (c / q.blanks) * q.score
     }
     case 'match': {
-      // ans là array right theo thứ tự left
       const given = (ans as string[]) || []
       const gold = q.pairs.map(p => p.right)
       let c = 0
@@ -235,13 +257,16 @@ export const examService = {
   async detail(id: ID): Promise<ExamDetail> {
     const found = MOCK_EXAMS.find(e => String(e.id) === String(id))
     if (!found) throw new Error('Không tìm thấy đề thi')
-    // deep-clone để tránh mutate bank
     return JSON.parse(JSON.stringify(found))
+  },
+
+  // >>> API mock trả về danh sách bài nộp cho trang Xem điểm
+  async submissions(examId: ID) {
+    return makeExamSubmissions(Number(examId))
   },
 
   async startAttempt(examId: ID): Promise<Attempt> {
     const d = await this.detail(examId)
-    // shuffle questions/choices nếu bật
     let qs = d.questions.slice()
     if (d.shuffleQuestions) qs = randPick(qs, qs.length)
     if (d.shuffleChoices) {
@@ -263,12 +288,11 @@ export const examService = {
         if (q.type === 'single' || q.type === 'multi') base.choices = q.choices
         if (q.type === 'fill') base.blanks = q.blanks
         if (q.type === 'match') base.pairs = q.pairs
-        if (q.type === 'order') base.items = q.answer // hiển thị items để kéo-thả
+        if (q.type === 'order') base.items = q.answer
         return base
       }),
       answers: {},
     }
-    // lưu localStorage mock
     localStorage.setItem(`attempt:${att.id}`, JSON.stringify(att))
     return att
   },
@@ -300,7 +324,6 @@ export const examService = {
       passed,
       detail,
     }
-    // lưu result
     localStorage.setItem(`attempt:${attemptId}:result`, JSON.stringify(res))
     return res
   },

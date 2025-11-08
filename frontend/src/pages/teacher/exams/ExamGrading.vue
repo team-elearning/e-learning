@@ -4,9 +4,9 @@
     <main class="w-full mx-auto max-w-screen-2xl px-4 py-6 sm:px-6 md:px-10 md:py-8">
       <!-- Header -->
       <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 class="text-xl font-semibold sm:text-2xl">Chấm bài · {{ header }}</h1>
+        <h1 class="text-xl font-semibold sm:text-2xl">Xem điểm · {{ header }}</h1>
 
-        <!-- Tools -->
+        <!-- Tools (chỉ còn ô tìm kiếm) -->
         <div class="grid grid-cols-1 gap-2 sm:auto-cols-fr sm:grid-flow-col">
           <label class="sr-only" for="search">Tìm theo tên/lớp</label>
           <div class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
@@ -23,16 +23,6 @@
               @input="debouncedFilter()"
             />
           </div>
-
-          <select
-            v-model="only"
-            class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            @change="touchFilterToken()"
-          >
-            <option value="all">Tất cả</option>
-            <option value="pending">Chưa chấm</option>
-            <option value="graded">Đã chấm</option>
-          </select>
         </div>
       </div>
 
@@ -60,14 +50,7 @@
                   Lớp: <span class="font-medium">{{ s.classCode }}</span>
                 </p>
               </div>
-              <span
-                class="shrink-0 rounded-full border px-2 py-0.5 text-xs"
-                :class="s.status==='graded'
-                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                         : 'bg-amber-50 text-amber-700 border-amber-200'"
-              >
-                {{ s.status === 'graded' ? 'Đã chấm' : 'Chưa chấm' }}
-              </span>
+              <!-- ĐÃ BỎ BADGE TRẠNG THÁI -->
             </div>
 
             <div class="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-600">
@@ -81,12 +64,12 @@
               </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-2 gap-2">
-              <button class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50">Xem bài</button>
+            <div class="mt-4">
               <button
-                class="rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                class="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50"
+                @click="goView(s)"
               >
-                {{ s.status === 'graded' ? 'Sửa điểm' : 'Chấm điểm' }}
+                Xem bài
               </button>
             </div>
           </article>
@@ -102,12 +85,11 @@
             <table class="w-full table-fixed">
               <thead class="sticky top-0 z-10 bg-slate-50 text-left text-sm text-slate-600">
                 <tr>
-                  <th class="p-3 w-[28%]">Học sinh</th>
-                  <th class="p-3 w-[12%]">Lớp</th>
-                  <th class="p-3 w-[24%]">Thời gian nộp</th>
+                  <th class="p-3 w-[32%]">Học sinh</th>
+                  <th class="p-3 w-[14%]">Lớp</th>
+                  <th class="p-3 w-[28%]">Thời gian nộp</th>
                   <th class="p-3 w-[10%]">Điểm</th>
-                  <th class="p-3 w-[14%]">Trạng thái</th>
-                  <th class="p-3 w-[22%]">Thao tác</th>
+                  <th class="p-3 w-[16%]">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,29 +99,12 @@
                   <td class="p-3 truncate" :title="s.submittedAt">{{ s.submittedAt }}</td>
                   <td class="p-3">{{ s.score ?? '—' }}</td>
                   <td class="p-3">
-                    <span
-                      class="rounded-full border px-2 py-0.5 text-xs whitespace-nowrap"
-                      :class="s.status==='graded'
-                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                               : 'bg-amber-50 text-amber-700 border-amber-200'"
+                    <button
+                      class="rounded-xl border px-3 py-1.5 text-sm hover:bg-slate-50 whitespace-nowrap min-w-[96px]"
+                      @click="goView(s)"
                     >
-                      {{ s.status === 'graded' ? 'Đã chấm' : 'Chưa chấm' }}
-                    </span>
-                  </td>
-                  <td class="p-3">
-                    <!-- NGĂN QUẤN DÒNG + Cố định bề rộng nút -->
-                    <div class="flex flex-nowrap items-center gap-2">
-                      <button
-                        class="rounded-xl border px-3 py-1.5 text-sm hover:bg-slate-50 whitespace-nowrap min-w-[96px]"
-                      >
-                        Xem bài
-                      </button>
-                      <button
-                        class="rounded-xl bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-700 whitespace-nowrap min-w-[96px]"
-                      >
-                        {{ s.status === 'graded' ? 'Sửa điểm' : 'Chấm điểm' }}
-                      </button>
-                    </div>
+                      Xem bài
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -157,27 +122,28 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
-type RowStatus = 'pending' | 'graded'
+/** Kiểu dữ liệu hàng (không còn dùng trạng thái để lọc/hiển thị) */
 type Row = {
   id: number
   studentName: string
   classCode: string
   submittedAt: string
   score: number | null
-  status: RowStatus
+  // status vẫn có trong mock để giữ dữ liệu, nhưng không hiển thị/lọc nữa
+  status: 'pending' | 'graded'
 }
 
 const route = useRoute()
-const id = ref<number>(Number(route.params.id))
+const router = useRouter()
 
+const id = ref<number>(Number(route.params.id))
 const header = ref(`Đề #${id.value}`)
 const loading = ref(true)
 const rows = ref<Row[]>([])
 
 const q = ref('')
-const only = ref<'all' | RowStatus>('all')
 
 type DetailFn = (id: string | number) => Promise<any>
 let detailFn: DetailFn | undefined
@@ -229,14 +195,12 @@ function debouncedFilter() {
   if (ft) window.clearTimeout(ft)
   ft = window.setTimeout(() => { filterToken.value++ }, 250) as unknown as number
 }
-function touchFilterToken() { filterToken.value++ }
 
-/** Filtering */
+/** Filtering (chỉ theo từ khoá) */
 const filtered = computed(() => {
   void filterToken.value
   const key = q.value.toLowerCase()
   let arr = rows.value
-  if (only.value !== 'all') arr = arr.filter(s => s.status === only.value)
   if (key) {
     arr = arr.filter(s =>
       s.studentName.toLowerCase().includes(key) ||
@@ -245,6 +209,14 @@ const filtered = computed(() => {
   }
   return arr
 })
+
+/** Điều hướng tới trang xem bài */
+function goView(s: Row) {
+  router.push({
+    name: 'teacher-exam-submission-view',
+    params: { examId: String(id.value), submissionId: String(s.id) },
+  })
+}
 
 onMounted(async () => {
   await tryInitService()
@@ -262,6 +234,5 @@ onBeforeUnmount(() => { if (ft) window.clearTimeout(ft) })
 table th, table td, h3 { word-break: break-word; }
 @media (hover: none) {
   .hover\:bg-slate-50:hover { background: inherit; }
-  .hover\:bg-sky-700:hover { background: rgb(3 105 161); }
 }
 </style>

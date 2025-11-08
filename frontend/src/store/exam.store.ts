@@ -13,10 +13,11 @@ export interface Exam {
   questionsCount: number
 }
 
-/** ========= MOCK POOL (ổn định) =========
- *  Bạn có thể thay thế bằng call API sau này
+/** ========= MOCK POOL (ổn định ngay trong store) =========
+ *  Có thể thay bằng call API sau này mà không đổi UI/logic.
  */
 const SUBJECTS = ['Toán', 'Tiếng Việt', 'Tiếng Anh', 'Khoa học', 'Lịch sử'] as const
+
 const POOL: Exam[] = Array.from({ length: 120 }).map((_, i) => {
   const id = i + 1
   const subject = SUBJECTS[i % SUBJECTS.length]
@@ -34,6 +35,12 @@ const POOL: Exam[] = Array.from({ length: 120 }).map((_, i) => {
     questionsCount,
   }
 })
+// console.log('POOL length =', POOL.length) // => 120 để bạn kiểm tra nhanh
+
+/** ========= Utils: tìm kiếm không phân biệt dấu ========= */
+function norm(s: string) {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
 
 /** ========= Store ========= */
 export const useExamStore = defineStore('exam', {
@@ -71,9 +78,10 @@ export const useExamStore = defineStore('exam', {
       try {
         // filter trong mock
         let list = POOL.slice()
+
         if (this.q) {
-          const key = this.q.toLowerCase()
-          list = list.filter((e) => e.title.toLowerCase().includes(key))
+          const key = norm(this.q)
+          list = list.filter((e) => norm(e.title).includes(key))
         }
         if (this.level) {
           list = list.filter((e) => e.level === this.level)
@@ -126,6 +134,19 @@ export const useExamStore = defineStore('exam', {
     async goTo(page: number) {
       const target = Math.min(Math.max(1, page), this.pages)
       await this.fetchExamsPage(target, this.pageSize)
+    },
+
+    /** (Tuỳ chọn) Đổi pageSize nhanh để nhìn nhiều item hơn */
+    async setPageSize(n: number) {
+      this.pageSize = Math.max(1, Math.floor(n))
+      await this.fetchExamsPage(1, this.pageSize)
+    },
+
+    /** (Tuỳ chọn) Reset filter về mặc định */
+    async resetFilters() {
+      this.q = ''
+      this.level = ''
+      await this.fetchExamsPage(1, this.pageSize)
     },
   },
 })
