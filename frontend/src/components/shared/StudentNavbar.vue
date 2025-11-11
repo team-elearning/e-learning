@@ -294,7 +294,7 @@ const menu = [
   { path: '/student/dashboard', label: 'Trang chủ' },
   { path: '/student/courses', label: 'Khóa học' },
   { path: '/student/practice', label: 'Ôn luyện' },
-  { path: '/student/tests', label: 'Thi' },
+  { path: '/student/tests', label: 'Bài kiểm tra' },
 ]
 
 // Click outside handlers
