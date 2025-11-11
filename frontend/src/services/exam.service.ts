@@ -143,14 +143,14 @@ function buildMockExam(id: number, level: Level): ExamDetail {
 
   return {
     id,
-    title: `Đề luyện tập #${id} – ${level}`,
+    title: `Đề thi #${id} – ${level}`,
     level,
     durationSec,
     passScore: 12, // ví dụ
     questionsCount: questions.length,
     status: 'published',
     updatedAt: new Date().toISOString(),
-    description: 'Đề mock sinh ngẫu nhiên nhiều dạng câu.',
+    description: 'Đề thi chính thức do giáo viên tạo.',
     shuffleQuestions: true,
     shuffleChoices: true,
     questions,
@@ -158,6 +158,14 @@ function buildMockExam(id: number, level: Level): ExamDetail {
 }
 
 const MOCK_EXAMS: ExamDetail[] = [
+  // Đề ôn luyện (ID 1-10)
+  buildMockExam(1, 'Khối 1–2'),
+  buildMockExam(2, 'Khối 1–2'),
+  buildMockExam(3, 'Khối 3–5'),
+  buildMockExam(4, 'Khối 3–5'),
+  buildMockExam(5, 'Khối 1–2'),
+  buildMockExam(6, 'Khối 3–5'),
+  // Đề thi chính thức (ID 101+)
   buildMockExam(101, 'Khối 1–2'),
   buildMockExam(102, 'Khối 1–2'),
   buildMockExam(201, 'Khối 3–5'),

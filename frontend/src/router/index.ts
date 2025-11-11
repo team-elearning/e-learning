@@ -334,19 +334,44 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Lộ trình học' },
       },
 
-      // Exams
+      // Practice Exams (Ôn luyện)
+      {
+        path: 'practice',
+        name: 'student-practice',
+        component: () => import('@/pages/student/exams/PracticeExams.vue'),
+        meta: { title: 'Ôn luyện' },
+      },
+      {
+        path: 'practice/:examId/taking',
+        name: 'student-practice-taking',
+        component: () => import('@/pages/student/exams/ExamTaking.vue'),
+        props: true,
+        meta: { title: 'Làm bài luyện tập' },
+      },
+      
+      // Official Tests (Thi chính thức)
+      {
+        path: 'tests',
+        name: 'student-tests',
+        component: () => import('@/pages/student/exams/ExamList.vue'),
+        meta: { title: 'Danh sách đề thi' },
+      },
+      {
+        path: 'tests/:id',
+        name: 'student-test-taking',
+        component: () => import('@/pages/student/exams/ExamDetail.vue'),
+        props: true,
+        meta: { title: (to: any) => `Đề thi #${to.params.id}` },
+      },
+      
+      // Legacy routes for backward compatibility
       {
         path: 'exams',
-        name: 'student-exams',
-        component: () => import('@/pages/student/exams/PracticeExams.vue'),
-        meta: { title: 'Luyện đề' },
+        redirect: '/student/practice',
       },
       {
         path: 'exams/:id',
-        name: 'student-exam-detail',
-        component: () => import('@/pages/student/exams/ExamDetail.vue'),
-        props: true,
-        meta: { title: (to: any) => `Đề #${to.params.id}` },
+        redirect: (to) => `/student/tests/${to.params.id}`,
       },
       {
         path: 'exams/:id/result',

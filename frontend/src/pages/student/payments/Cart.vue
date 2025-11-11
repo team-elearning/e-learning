@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="container">
-      <h1 class="title">Giỏ hàng</h1>
+      <h1 class="title">Thanh toán</h1>
 
       <div v-if="items.length" class="card">
         <table class="table">
