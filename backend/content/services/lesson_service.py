@@ -6,7 +6,7 @@ from django.db.models import Max, F, Case, When, Value, Prefetch
 
 from content.models import Lesson, Module, LessonVersion, Enrollment, ContentBlock
 from content.domains.lesson_domain import LessonDomain
-from content.services.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, NoVersionFoundError
+from content.services.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +255,7 @@ def get_lesson_preview(lesson_id: str):
 
     # 3. Kiểm tra xem có bất kỳ version nào không
     if not latest_version:
-        raise NoVersionFoundError("Bài học này chưa có bất kỳ phiên bản nội dung nào.")
+        raise VersionNotFoundError("Bài học này chưa có bất kỳ phiên bản nội dung nào.")
         
     # 4. Trả về domain object (model instance)
     return latest_version

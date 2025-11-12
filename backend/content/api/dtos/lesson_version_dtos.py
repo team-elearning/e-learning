@@ -94,3 +94,14 @@ class LessonVersionOutput(BaseModel):
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         return self.model_dump(exclude_none=exclude_none)
+    
+
+class SetStatusInput(BaseModel):
+    """
+    DTO đầu vào (Input) cho hành động 'set_status'.
+    Khớp với SetStatusSerializer.
+    """
+    status: str
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)

@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from content.serializers import LessonVersionSerializer, SetStatusSerializer, LessonVersionCreateSerializer, LessonVersionUpdateSerializer
 from content.services import lesson_version_service 
 from content.api.mixins import RoleBasedOutputMixin, LessonPermissionMixin
-from content.api.dtos.lesson_version_dtos import LessonVersionOutput, LessonVersionInput, LessonVersionUpdate, SetStatusInput
+from content.api.dtos.lesson_version_dtos import LessonVersionOutput, LessonVersionInput, LessonVersionUpdateInput, SetStatusInput
 from content.services import exceptions as lesson_exceptions
 from content.models import LessonVersion
 from content.api.permissions import IsInstructor
@@ -64,12 +64,12 @@ class AdminLessonVersionListCreateView(RoleBasedOutputMixin, APIView):
 
         try:
             create_dto = LessonVersionInput(**validated_data)
-            new_version = self.lesson_service.create_lesson_version(
+            new_version_domain = self.lesson_service.create_lesson_version(
                 lesson_id=lesson_id,
                 author=request.user,
-                data_dto=create_dto
+                data_dto=create_dto.to_dict()
             )
-            return Response({"instance": new_version}, status=status.HTTP_201_CREATED)
+            return Response({"instance": new_version_domain}, status=status.HTTP_201_CREATED)
         except lesson_exceptions.LessonNotFoundError:
             raise Http404("Lesson not found")
         except (lesson_exceptions.DomainError, ValidationError) as e:
@@ -97,35 +97,34 @@ class AdminLessonVersionDetailView(RoleBasedOutputMixin, APIView):
 
     def get_object(self, pk):
         try:
-            return LessonVersion.objects.get(pk=pk)
-        except LessonVersion.DoesNotExist:
+            return self.lesson_service.get_lesson_version_by_id(version_id=pk)
+        except lesson_exceptions.VersionNotFoundError:
             raise Http404
         
     def get(self, request, pk, *args, **kwargs):
         """ [Admin] Lấy chi tiết một phiên bản. """
-        instance = self.get_object(pk)
-        return Response({"instance": instance})
+        domain_instance = self.get_object(pk)
+        return Response({"instance": domain_instance})
 
     def patch(self, request, pk, *args, **kwargs):
         """ [Admin] Cập nhật một phần (PATCH) một phiên bản. """
-        instance = self.get_object(pk)
-        serializer = LessonVersionSerializer(instance, data=request.data, partial=True)
+        serializer = LessonVersionUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         
-        update_dto = LessonVersionUpdate(**validated_data)
+        update_dto = LessonVersionUpdateInput(**validated_data)
         updates_payload = update_dto.model_dump(exclude_unset=True)
             
         if not updates_payload:
-            return Response({"instance": instance}, status=status.HTTP_200_OK)
+            instance_domain = self.get_object(pk)
+            return Response({"instance": instance_domain}, status=status.HTTP_200_OK)
 
         try:
-            updated_version = self.lesson_service.update_lesson_version(
+            updated_version_domain = self.lesson_service.update_lesson_version(
                 version_id=pk, 
-                user=request.user,
                 updates=updates_payload
             )
-            return Response({"instance": updated_version}, status=status.HTTP_200_OK)
+            return Response({"instance": updated_version_domain}, status=status.HTTP_200_OK)
         except (lesson_exceptions.DomainError, ValidationError) as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -134,12 +133,8 @@ class AdminLessonVersionDetailView(RoleBasedOutputMixin, APIView):
 
     def delete(self, request, pk, *args, **kwargs):
         """ [Admin] Xóa một phiên bản. """
-        instance = self.get_object(pk)
         try:
-            self.lesson_service.delete_lesson_version(
-                version_id=instance.id, 
-                user=request.user
-            )
+            self.lesson_service.delete_lesson_version(version_id=pk)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except lesson_exceptions.DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -168,12 +163,11 @@ class AdminLessonVersionSetStatusView(APIView):
         
         try:
             status_dto = SetStatusInput(**validated_data)
-            updated_version = self.lesson_service.set_version_status(
+            updated_version_domain = self.lesson_service.set_version_status(
                 version_id=pk,
-                user=request.user,
                 new_status=status_dto.status
             )
-            return Response({"instance": updated_version}, status=status.HTTP_200_OK)
+            return Response({"instance": updated_version_domain}, status=status.HTTP_200_OK)
         except lesson_exceptions.VersionNotFoundError:
             raise Http404("LessonVersion not found")
         except lesson_exceptions.DomainError as e:
@@ -210,10 +204,7 @@ class InstructorLessonVersionListCreateView(RoleBasedOutputMixin, APIView, Lesso
             # KIỂM TRA QUYỀN TRƯỚC
             self.check_lesson_permission(request, lesson_id)
             
-            versions_list = self.lesson_service.list_versions_for_lesson(
-                lesson_id=lesson_id, 
-                user=request.user
-            )
+            versions_list = self.lesson_service.list_versions_for_lesson(lesson_id=lesson_id)
             return Response({"instance": versions_list}, status=status.HTTP_200_OK)
         except (Http404, lesson_exceptions.LessonNotFoundError):
             raise Http404("Bài học không tìm thấy.")
@@ -241,12 +232,12 @@ class InstructorLessonVersionListCreateView(RoleBasedOutputMixin, APIView, Lesso
 
         try:
             create_dto = LessonVersionInput(**validated_data)
-            new_version = self.lesson_service.create_lesson_version(
+            new_version_domain = self.lesson_service.create_lesson_version(
                 lesson_id=lesson_id,
                 author=request.user,
-                data_dto=create_dto
+                data_dto=create_dto.to_dict()
             )
-            return Response({"instance": new_version}, status=status.HTTP_201_CREATED)
+            return Response({"instance": new_version_domain}, status=status.HTTP_201_CREATED)
         except (lesson_exceptions.DomainError, ValidationError) as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -275,23 +266,18 @@ class InstructorLessonVersionDetailView(RoleBasedOutputMixin, APIView, LessonPer
         Helper: Lấy LessonVersion và kiểm tra quyền sở hữu Lesson.
         """
         try:
-            instance = LessonVersion.objects.select_related('lesson').get(pk=pk)
-        except LessonVersion.DoesNotExist:
+            domain_instance = self.lesson_service.get_lesson_version_by_id(pk)
+        except lesson_exceptions.VersionNotFoundError:
             raise Http404("Phiên bản bài học không tìm thấy.")
-        
-        # Lấy lesson_id từ instance và gọi mixin kiểm tra quyền
-        if not instance.lesson_id:
-             raise Http404("Phiên bản này không liên kết với bài học nào.")
-             
-        self.check_lesson_permission(request, instance.lesson_id)
-        
-        return instance
+           
+        self.check_lesson_permission(request, domain_instance.lesson_id)
+        return domain_instance
         
     def get(self, request, pk, *args, **kwargs):
         """ [Instructor] Lấy chi tiết một phiên bản. """
         try:
-            instance = self.get_object_and_check_perm(request, pk)
-            return Response({"instance": instance})
+            instance_domain = self.get_object_and_check_perm(request, pk)
+            return Response({"instance": instance_domain})
         except Http404 as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except PermissionDenied as e:
@@ -300,27 +286,27 @@ class InstructorLessonVersionDetailView(RoleBasedOutputMixin, APIView, LessonPer
     def patch(self, request, pk, *args, **kwargs):
         """ [Instructor] Cập nhật một phần (PATCH) một phiên bản. """
         try:
-            instance = self.get_object_and_check_perm(request, pk)
+            self.get_object_and_check_perm(request, pk)
         except Http404 as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except PermissionDenied as e:
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
         # Nếu có quyền, tiếp tục xử lý
-        serializer = LessonVersionUpdateSerializer(instance, data=request.data, partial=True)
+        serializer = LessonVersionUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         
-        update_dto = LessonVersionUpdate(**validated_data)
+        update_dto = LessonVersionUpdateInput(**validated_data)
         updates_payload = update_dto.model_dump(exclude_unset=True)
             
         if not updates_payload:
-            return Response({"instance": instance}, status=status.HTTP_200_OK)
+            instance_domain = self.lesson_service.get_lesson_version_by_id(pk)
+            return Response({"instance": instance_domain}, status=status.HTTP_200_OK)
 
         try:
             updated_version = self.lesson_service.update_lesson_version(
                 version_id=pk, 
-                user=request.user,
                 updates=updates_payload
             )
             return Response({"instance": updated_version}, status=status.HTTP_200_OK)
@@ -333,7 +319,7 @@ class InstructorLessonVersionDetailView(RoleBasedOutputMixin, APIView, LessonPer
     def delete(self, request, pk, *args, **kwargs):
         """ [Instructor] Xóa một phiên bản. """
         try:
-            instance = self.get_object_and_check_perm(request, pk)
+            self.get_object_and_check_perm(request, pk)
         except Http404 as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except PermissionDenied as e:
@@ -341,10 +327,7 @@ class InstructorLessonVersionDetailView(RoleBasedOutputMixin, APIView, LessonPer
             
         # Nếu có quyền, tiếp tục xử lý
         try:
-            self.lesson_service.delete_lesson_version(
-                version_id=instance.id, 
-                user=request.user
-            )
+            self.lesson_service.delete_lesson_version(version_id=pk)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except lesson_exceptions.DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -389,12 +372,11 @@ class InstructorLessonVersionSetStatusView(APIView, LessonPermissionMixin):
         
         try:
             status_dto = SetStatusInput(**validated_data)
-            updated_version = self.lesson_service.set_version_status(
+            updated_version_domain = self.lesson_service.set_version_status(
                 version_id=pk,
-                user=request.user,
                 new_status=status_dto.status
             )
-            return Response({"instance": updated_version}, status=status.HTTP_200_OK)
+            return Response({"instance": updated_version_domain}, status=status.HTTP_200_OK)
         except lesson_exceptions.DomainError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
