@@ -4,10 +4,15 @@ import { useAuthStore } from "@/store/auth.store";
 import axios from "axios";
 import { ElMessage } from "element-plus";
 
+const baseURL =
+  import.meta.env.MODE === "development"
+    ? "/api" // 🔹 Local dev → dùng proxy
+    : import.meta.env.VITE_API_BASE + (import.meta.env.VITE_API_PREFIX || "");
+
 const http = axios.create({
-  baseURL: "/api",
+  baseURL,
   timeout: 10000,
-  headers: { "Content-Type": "application/json" }
+  headers: { "Content-Type": "application/json" },
 });
 
 /*=========================================
