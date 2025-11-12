@@ -79,10 +79,10 @@
       </div>
       <div class="flex items-center gap-2">
         <el-dropdown trigger="click">
-          <el-button :disabled="selection.length === 0">
+          <!-- <el-button :disabled="selection.length === 0">
             Thao tác hàng loạt
             <el-icon class="i-ep-arrow-down ml-1" />
-          </el-button>
+          </el-button> -->
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="bulkChangeRole">Đổi vai trò…</el-dropdown-item>
@@ -501,7 +501,7 @@ const rules = {
 
   phone: [
     {
-      validator: (_, value, callback) => {
+      validator: (_: any, value: string, callback: (error?: Error) => void) => {
         if (!value) return callback() // cho phép bỏ trống
         const regex = /^[0-9]{10}$/
         if (!regex.test(value)) callback(new Error('Số điện thoại phải đúng 10 chữ số'))
