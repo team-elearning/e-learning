@@ -7,6 +7,7 @@ from content.api.views.course_view import PublicCourseListView, PublicCourseDeta
 from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDetailView
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
+from content.api.views.lesson_version_view import AdminLessonVersionDetailView, AdminLessonVersionListCreateView, AdminLessonVersionSetStatusView, InstructorLessonVersionDetailView, InstructorLessonVersionListCreateView, InstructorLessonVersionSetStatusView
 
 
 
@@ -53,6 +54,10 @@ urlpatterns = [
 
     path('admin/lessons/<uuid:lesson_id>/preview/', AdminLessonPreviewView.as_view(), name='admin-lesson-preview'),
 
+    path('admin/lessons/<uuid:lesson_id>/versions/', AdminLessonVersionListCreateView.as_view(), name='admin-lesson-version-list-create'),
+    path('admin/lesson-versions/<uuid:pk>/', AdminLessonVersionDetailView.as_view(), name='admin-lesson-version-detail'),
+    path('admin/lesson-versions/<uuid:pk>/set_status/', AdminLessonVersionSetStatusView.as_view(), name='admin-lesson-version-set-status'),
+
     # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
@@ -67,7 +72,11 @@ urlpatterns = [
     path('instructor/lessons/<uuid:pk>/', InstructorLessonDetailView.as_view(), name='instructor-lesson-detail'),
     path('instructor/modules/<uuid:module_id>/lessons/reorder/', InstructorLessonReorderView.as_view(), name='instructor-lesson-reorder'),
 
-    path('api/v1/instructor/lessons/<uuid:lesson_id>/preview/', InstructorLessonPreviewView.as_view(), name='instructor-lesson-preview'),
+    path('instructor/lessons/<uuid:lesson_id>/preview/', InstructorLessonPreviewView.as_view(), name='instructor-lesson-preview'),
+
+    path('instructor/lessons/<uuid:lesson_id>/versions/', InstructorLessonVersionListCreateView.as_view(), name='instructor-lesson-version-list-create'),
+    path('instructor/lesson-versions/<uuid:pk>/', InstructorLessonVersionDetailView.as_view(), name='instructor-lesson-version-detail'),
+    path('instructor/lesson-versions/<uuid:pk>/set_status/', InstructorLessonVersionSetStatusView.as_view(), name='instructor-lesson-version-set-status'),
 
     # # ---------------------------
     # # Search & Utility
