@@ -2,6 +2,11 @@ from typing import Type, Any
 from pydantic import BaseModel
 from rest_framework.exceptions import APIException
 from rest_framework.views import APIView
+from django.http import Http404
+from django.core.exceptions import PermissionDenied
+
+from content.models import Module, Course, Lesson
+
 
 
 class RoleBasedOutputMixin:
@@ -67,3 +72,104 @@ class RoleBasedOutputMixin:
                 raise APIException(f"DTO mapping failed: {e}")
 
         return APIView.finalize_response(self, request, response, *args, **kwargs)
+    
+
+class ModulePermissionMixin:
+    """
+    Mixin này cung cấp một hàm helper để kiểm tra xem
+    request.user có phải là admin hoặc owner của module
+    được chỉ định trong URL (module_id) hay không.
+    
+    Nó được thiết kế để gọi TỪ BÊN TRONG một phương thức view (như post).
+    """
+    
+    def check_module_permission(self, request, module_id):
+        """
+        Kiểm tra quyền (Admin hoặc Module Owner) bằng tay.
+        Raises Http404 nếu không tìm thấy Module.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            # Dùng select_related để tối ưu
+            module = Module.objects.select_related('course__owner').get(pk=module_id)
+        except Module.DoesNotExist:
+            raise Http404("Module không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        is_owner = (hasattr(module, 'course') and 
+                    hasattr(module.course, 'owner') and 
+                    module.course.owner == request.user)
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không phải là chủ sở hữu của module này.")
+        
+        # Trả về module để view có thể tái sử dụng
+        return module
+    
+
+class CoursePermissionMixin:
+    """
+    Mixin này kiểm tra xem user có phải là admin hoặc 
+    owner của Course được chỉ định (course_id) hay không.
+    """
+    
+    def check_course_permission(self, request, course_id):
+        """
+        Kiểm tra quyền (Admin hoặc Course Owner) bằng tay.
+        Raises Http404 nếu không tìm thấy Course.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            course = Course.objects.select_related('owner').get(pk=course_id)
+        except Course.DoesNotExist:
+            raise Http404("Course không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        is_owner = (hasattr(course, 'owner') and 
+                    course.owner == request.user)
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không phải là chủ sở hữu của khóa học này.")
+        
+        # Trả về course để view có thể tái sử dụng
+        return course
+    
+
+class LessonPermissionMixin:
+    """
+    Mixin này cung cấp hàm helper để kiểm tra xem request.user
+    có phải là Admin hoặc Owner (Instructor) của Lesson hay không.
+    
+    Quyền được xác định bằng cách kiểm tra owner của Course chứa Lesson.
+    """
+    
+    def check_lesson_permission(self, request, lesson_id):
+        """
+        Kiểm tra quyền (Admin hoặc Course Owner) cho một Lesson.
+        Raises Http404 nếu không tìm thấy Lesson.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            # Tối ưu query bằng cách join thẳng đến course owner
+            lesson = Lesson.objects.select_related(
+                'module__course__owner'
+            ).get(pk=lesson_id)
+            
+        except Lesson.DoesNotExist:
+            raise Http404("Bài học không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        
+        # Kiểm tra chain: lesson -> module -> course -> owner
+        is_owner = (
+            hasattr(lesson, 'module') and
+            hasattr(lesson.module, 'course') and
+            hasattr(lesson.module.course, 'owner') and
+            lesson.module.course.owner == request.user
+        )
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không có quyền truy cập tài nguyên bài học này.")
+            
+        # Trả về lesson để view có thể tái sử dụng nếu cần
+        return lesson

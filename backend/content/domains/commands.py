@@ -1,10 +1,36 @@
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
-from collections import deque
+from typing import Optional, List, Dict, Any
 
 from content.services.exceptions import DomainValidationError
+
+# -----------------------
+# Subject Commands
+# -----------------------
+
+@dataclass
+class CreateSubjectCommand:
+    title: str
+    slug: str
+
+    def validate(self):
+        if not self.title or not self.title.strip():
+            raise DomainValidationError("Subject title required.")
+        if not self.slug or " " in self.slug:
+            raise DomainValidationError("Subject slug required and cannot contain spaces.")
+
+@dataclass
+class UpdateSubjectCommand:
+    title: Optional[str] = None
+    slug: Optional[str] = None
+
+    def validate(self):
+        if not self.title and not self.slug:
+            raise DomainValidationError("At least one field (title, slug) must be provided for update.")
+
+# -----------------------
+# Course Commands
+# -----------------------
 
 @dataclass
 class CreateCourseCommand:
@@ -20,9 +46,38 @@ class CreateCourseCommand:
             raise DomainValidationError("Course title is required.")
         if self.slug and (" " in self.slug or len(self.slug) < 2):
             raise DomainValidationError("Slug must be at least 2 chars and contain no spaces.")
-        # grade format allowed: '1'..'12', 'K', 'pre', or custom strings
         if self.grade and len(str(self.grade)) > 16:
             raise DomainValidationError("Invalid grade length.")
+
+@dataclass
+class UpdateCourseCommand:
+    title: Optional[str] = None
+    description: Optional[str] = None
+    grade: Optional[str] = None
+
+    def validate(self):
+        # No complex validation, empty update is acceptable
+        pass
+
+@dataclass
+class PublishCourseCommand:
+    published: bool
+    require_all_lessons_published: bool = False
+
+    def validate(self):
+        pass
+
+@dataclass
+class AssignCourseOwnerCommand:
+    owner_id: int
+
+    def validate(self):
+        if not self.owner_id:
+            raise DomainValidationError("owner_id is required.")
+
+# -----------------------
+# Module Commands
+# -----------------------
 
 @dataclass
 class AddModuleCommand:
@@ -37,10 +92,30 @@ class AddModuleCommand:
             raise DomainValidationError("module title required.")
 
 @dataclass
+class UpdateModuleCommand:
+    title: Optional[str] = None
+    position: Optional[int] = None
+
+    def validate(self):
+        pass
+
+@dataclass
+class ReorderModulesCommand:
+    order_map: Dict[str, int]
+
+    def validate(self):
+        if not isinstance(self.order_map, dict):
+            raise DomainValidationError("order_map must be a dictionary.")
+
+# -----------------------
+# Lesson Commands
+# -----------------------
+
+@dataclass
 class CreateLessonCommand:
     module_id: str
     title: str
-    content_type: str = "lesson"  # lesson|exploration|exercise|quiz
+    content_type: str = "lesson"
     position: Optional[int] = None
 
     def validate(self):
@@ -52,20 +127,61 @@ class CreateLessonCommand:
             raise DomainValidationError("Invalid content_type.")
 
 @dataclass
+class UpdateLessonCommand:
+    title: Optional[str] = None
+    position: Optional[int] = None
+    content_type: Optional[str] = None
+
+    def validate(self):
+        pass
+
+@dataclass
+class PublishLessonCommand:
+    published: bool
+
+    def validate(self):
+        pass
+
+@dataclass
+class ReorderLessonsCommand:
+    order_map: Dict[str, int]
+
+    def validate(self):
+        if not isinstance(self.order_map, dict):
+            raise DomainValidationError("order_map must be a dictionary.")
+
+# -----------------------
+# Lesson Version Commands
+# -----------------------
+
+@dataclass
 class CreateLessonVersionCommand:
     lesson_id: str
     author_id: Optional[int]
-    content: Dict[str, Any]  # overall JSON structure or canonical representation
+    content: Dict[str, Any]
     change_summary: Optional[str] = None
 
     def validate(self):
         if not self.lesson_id:
             raise DomainValidationError("lesson_id required.")
+        if not isinstance(self.content, dict) or not self.content:
+            raise DomainValidationError("content must be a non-empty object/dict.")
+
+@dataclass
+class UpdateLessonVersionCommand:
+    content: Dict[str, Any]
+
+    def validate(self):
         if not isinstance(self.content, dict):
-            raise DomainValidationError("content must be an object/dict.")
-        # Basic rule: content should contain at least one content block or structured payload.
-        if not self.content:
-            raise DomainValidationError("content must not be empty.")
+            raise DomainValidationError("content must be a dictionary.")
+
+@dataclass
+class ChangeVersionStatusCommand:
+    status: str
+
+    def validate(self):
+        if self.status not in ("draft", "review", "published", "archived"):
+            raise DomainValidationError("Invalid status.")
 
 @dataclass
 class PublishLessonVersionCommand:
@@ -78,6 +194,10 @@ class PublishLessonVersionCommand:
             raise DomainValidationError("lesson_id required.")
         if not isinstance(self.version, int) or self.version < 1:
             raise DomainValidationError("version must be integer >= 1.")
+
+# -----------------------
+# Content Block Commands
+# -----------------------
 
 @dataclass
 class AddContentBlockCommand:
@@ -95,6 +215,27 @@ class AddContentBlockCommand:
             raise DomainValidationError("payload must be dict.")
 
 @dataclass
+class UpdateContentBlockCommand:
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    position: Optional[int] = None
+
+    def validate(self):
+        pass
+
+@dataclass
+class ReorderContentBlocksCommand:
+    order_map: Dict[str, int]
+
+    def validate(self):
+        if not isinstance(self.order_map, dict):
+            raise DomainValidationError("order_map must be a dictionary.")
+
+# -----------------------
+# Exploration Commands
+# -----------------------
+
+@dataclass
 class CreateExplorationCommand:
     title: str
     owner_id: Optional[int]
@@ -107,6 +248,21 @@ class CreateExplorationCommand:
             raise DomainValidationError("Exploration title required.")
         if not isinstance(self.schema_version, int) or self.schema_version < 1:
             raise DomainValidationError("schema_version must be >=1.")
+
+@dataclass
+class UpdateExplorationCommand:
+    title: Optional[str] = None
+    language: Optional[str] = None
+
+    def validate(self):
+        pass
+
+@dataclass
+class PublishExplorationCommand:
+    published: bool
+
+    def validate(self):
+        pass
 
 @dataclass
 class AddExplorationStateCommand:
@@ -122,6 +278,15 @@ class AddExplorationStateCommand:
             raise DomainValidationError("state name required.")
         if not isinstance(self.content, dict) or not isinstance(self.interaction, dict):
             raise DomainValidationError("content and interaction must be dicts.")
+
+@dataclass
+class UpdateExplorationStateCommand:
+    name: Optional[str] = None
+    content: Optional[Dict[str, Any]] = None
+    interaction: Optional[Dict[str, Any]] = None
+
+    def validate(self):
+        pass
 
 @dataclass
 class AddExplorationTransitionCommand:

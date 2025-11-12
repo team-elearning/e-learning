@@ -1,13 +1,14 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
+from typing import Optional, List, Dict, Any, Iterable, Tuple, TYPE_CHECKING
 from collections import deque
 
 from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
-from content.domains.lesson_domain import LessonVersionDomain
-from content.domains.value_objects import AddContentBlockCommand
+from content.domains.commands import AddContentBlockCommand
 
+if TYPE_CHECKING:
+    from content.domains.lesson_version_domain import LessonVersionDomain
 
 
 class ContentBlockDomain:
@@ -102,7 +103,7 @@ class ContentBlockDomain:
     
 
 class CreateContentBlockDomain:
-    def __init__(self, version: LessonVersionDomain):
+    def __init__(self, version: "LessonVersionDomain"):
         self.version = version
 
     def execute(self, command: AddContentBlockCommand) -> ContentBlockDomain:
@@ -113,7 +114,7 @@ class CreateContentBlockDomain:
         return new_block
 
 class UpdateContentBlockDomain:
-    def __init__(self, version: LessonVersionDomain):
+    def __init__(self, version: "LessonVersionDomain"):
         self.version = version
 
     def execute(self, block_id: str, new_payload: Dict[str, Any]) -> ContentBlockDomain:
@@ -127,7 +128,7 @@ class UpdateContentBlockDomain:
         return updated_block
 
 class ReorderContentBlocksDomain:
-    def __init__(self, version: LessonVersionDomain):
+    def __init__(self, version: "LessonVersionDomain"):
         self.version = version
 
     def execute(self, new_order: List[str]) -> List[ContentBlockDomain]:

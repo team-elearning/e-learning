@@ -1,5 +1,14 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from custom_account.services import user_service
+
+class IsAdminOrReadOnly(BasePermission):
+    """
+    Custom permission to allow read-only access to any user, but only allow write access to admin users.
+    """
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return request.user and request.user.is_staff
 
 class RestrictRoles(BasePermission):
     """
@@ -52,3 +61,28 @@ class IsSelf(BasePermission):
         # obj ở đây là instance của UserModel
         return obj.id == request.user.id
 
+class IsOwnerOrAdmin(BasePermission):
+    """
+    Custom permission to only allow owners of an object or admin users to edit it.
+    Assumes the model instance has an `owner` attribute.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # Read permissions are allowed to any request,
+        # so we'll always allow GET, HEAD or OPTIONS requests.
+        if request.method in SAFE_METHODS:
+            return True
+
+        # For objects that don't have an owner (like a Module, which belongs to a Course),
+        # we might need to check the owner of the parent object.
+        # The view should handle passing the correct object (e.g., the course) to check.
+        # This default implementation assumes `obj` has an `owner` attribute.
+        
+        owner_attr = getattr(obj, 'owner', None)
+
+        # If the object itself doesn't have an owner, deny access for safety,
+        # unless the user is an admin.
+        if owner_attr is None:
+            return request.user.is_staff
+
+        return owner_attr == request.user or request.user.is_staff

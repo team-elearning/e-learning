@@ -2,8 +2,9 @@ from typing import List, Optional
 from django.db import transaction
 
 from content.models import ContentBlock, LessonVersion
-from content.domains.content_block_domain import (
-    ContentBlockDomain, CreateContentBlockDomain, UpdateContentBlockDomain, ReorderContentBlocksDomain
+from content.domains.content_block_domain import ContentBlockDomain
+from content.domains.commands import (
+    AddContentBlockCommand, UpdateContentBlockCommand, ReorderContentBlocksCommand
 )
 
 
@@ -11,7 +12,7 @@ class ContentBlockService:
     """Service for managing content blocks inside a lesson version."""
 
     @transaction.atomic
-    def create_block(self, input_data: CreateContentBlockDomain) -> ContentBlockDomain:
+    def create_block(self, input_data: AddContentBlockCommand) -> ContentBlockDomain:
         input_data.validate()
         lesson_version = LessonVersion.objects.get(id=input_data.lesson_version_id)
         block = ContentBlock.objects.create(
@@ -26,7 +27,7 @@ class ContentBlockService:
         return [ContentBlockDomain.from_model(b) for b in ContentBlock.objects.filter(lesson_version_id=lesson_version_id)]
 
     @transaction.atomic
-    def update_block(self, block_id: str, update_data: UpdateContentBlockDomain) -> Optional[ContentBlockDomain]:
+    def update_block(self, block_id: str, update_data: UpdateContentBlockCommand) -> Optional[ContentBlockDomain]:
         try:
             block = ContentBlock.objects.get(id=block_id)
         except ContentBlock.DoesNotExist:
@@ -39,7 +40,7 @@ class ContentBlockService:
         return ContentBlockDomain.from_model(block)
 
     @transaction.atomic
-    def reorder_blocks(self, lesson_version_id: str, reorder_data: ReorderContentBlocksDomain) -> None:
+    def reorder_blocks(self, lesson_version_id: str, reorder_data: ReorderContentBlocksCommand) -> None:
         reorder_data.validate()
         for block_id, pos in reorder_data.order_map.items():
             ContentBlock.objects.filter(id=block_id, lesson_version_id=lesson_version_id).update(position=pos)
