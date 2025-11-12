@@ -118,6 +118,7 @@
             </div>
           </div>
 
+          <!-- Nút hành động -->
           <div class="flex shrink-0 gap-2 w-full sm:w-auto">
             <button
               class="flex-1 sm:flex-none rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 active:bg-slate-100"
@@ -127,9 +128,9 @@
             </button>
             <button
               class="flex-1 sm:flex-none rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 active:bg-slate-100"
-              @click="openGrading(e.id)"
+              @click="openScores(e.id)"
             >
-              Chấm
+              Xem điểm
             </button>
           </div>
         </article>
@@ -186,7 +187,6 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-/** ===== Types ===== */
 type ExamStatus = 'published' | 'draft'
 type ExamRow = {
   id: number
@@ -200,12 +200,10 @@ type ExamRow = {
   updatedAt: string
 }
 
-/** ===== Router ===== */
 const router = useRouter()
 
-/** ===== State (filters + paging) ===== */
 const q = ref('')
-const status = ref<'' | ExamStatus>('')        // '' = tất cả
+const status = ref<'' | ExamStatus>('')
 const sort = ref<'updated' | 'title' | 'subs'>('updated')
 
 const page = ref(1)
@@ -215,28 +213,19 @@ const total = ref(0)
 const loading = ref(true)
 const items = ref<ExamRow[]>([])
 
-/** ===== Responsive helpers ===== */
 const isCompact = ref(false)
-function updateCompactFlag() {
-  isCompact.value = window.innerWidth < 640
-}
+function updateCompactFlag() { isCompact.value = window.innerWidth < 640 }
 
-/** ===== Service adapter (không sửa service) ===== */
+/** Service adapter */
 type ServiceList = (params?: { level?: any; q?: string }) => Promise<any[]>
 let serviceList: ServiceList | undefined
-
 async function tryInitService() {
   try {
     const mod = await import('@/services/exam.service')
-    if (mod?.examService?.list) {
-      serviceList = mod.examService.list as ServiceList
-    }
-  } catch {
-    // giữ fallback mock
-  }
+    if (mod?.examService?.list) serviceList = mod.examService.list as ServiceList
+  } catch {}
 }
 
-/** Map ExamSummary(service) -> ExamRow(component) */
 function mapSummaryToRow(s: any): ExamRow {
   const durMin = Math.max(1, Math.round((Number(s.durationSec) || 0) / 60))
   const st: ExamStatus = s.status === 'published' ? 'published' : 'draft'
@@ -254,7 +243,7 @@ function mapSummaryToRow(s: any): ExamRow {
   }
 }
 
-/** ===== Mock (ổn định) ===== */
+/** Mock */
 function mockPool(): ExamRow[] {
   return Array.from({ length: 42 }).map((_, i) => {
     const id = i + 1
@@ -273,13 +262,11 @@ function mockPool(): ExamRow[] {
   })
 }
 
-/** Lọc + sắp xếp + phân trang (dùng chung) */
 function applyViewParams(
   all: ExamRow[],
   params: { q?: string; status?: '' | ExamStatus; sort?: 'updated'|'title'|'subs'; page?: number; pageSize?: number }
 ) {
   let filtered = all.slice()
-
   if (params.q) {
     const key = params.q.toLowerCase()
     filtered = filtered.filter(e =>
@@ -287,20 +274,15 @@ function applyViewParams(
     )
   }
   if (params.status) filtered = filtered.filter(e => e.status === params.status)
-
   if (params.sort === 'title') filtered.sort((a,b)=>a.title.localeCompare(b.title))
   else if (params.sort === 'subs') filtered.sort((a,b)=>b.submissions - a.submissions)
 
   const pg = params.page ?? 1
   const size = params.pageSize ?? 10
   const start = (pg - 1) * size
-  return {
-    items: filtered.slice(start, start + size),
-    total: filtered.length
-  }
+  return { items: filtered.slice(start, start + size), total: filtered.length }
 }
 
-/** ===== Fetch (token chống race) ===== */
 let fetchToken = 0
 async function fetchList(p = page.value) {
   const token = ++fetchToken
@@ -315,7 +297,6 @@ async function fetchList(p = page.value) {
     } else {
       pool = mockPool()
     }
-
     const res = applyViewParams(pool, {
       q: q.value || undefined,
       status: status.value,
@@ -331,14 +312,12 @@ async function fetchList(p = page.value) {
   }
 }
 
-/** Debounce search */
 let debounceTimer: number | null = null
 function debouncedFetch() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = window.setTimeout(() => fetchList(1), 250) as unknown as number
 }
 
-/** Pager helpers */
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 const pagesToShow = computed(() => {
   const max = totalPages.value
@@ -365,9 +344,9 @@ const pagesToShow = computed(() => {
 /** Actions */
 function createExam()           { router.push({ path: '/teacher/exams/new' }) }
 function openDetail(id: number) { router.push({ path: `/teacher/exams/${id}` }) }
-function openGrading(id: number){ router.push({ path: `/teacher/exams/${id}/grading` }) }
+/** “Xem điểm” đưa tới trang danh sách bài nộp (grading) để xem điểm */
+function openScores(id: number) { router.push({ path: `/teacher/exams/${id}/grading` }) }
 
-/** Mount */
 function onResize() { updateCompactFlag() }
 onMounted(async () => {
   updateCompactFlag()
@@ -375,7 +354,6 @@ onMounted(async () => {
   await tryInitService()
   fetchList(1)
 })
-
 onBeforeUnmount(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
   window.removeEventListener('resize', onResize)
@@ -389,15 +367,14 @@ onBeforeUnmount(() => {
 .select-base{
   @apply w-full rounded-2xl border border-slate-200 bg-white px-3 pr-8 py-2 text-sm leading-6 outline-none;
   @apply focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400;
-  appearance: none;          /* Chrome/Safari */
-  -webkit-appearance: none;  /* iOS Safari */
-  -moz-appearance: none;     /* Firefox */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   background-image: none;
 }
 .select-chevron{
   @apply pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400;
 }
 
-/* Improve momentum scroll for pager row */
 [role="navigation"] { -webkit-overflow-scrolling: touch; }
 </style>

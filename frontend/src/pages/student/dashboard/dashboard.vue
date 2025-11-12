@@ -167,12 +167,13 @@ function onResume() {
   openCourse(Number(resumeCourse.value.id))
 }
 function openExamsList() {
-  if (hasRoute('student-exams')) router.push({ name: 'student-exams' })
-  else router.push('/student/exams') // đổi path đúng với router của bạn
+  if (hasRoute('student-practice')) router.push({ name: 'student-practice' })
+  else router.push('/student/practice')
 }
 function openExamDetail(id: number | string) {
-  if (hasRoute('student-exam-detail')) router.push({ name: 'student-exam-detail', params: { id } })
-  else router.push(`/student/exams/${id}`)
+  if (hasRoute('student-practice-taking'))
+    router.push({ name: 'student-practice-taking', params: { examId: id } })
+  else router.push(`/student/practice/${id}/taking`)
 }
 
 onMounted(async () => {

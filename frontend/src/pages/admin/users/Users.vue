@@ -79,10 +79,10 @@
       </div>
       <div class="flex items-center gap-2">
         <el-dropdown trigger="click">
-          <el-button :disabled="selection.length === 0">
+          <!-- <el-button :disabled="selection.length === 0">
             Thao tác hàng loạt
             <el-icon class="i-ep-arrow-down ml-1" />
-          </el-button>
+          </el-button> -->
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="bulkChangeRole">Đổi vai trò…</el-dropdown-item>
@@ -492,15 +492,41 @@ const form = reactive<User>({
   createdAt: new Date().toISOString(),
 })
 const rules = {
-  name: [{ required: true, message: 'Nhập họ tên', trigger: 'blur' }],
   username: [{ required: true, message: 'Nhập username', trigger: 'blur' }],
+
   email: [
     { required: true, message: 'Nhập email', trigger: 'blur' },
     { type: 'email', message: 'Email không hợp lệ', trigger: 'blur' },
   ],
+
+  phone: [
+    {
+      validator: (_: any, value: string, callback: (error?: Error) => void) => {
+        if (!value) return callback() // cho phép bỏ trống
+        const regex = /^[0-9]{10}$/
+        if (!regex.test(value)) callback(new Error('Số điện thoại phải đúng 10 chữ số'))
+        else callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+
+  password: [
+    {
+      required: true,
+      message: 'Nhập mật khẩu',
+      trigger: 'blur',
+    },
+    {
+      min: 6,
+      message: 'Mật khẩu phải ít nhất 6 ký tự',
+      trigger: 'blur',
+    },
+  ],
+
   role: [{ required: true, message: 'Chọn vai trò', trigger: 'change' }],
-  status: [{ required: true, message: 'Chọn trạng thái', trigger: 'change' }],
 }
+
 const saving = ref(false)
 const showPassword = ref(false)
 
@@ -552,9 +578,9 @@ async function submitForm() {
     }
     formDialog.open = false
     fetchList() // Refresh danh sách sau khi tạo/cập nhật
-  } catch (error) {
-    console.error('Error saving user:', error)
-    ElMessage.error('Không thể lưu dữ liệu')
+  } catch (error: any) {
+    /// ElMessage.error(error.customMessage || 'Không thể lưu dữ liệu')
+    console.error(error)
   } finally {
     saving.value = false
   }
@@ -626,6 +652,16 @@ async function exportCsv() {
   } finally {
     loadingExport.value = false
   }
+}
+
+function translateMessage(message: string): string {
+  const translations: Record<string, string> = {
+    'Email already taken': 'Email đã tồn tại',
+    'Username already taken': 'Username đã tồn tại',
+    'Invalid email': 'Email không hợp lệ',
+    'Password is too weak': 'Mật khẩu quá yếu',
+  }
+  return translations[message] || message
 }
 
 onMounted(fetchList)

@@ -9,10 +9,13 @@
           <div class="qr-left">
             <div class="qr-wrap">
               <img :src="qrUrl" alt="VietQR" />
+              <div v-if="isExpired" class="expired-overlay">
+                <div class="expired-text">Hết hạn</div>
+              </div>
             </div>
 
             <div class="qr-actions">
-              <button class="btn-outline" @click="downloadQR">Tải QR</button>
+              <button class="btn-outline" @click="downloadQR" :disabled="isExpired">Tải QR</button>
               <button class="btn-light" @click="refreshOrder">Tạo mã mới</button>
               <div class="muted small">Hết hạn trong: <b>{{ mm }}:{{ ss }}</b></div>
             </div>
@@ -30,7 +33,7 @@
 
             <div class="field">
               <span class="label">Ngân hàng</span>
-              <select v-model="bank" class="input select">
+              <select v-model="bank" class="input select" :disabled="isExpired">
                 <option v-for="b in banks" :key="b.code" :value="b.code">{{ b.name }}</option>
               </select>
             </div>
@@ -39,14 +42,14 @@
               <div class="field">
                 <span class="label">Số tài khoản</span>
                 <div class="copy-line">
-                  <input v-model="account" class="input" />
-                  <button class="copy" @click="copy(account)">Copy</button>
+                  <input v-model="account" class="input" :disabled="isExpired" />
+                  <button class="copy" @click="copy(account)" :disabled="isExpired">Copy</button>
                 </div>
               </div>
 
               <div class="field">
                 <span class="label">Chủ tài khoản</span>
-                <input v-model="accountName" class="input" />
+                <input v-model="accountName" class="input" :disabled="isExpired" />
               </div>
             </div>
 
@@ -54,8 +57,8 @@
             <div class="field">
               <span class="label">Nội dung chuyển khoản</span>
               <div class="copy-line">
-                <input v-model="orderNote" class="input" />
-                <button class="copy" @click="copy(orderNote)">Copy</button>
+                <input v-model="orderNote" class="input" :disabled="isExpired" />
+                <button class="copy" @click="copy(orderNote)" :disabled="isExpired">Copy</button>
               </div>
               <small class="muted">Vui lòng giữ nguyên đúng nội dung để tự động đối soát.</small>
             </div>
@@ -69,6 +72,7 @@
                 class="input right"
                 inputmode="numeric"
                 placeholder="Nhập số tiền, ví dụ 215000"
+                :disabled="isExpired"
               />
               <small class="muted">Chỉ nhập chữ số.</small>
             </div>
@@ -78,6 +82,7 @@
                 class="btn-primary" 
                 :class="{ 'is-busy': justMarked }"
                 @click="markPaid"
+                :disabled="isExpired || justMarked"
               >
                 <span v-if="justMarked" class="spinner"></span>
                 {{ justMarked ? 'Đang xử lý...' : 'Tôi đã thanh toán' }}
@@ -111,24 +116,18 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
-/** ==== Config (đổi lại cho đúng) ==== */
+/** ==== Config - CHỈ 3 NGÂN HÀNG ==== */
 const banks = [
-  { code: 'vcb', name: 'Vietcombank' },
   { code: 'mbbank', name: 'MBBank' },
+  { code: 'vcb', name: 'Vietcombank' },
   { code: 'tcb', name: 'Techcombank' },
-  { code: 'bidv', name: 'BIDV' },
-  { code: 'vtb', name: 'VietinBank' },
-  { code: 'acb', name: 'ACB' },
-  { code: 'tpb', name: 'TPBank' },
-  { code: 'vpbank', name: 'VPBank' },
-  { code: 'agribank', name: 'Agribank' },
 ]
 
 const bank = ref('mbbank')
 const account = ref('0966148388')
 const accountName = ref('Vu Le Kien')
 
-/** Đọc amount & plan từ query (nếu không có → mặc định) */
+/** Đọc amount & plan từ query */
 const plan = ref(String(route.query.plan || 'Khoá học Standard'))
 const amountText = ref(String(route.query.amount || '199000'))
 
@@ -164,6 +163,7 @@ function createOrderId(){
 /** Copy */
 const copied = ref('')
 async function copy(text:string){
+  if(isExpired.value) return
   try{ await navigator.clipboard.writeText(text); copied.value = text; setTimeout(()=>copied.value='',1500) }catch{}
 }
 
@@ -174,10 +174,20 @@ onMounted(()=>{ timer=setInterval(()=>{ if(seconds.value>0) seconds.value-- },10
 onBeforeUnmount(()=>clearInterval(timer))
 const mm = computed(()=> String(Math.floor(seconds.value/60)).padStart(2,'0'))
 const ss = computed(()=> String(seconds.value%60).padStart(2,'0'))
-function refreshOrder(){ orderId.value=createOrderId(); orderNote.value=`HOCVIEN-${orderId.value}`; seconds.value=600 }
+
+/** Kiểm tra hết hạn */
+const isExpired = computed(() => seconds.value <= 0)
+
+function refreshOrder(){ 
+  orderId.value=createOrderId()
+  orderNote.value=`HOCVIEN-${orderId.value}`
+  seconds.value=600
+  justMarked.value = false
+}
 
 /** Download QR */
 async function downloadQR(){
+  if(isExpired.value) return
   try{
     const res = await fetch(qrUrl.value, { mode:'cors' })
     const blob = await res.blob()
@@ -191,7 +201,11 @@ async function downloadQR(){
 
 /** Mock */
 const justMarked = ref(false)
-function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=false,3000) }
+function markPaid(){ 
+  if(isExpired.value) return
+  justMarked.value=true
+  setTimeout(()=>justMarked.value=false,3000)
+}
 </script>
 
 <style>
@@ -211,8 +225,27 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 
 /* Left card */
 .qr-card{ display:grid; grid-template-columns: 320px 1fr; gap:16px; }
-.qr-wrap{ width:100%; aspect-ratio:1/1; border:1px dashed var(--line); border-radius:14px; display:grid; place-items:center; overflow:hidden; }
+.qr-wrap{ width:100%; aspect-ratio:1/1; border:1px dashed var(--line); border-radius:14px; display:grid; place-items:center; overflow:hidden; position:relative; }
 .qr-wrap img{ width:100%; height:100%; object-fit:contain; }
+
+/* Expired overlay */
+.expired-overlay{ 
+  position:absolute; 
+  inset:0; 
+  background:rgba(0,0,0,.7); 
+  display:grid; 
+  place-items:center; 
+  border-radius:14px;
+}
+.expired-text{ 
+  color:#fff; 
+  font-size:24px; 
+  font-weight:800; 
+  background:rgba(220,38,38,.9); 
+  padding:12px 24px; 
+  border-radius:10px;
+}
+
 .qr-actions{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; margin-top:10px; }
 .small{ font-size:12px; }
 .muted{ color:var(--muted); }
@@ -227,7 +260,9 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 .input{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; outline:none; transition: all 0.2s ease; }
 .input.right{ text-align:right; }
 .input:focus{ border-color:var(--focus-border); box-shadow:0 0 0 3px var(--focus-ring); }
+.input:disabled{ background:#f9fafb; color:var(--muted); cursor:not-allowed; }
 .select{ appearance:none; background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat:no-repeat; }
+.select:disabled{ background-color:#f9fafb; }
 
 .row-2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
 
@@ -236,6 +271,7 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 .copy-line .input{ padding-right: 96px; }
 .copy{ position:absolute; right:6px; top:50%; transform:translateY(-50%); border:1px solid var(--line); padding:6px 10px; background:#fff; border-radius:8px; cursor:pointer; font-weight:700; transition: all 0.2s ease; }
 .copy:hover{ background:#f9fafb; }
+.copy:disabled{ background:#f9fafb; color:var(--muted); cursor:not-allowed; }
 
 /* ===========================
    BUTTONS - DÙNG !IMPORTANT
@@ -266,6 +302,13 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
   cursor: progress !important;
 }
 
+.btn-primary:disabled{
+  background: var(--muted) !important;
+  border-color: var(--muted) !important;
+  cursor: not-allowed !important;
+  opacity: .5 !important;
+}
+
 .btn-outline, .btn-light{ 
   background:#fff !important; 
   border:1px solid var(--line) !important; 
@@ -278,6 +321,12 @@ function markPaid(){ justMarked.value=true; setTimeout(()=>justMarked.value=fals
 }
 .btn-outline:hover, .btn-light:hover{ 
   background:#f9fafb !important; 
+}
+.btn-outline:disabled, .btn-light:disabled{
+  background:#f9fafb !important;
+  color:var(--muted) !important;
+  cursor:not-allowed !important;
+  opacity:.5 !important;
 }
 
 .actions{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }

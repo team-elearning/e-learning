@@ -6,7 +6,7 @@
         <h1 class="text-xl font-semibold sm:text-2xl">Học sinh</h1>
       </div>
 
-      <!-- Tools -->
+      <!-- Tools --> 
       <div class="mb-5 grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-4">
         <!-- Search -->
         <div class="md:col-span-2">

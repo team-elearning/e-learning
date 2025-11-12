@@ -3,7 +3,7 @@
     <div class="exam-container">
       <header class="exam-header">
         <div class="exam-info">
-          <h1 class="exam-title">{{ exam?.title || 'Đề luyện tập' }}</h1>
+          <h1 class="exam-title">{{ exam?.title || `Đề thi #${route.params.id}` }}</h1>
           <p class="exam-meta">
             <span>{{ labelLevel(exam?.level) }}</span>
             <span>{{ Math.round((exam?.durationSec || 0) / 60) }} phút</span>

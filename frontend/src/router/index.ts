@@ -78,7 +78,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/users/UserDetail.vue'),
         // meta: { title: (to: any) => `Người dùng #${to.params.id}` },
         meta: { title: `Hồ sơ người dùng` },
-
       },
 
       // Courses
@@ -162,7 +161,7 @@ const routes: RouteRecordRaw[] = [
     component: TeacherLayout,
     meta: { role: 'instructor' },
     children: [
-      { path: '', redirect: '/instructor/dashboard' },
+      { path: '', redirect: '/teacher/dashboard' },
       {
         path: 'dashboard',
         component: () => import('@/pages/teacher/dashboard/dashboard.vue'),
@@ -257,6 +256,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Chấm bài' },
       },
       {
+        path: 'exams/:examId/submissions/:submissionId',
+        name: 'teacher-exam-submission-view',
+        component: () => import('@/pages/teacher/exams/SubmissionView.vue'),
+        props: true,
+        meta: { title: (to: any) => `Bài nộp #${to.params.submissionId}` },
+      },
+      {
         path: 'reports',
         name: 'teacher-reports',
         component: () => import('@/pages/teacher/exams/ExamReports.vue'),
@@ -328,19 +334,44 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Lộ trình học' },
       },
 
-      // Exams
+      // Practice Exams (Ôn luyện)
+      {
+        path: 'practice',
+        name: 'student-practice',
+        component: () => import('@/pages/student/exams/PracticeExams.vue'),
+        meta: { title: 'Ôn luyện' },
+      },
+      {
+        path: 'practice/:examId/taking',
+        name: 'student-practice-taking',
+        component: () => import('@/pages/student/exams/ExamTaking.vue'),
+        props: true,
+        meta: { title: 'Làm bài luyện tập' },
+      },
+      
+      // Official Tests (Thi chính thức)
+      {
+        path: 'tests',
+        name: 'student-tests',
+        component: () => import('@/pages/student/exams/ExamList.vue'),
+        meta: { title: 'Danh sách đề thi' },
+      },
+      {
+        path: 'tests/:id',
+        name: 'student-test-taking',
+        component: () => import('@/pages/student/exams/ExamDetail.vue'),
+        props: true,
+        meta: { title: (to: any) => `Đề thi #${to.params.id}` },
+      },
+      
+      // Legacy routes for backward compatibility
       {
         path: 'exams',
-        name: 'student-exams',
-        component: () => import('@/pages/student/exams/PracticeExams.vue'),
-        meta: { title: 'Luyện đề' },
+        redirect: '/student/practice',
       },
       {
         path: 'exams/:id',
-        name: 'student-exam-detail',
-        component: () => import('@/pages/student/exams/ExamDetail.vue'),
-        props: true,
-        meta: { title: (to: any) => `Đề #${to.params.id}` },
+        redirect: (to) => `/student/tests/${to.params.id}`,
       },
       {
         path: 'exams/:id/result',
@@ -421,39 +452,67 @@ const router = createRouter({
 })
 
 // Guard đơn giản theo role + tự hydrate từ localStorage
+// router.beforeEach((to, _from, next) => {
+//   const auth = useAuthStore()
+//   if (!auth.user) auth.hydrateFromStorage()
+
+//   console.log('User role:', auth.user?.role)
+
+//   // Đã đăng nhập mà vào /auth → đẩy về khu đúng role
+//   if (to.path.startsWith('/auth') && auth.user) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   // Chưa đăng nhập mà vào khu riêng → đẩy về login
+//   const needRole = to.meta.role as 'admin' | 'instructor' | 'student' | undefined
+//   if (needRole && !auth.user) {
+//     next('/auth/login')
+//     return
+//   }
+
+//   // Sai role → đẩy về khu đúng
+//   if (needRole && auth.user && auth.user.role !== needRole) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   // Nếu đang ở "/" mà đã login → về dashboard theo role
+//   if (to.path === '/' && auth.user) {
+//     auth.redirectByRole(auth.user.role)
+//     return
+//   }
+
+//   next()
+// })
+
 router.beforeEach((to, _from, next) => {
   const auth = useAuthStore()
-  if (!auth.user) auth.hydrateFromStorage()
+  auth.hydrateFromStorage()
 
-  console.log('User role:', auth.user?.role)
+  const requiredRole = to.meta.role
+  const isLoggedIn = !!auth.user
 
-  // Đã đăng nhập mà vào /auth → đẩy về khu đúng role
-  if (to.path.startsWith('/auth') && auth.user) {
-    auth.redirectByRole(auth.user.role)
+  // Nếu route yêu cầu login và chưa login -> redirect login
+  if (requiredRole && !isLoggedIn) {
+    return next('/auth/login')
+  }
+
+  // Nếu user login nhưng vào /auth -> redirect theo role
+  if (to.path.startsWith('/auth') && isLoggedIn) {
+    auth.redirectByRole(auth.user!.role)
     return
   }
 
-  // Chưa đăng nhập mà vào khu riêng → đẩy về login
-  const needRole = to.meta.role as 'admin' | 'instructor' | 'student' | undefined
-  if (needRole && !auth.user) {
-    next('/auth/login')
-    return
-  }
-
-  // Sai role → đẩy về khu đúng
-  if (needRole && auth.user && auth.user.role !== needRole) {
-    auth.redirectByRole(auth.user.role)
-    return
-  }
-
-  // Nếu đang ở "/" mà đã login → về dashboard theo role
-  if (to.path === '/' && auth.user) {
-    auth.redirectByRole(auth.user.role)
+  // Chặn sai role, ví dụ teacher / admin swap đường dẫn
+  if (requiredRole && auth.user?.role !== requiredRole) {
+    auth.redirectByRole(auth.user!.role)
     return
   }
 
   next()
 })
+
 router.afterEach((to) => {
   // tìm route con có meta.title gần nhất
   const r = [...to.matched].reverse().find((r) => (r.meta as any)?.title !== undefined)

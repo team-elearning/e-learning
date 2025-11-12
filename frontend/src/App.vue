@@ -14,6 +14,8 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import { ElConfigProvider } from 'element-plus'
+import { useIdleLogout } from './composables/useIdleLogout'
+useIdleLogout(15) // 15 phút không hoạt động -> cảnh báo -> logout
 </script>
 
 <style>
