@@ -101,6 +101,44 @@ class ContentBlockDomain:
         return cls(lesson_version_id=str(getattr(model,'lesson_version_id', None) or ""),
                    type=model.type, position=model.position, payload=model.payload, id=str(model.id))
     
+    def to_model(self):
+        """
+        Chuyển Domain object thành một Model instance (chưa lưu).
+        Lưu ý: Service sẽ gán 'lesson_version' (FK object) sau.
+        """
+        # Import cục bộ để tránh circular dependency
+        from content.models import ContentBlock 
+        
+        return ContentBlock(
+            id=self.id,
+            # Service (hàm create_block) sẽ gán lesson_version (object)
+            type=self.type,
+            position=self.position,
+            payload=self.payload
+        )
+
+    def apply_updates(self, updates: Dict[str, Any]):
+        """
+        Áp dụng các thay đổi từ dict và validate lại.
+        (Tương tự như UserDomain.apply_updates)
+        """
+        has_payload_update = False
+        
+        for key, value in updates.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+                if key == 'payload':
+                    has_payload_update = True
+
+        # 1. Validate lại các trường cơ bản
+        self.validate_basic()
+        
+        # 2. Chỉ validate payload nếu:
+        #    - payload được cập nhật,
+        #    - hoặc 'type' bị thay đổi (vì có thể làm payload cũ bị sai)
+        if has_payload_update or 'type' in updates:
+            self.validate_payload()
+    
 
 class CreateContentBlockDomain:
     def __init__(self, version: "LessonVersionDomain"):

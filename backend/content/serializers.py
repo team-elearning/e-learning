@@ -184,6 +184,16 @@ class ContentBlockSerializer(serializers.ModelSerializer):
     @staticmethod
     def from_domain(domain: ContentBlockDomain) -> Dict[str, Any]:
         return domain.to_dict()
+    
+
+class ReorderBlocksSerializer(serializers.Serializer):
+    """
+    Serializer này CHỈ dùng để validate payload cho việc sắp xếp lại.
+    """
+    ordered_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=True  # Cho phép gửi một list rỗng (nếu logic nghiệp vụ cho phép)
+    )
 
 
 class LessonVersionSerializer(serializers.ModelSerializer):

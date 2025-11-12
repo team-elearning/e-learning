@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from content.serializers import LessonVersionSerializer, SetStatusSerializer, LessonVersionCreateSerializer, LessonVersionUpdateSerializer
 from content.services import lesson_version_service 
 from content.api.mixins import RoleBasedOutputMixin, LessonPermissionMixin
-from content.api.dtos.lesson_version_dtos import LessonVersionOutput, LessonVersionInput, LessonVersionUpdateInput, SetStatusInput
+from content.api.dtos.lesson_version_dto import LessonVersionOutput, LessonVersionInput, LessonVersionUpdateInput, SetStatusInput
 from content.services import exceptions as lesson_exceptions
 from content.models import LessonVersion
 from content.api.permissions import IsInstructor

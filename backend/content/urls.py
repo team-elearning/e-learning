@@ -8,6 +8,7 @@ from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDet
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
 from content.api.views.lesson_version_view import AdminLessonVersionDetailView, AdminLessonVersionListCreateView, AdminLessonVersionSetStatusView, InstructorLessonVersionDetailView, InstructorLessonVersionListCreateView, InstructorLessonVersionSetStatusView
+from content.api.views.content_block_view import PublicLessonBlockListView, AdminContentBlockDetailView, AdminContentBlockReorderView, AdminLessonVersionContentBlockListView, InstructorContentBlockDetailView, InstructorContentBlockReorderView, InstructorLessonVersionContentBlockListView
 
 
 
@@ -31,6 +32,9 @@ urlpatterns = [
 
     # Lesson - content
     path('lessons/<uuid:lesson_id>/content/', LessonContentView.as_view(), name='lesson-content'),
+
+    # Content - block
+    path('lesson-versions/<uuid:lesson_version_id>/blocks/', PublicLessonBlockListView.as_view(), name='public-block-list'),
 
     # ---------------------------- ADMIN ---------------------------------------
     path("admin/categories/", AdminCategoryListView.as_view(), name="admin-category-list"),
@@ -58,6 +62,10 @@ urlpatterns = [
     path('admin/lesson-versions/<uuid:pk>/', AdminLessonVersionDetailView.as_view(), name='admin-lesson-version-detail'),
     path('admin/lesson-versions/<uuid:pk>/set_status/', AdminLessonVersionSetStatusView.as_view(), name='admin-lesson-version-set-status'),
 
+    path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/', AdminLessonVersionContentBlockListView.as_view(), name='admin-lesson-block-list'),
+    path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', AdminContentBlockReorderView.as_view(), name='admin-block-reorder'),
+    path('admin/content-blocks/<uuid:pk>/', AdminContentBlockDetailView.as_view(), name='admin-block-detail'),
+
     # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
@@ -77,6 +85,10 @@ urlpatterns = [
     path('instructor/lessons/<uuid:lesson_id>/versions/', InstructorLessonVersionListCreateView.as_view(), name='instructor-lesson-version-list-create'),
     path('instructor/lesson-versions/<uuid:pk>/', InstructorLessonVersionDetailView.as_view(), name='instructor-lesson-version-detail'),
     path('instructor/lesson-versions/<uuid:pk>/set_status/', InstructorLessonVersionSetStatusView.as_view(), name='instructor-lesson-version-set-status'),
+
+    path('lesson-versions/<uuid:lesson_version_id>/blocks/', InstructorLessonVersionContentBlockListView.as_view(), name='instructor-lesson-block-list'),   
+    path('lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', InstructorContentBlockReorderView.as_view(), name='instructor-block-reorder'),    
+    path('content-blocks/<uuid:pk>/', InstructorContentBlockDetailView.as_view(), name='instructor-block-detail'),
 
     # # ---------------------------
     # # Search & Utility

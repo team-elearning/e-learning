@@ -125,7 +125,6 @@ class InstructorLessonListView(RoleBasedOutputMixin, ModulePermissionMixin, APIV
             lesson_domains: list[LessonDomain] = self.lesson_service.list_lessons_for_module(
                 module_id=module_id
             )
-            # RoleBasedOutputMixin sẽ tự động dùng LessonAdminOutput
             return Response({"instance": lesson_domains}, status=status.HTTP_200_OK)
         
         except lesson_exceptions.ModuleNotFoundError:
@@ -524,7 +523,7 @@ class AdminLessonDetailView(RoleBasedOutputMixin, APIView):
 # ----------------------------------- LESSON CONTENT -----------------------------------------------------
 class LessonContentView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/v1/lessons/<uuid:lesson_id>/content/
+    GET /lessons/<uuid:lesson_id>/content/
 
     API công khai cho người học (player) đã ghi danh.
     """
@@ -588,7 +587,7 @@ class LessonContentView(RoleBasedOutputMixin, APIView):
 
 class AdminLessonPreviewView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/v1/admin/lessons/<uuid:lesson_id>/preview/
+    GET /admin/lessons/<uuid:lesson_id>/preview/
     
     API nội bộ cho Admin xem trước (preview) bản nháp (draft).
     Luôn trả về phiên bản (version) MỚI NHẤT.
@@ -642,7 +641,7 @@ class AdminLessonPreviewView(RoleBasedOutputMixin, APIView):
 
 class InstructorLessonPreviewView(RoleBasedOutputMixin, LessonPermissionMixin, APIView):
     """
-    GET /api/v1/instructor/lessons/<uuid:lesson_id>/preview/
+    GET /instructor/lessons/<uuid:lesson_id>/preview/
     
     API cho Instructor (Owner) xem trước bản nháp.
     Luôn trả về phiên bản MỚI NHẤT.
@@ -683,7 +682,7 @@ class InstructorLessonPreviewView(RoleBasedOutputMixin, LessonPermissionMixin, A
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        except lesson_exceptions.NoVersionFoundError:
+        except lesson_exceptions.VersionNotFoundError:
             return Response(
                 {"detail": "Bài học này chưa có bất kỳ phiên bản nội dung nào."}, 
                 status=status.HTTP_404_NOT_FOUND
