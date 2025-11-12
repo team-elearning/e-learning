@@ -5,31 +5,21 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from content import models
 from content.serializers import (
-    SubjectSerializer, CourseSerializer, ModuleSerializer, LessonSerializer,
-    LessonVersionSerializer, ContentBlockSerializer, ExplorationSerializer,
-    ExplorationStateSerializer, ExplorationTransitionSerializer,
-    CreateCourseInputSerializer, AddModuleInputSerializer, CreateLessonInputSerializer,
-    CreateLessonVersionInputSerializer, PublishLessonVersionInputSerializer,
-    AddContentBlockInputSerializer, CreateExplorationInputSerializer,
-    AddExplorationStateInputSerializer, AddExplorationTransitionInputSerializer,
-    CourseDetailReadSerializer, ModuleReadSerializer, LessonReadSerializer,
-    LessonVersionReadSerializer
+    ExplorationSerializer,
+    CreateExplorationInputSerializer,
+    FullExplorationSerializer,
 )
 
 from custom_account.api.permissions import IsOwnerOrAdmin
-from content.services.subject_service import SubjectService
-from content.services.course_service import CourseService
-from content.services.module_service import ModuleService
-from content.services.lesson_service import LessonService
-from content.services.lesson_version_service import LessonVersionService
-from content.services.content_block_service import ContentBlockService
 from content.services.exploration_service import (
-    ExplorationService, ExplorationStateService, ExplorationTransitionService
+    ExplorationService
 )
 
+exploration_service = ExplorationService()
 
 
 class ExplorationListCreateView(generics.ListCreateAPIView):
@@ -39,37 +29,73 @@ class ExplorationListCreateView(generics.ListCreateAPIView):
     """
     serializer_class = ExplorationSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    queryset = models.Exploration.objects.filter(published=True)
 
     def get_queryset(self):
-        return models.Exploration.objects.all()
+        user = self.request.user
+        if user.is_authenticated and user.is_staff:
+            return models.Exploration.objects.all()
+        
+        # For anonymous or regular users, only show published explorations
+        return models.Exploration.objects.filter(published=True)
 
     def create(self, request, *args, **kwargs):
         serializer = CreateExplorationInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if 'owner_id' not in serializer.validated_data and request.user.is_authenticated:
+            serializer.validated_data['owner_id'] = request.user.id
         cmd = serializer.to_domain()
-        created_domain = ExplorationService.create_exploration(cmd)
-        return Response(ExplorationSerializer.from_domain(created_domain), status=status.HTTP_201_CREATED)
+        created_domain = exploration_service.create_exploration(cmd)
+        instance = models.Exploration.objects.get(id=created_domain.id)
+        return Response(ExplorationSerializer(instance).data, status=status.HTTP_201_CREATED)
 
 
 class ExplorationDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET /api/explorations/{id}/
-    PATCH /api/explorations/{id}/
+    GET /api/explorations/{id}/ (Returns full exploration structure)
+    PUT /api/explorations/{id}/  (Saves the entire exploration from a giant JSON)
+    PATCH /api/explorations/{id}/ (Saves simple metadata)
     DELETE /api/explorations/{id}/
     """
     queryset = models.Exploration.objects.all()
-    serializer_class = ExplorationSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrAdmin]
+    lookup_field = 'id'
+
+    def get_serializer_class(self):
+        # Use the full serializer for GET to return the entire structure for editing
+        if self.request.method == 'GET':
+            return FullExplorationSerializer
+        # Use the basic serializer for PATCH (metadata updates)
+        return ExplorationSerializer
 
     def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updates = serializer.validated_data
-        updated_domain = exploration_service.update_exploration(exploration_id=instance.id, update_data=updates)
-        if not updated_domain:
-            return Response({"detail": "Cannot update exploration"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(ExplorationSerializer.from_domain(updated_domain))
+        # PUT is for the giant JSON update from the editor
+        if request.method == 'PUT':
+            instance = self.get_object()
+            try:
+                updated_domain = exploration_service.update_exploration_from_json(instance.id, request.data)
+                if not updated_domain:
+                    return Response({"detail": "Update failed"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                updated_instance = exploration_service.get_exploration_details(instance.id)
+                read_serializer = FullExplorationSerializer(updated_instance)
+                return Response(read_serializer.data)
+            except Exception as ex:
+                return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # PATCH is for simple metadata updates
+        return super().update(request, *args, **kwargs)
+
+
+class ExplorationPlayerView(generics.RetrieveAPIView):
+    """
+    GET /api/explorations/{id}/player/
+    Returns the full exploration data structure for the player.
+    """
+    queryset = models.Exploration.objects.filter(published=True)
+    serializer_class = FullExplorationSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'id'
 
 
 class ExplorationPublishView(APIView):
@@ -81,85 +107,43 @@ class ExplorationPublishView(APIView):
     def post(self, request, exploration_id: str):
         publish_flag = request.data.get("published", True)
         try:
-            updated = ExplorationService.publish_exploration(exploration_id=exploration_id, publish_data={"published": publish_flag})
+            # The service should ideally run validation (e.g., graph is valid) before publishing
+            updated = exploration_service.publish_exploration(exploration_id=exploration_id, publish_data={"published": publish_flag})
             if not updated:
-                return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-            return Response(ExplorationSerializer.from_domain(updated))
+                return Response({"detail": "Not found or validation failed"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(ExplorationSerializer(updated).data)
         except Exception as ex:
             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
 
-
-# ---------------------------
-# Exploration State & Transition endpoints
-# ---------------------------
-class ExplorationStateListCreateView(generics.ListCreateAPIView):
+class ExplorationUnpublishView(APIView):
     """
-    GET /api/explorations/{exploration_id}/states/
-    POST /api/explorations/{exploration_id}/states/
+    POST /api/explorations/{id}/unpublish/
     """
-    serializer_class = ExplorationStateSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
-    def get_queryset(self):
-        exploration_id = self.kwargs.get("exploration_id")
-        return models.ExplorationState.objects.filter(exploration_id=exploration_id)
+    def post(self, request, exploration_id: str):
+        try:
+            updated = exploration_service.unpublish_exploration(exploration_id=exploration_id)
+            if not updated:
+                return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(ExplorationSerializer(updated).data)
+        except Exception as ex:
+            return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def create(self, request, exploration_id=None, *args, **kwargs):
-        serializer = AddExplorationStateInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        cmd = serializer.to_domain(exploration_id=exploration_id)
-        created_domain = ExplorationStateService.create_state(cmd)
-        return Response(ExplorationStateSerializer.from_domain(created_domain), status=status.HTTP_201_CREATED)
-
-
-class ExplorationStateDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = models.ExplorationState.objects.all()
-    serializer_class = ExplorationStateSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrAdmin]
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updates = serializer.validated_data
-        updated_domain = exploration_state_service.update_state(state_id=instance.id, update_data=updates)
-        if not updated_domain:
-            return Response({"detail": "Cannot update state"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(ExplorationStateSerializer.from_domain(updated_domain))
-
-
-class ExplorationTransitionListCreateView(generics.ListCreateAPIView):
+class ExplorationMediaUploadView(APIView):
     """
-    GET /api/explorations/{exploration_id}/transitions/
-    POST /api/explorations/{exploration_id}/transitions/
+    POST /api/explorations/{id}/media/upload/
     """
-    serializer_class = ExplorationTransitionSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    parser_classes = [MultiPartParser, FormParser]
 
-    def get_queryset(self):
-        exploration_id = self.kwargs.get("exploration_id")
-        return models.ExplorationTransition.objects.filter(exploration_id=exploration_id)
-
-    def create(self, request, exploration_id=None, *args, **kwargs):
-        serializer = AddExplorationTransitionInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        cmd = serializer.to_domain(exploration_id=exploration_id)
-        created_domain = ExplorationTransitionService.create_transition(cmd)
-        return Response(ExplorationTransitionSerializer.from_domain(created_domain), status=status.HTTP_201_CREATED)
-
-
-class ExplorationTransitionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = models.ExplorationTransition.objects.all()
-    serializer_class = ExplorationTransitionSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrAdmin]
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updates = serializer.validated_data
-        # service may implement update_transition
-        updated_domain = exploration_transition_service.update_transition(transition_id=instance.id, update_data=updates)
-        if not updated_domain:
-            return Response({"detail": "Cannot update transition"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(ExplorationTransitionSerializer.from_domain(updated_domain))
+    def post(self, request, exploration_id: str):
+        # This is a placeholder. A full implementation would handle file storage (e.g., to S3)
+        # and create a StateMedia object.
+        file_obj = request.data.get('file')
+        if not file_obj:
+            return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Dummy response
+        file_url = f"/media/explorations/{exploration_id}/{file_obj.name}"
+        return Response({"filepath": file_url}, status=status.HTTP_201_CREATED)

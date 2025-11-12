@@ -1,11 +1,10 @@
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
-from collections import deque
+from typing import Optional, List, Dict, Any, Tuple
 
 from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
 from content.domains.module_domain import ModuleDomain
+
 
 
 class CourseDomain:
@@ -29,7 +28,9 @@ class CourseDomain:
                  slug: Optional[str] = None,
                  id: Optional[str] = None,
                  published: bool = False,
-                 published_at: Optional[datetime] = None):
+                 published_at: Optional[datetime] = None, 
+                 category_ids: List[str] = None,
+                 tag_ids: List[str] = None):
         self.id = id or str(uuid.uuid4())
         self.title = title
         self.subject_id = subject_id
@@ -38,8 +39,9 @@ class CourseDomain:
         self.owner_id = owner_id
         self.slug = slug
         self.published = published
-        self.published_at = published_at
-        # contained aggregates (in-memory)
+        self.published_at = published_at 
+        self.category_ids = category_ids or []
+        self.tag_ids = tag_ids or []
         self.modules: List["ModuleDomain"] = []
         self.validate()
 
@@ -134,7 +136,7 @@ class CourseDomain:
         if not ok:
             raise InvalidOperation(f"Cannot publish course: {reason}")
         self.published = True
-        self.published_at = str(uuid.uuid4())
+        self.published_at = datetime.datetime.now()
 
     def unpublish(self):
         # no complex rule: unpublish allowed anytime
@@ -153,7 +155,9 @@ class CourseDomain:
             "slug": self.slug,
             "published": self.published,
             "published_at": self.published_at,
-            "modules": [m.to_dict() for m in self.modules]
+            "modules": [m.to_dict() for m in self.modules],
+            "category_ids": self.category_ids,
+            "tag_ids": self.tag_ids,
         }
 
     @classmethod
@@ -162,12 +166,29 @@ class CourseDomain:
         Optional helper: nếu có Django model, mapping sang domain.
         model expected to have attributes and related loaders for modules->lessons->versions.
         """
-        c = cls(title=model.title, subject_id=(str(model.subject.id) if getattr(model,'subject',None) else None),
-                description=model.description, grade=model.grade, owner_id=(getattr(model,'owner',None).id if getattr(model,'owner',None) else None),
-                slug=getattr(model,'slug',None), id=str(model.id), published=model.published, published_at=getattr(model,'published_at',None))
-        # If model has prefetched modules/lessons/versions we can build nested domain objects
+        c = cls(
+            id=str(model.id),
+            title=model.title,
+            
+            # Đọc ID trực tiếp (an toàn hơn getattr)
+            subject_id=str(model.subject_id) if model.subject_id else None,
+            owner_id=model.owner_id if model.owner_id else None,
+            
+            description=model.description,
+            grade=model.grade,
+            slug=model.slug, # Đọc trường slug mới
+            published=model.published,
+            published_at=model.published_at, # Đọc trường published_at mới
+            
+            # Đọc M2M (yêu cầu service phải prefetch)
+            category_ids=[str(cat.id) for cat in model.categories.all()],
+            tag_ids=[str(tag.id) for tag in model.tags.all()]
+        )
+        
+        # Giữ nguyên logic load module của bạn
         if hasattr(model, "modules_prefetched") and model.modules_prefetched:
             for mod_m in model.modules_prefetched:
                 mod_d = ModuleDomain.from_model(mod_m)
                 c.modules.append(mod_d)
+                
         return c

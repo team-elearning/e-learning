@@ -48,25 +48,25 @@ class ClassroomModel(models.Model):
         return self.class_name
 
 
-class Enrollment(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name='enrollments')
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
-    role = models.CharField(max_length=32, default='student')
-    enrolled_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(
-        max_length=32,
-        default='active',
-        choices=[('active', ('Active')), ('pending', ('Pending')), ('dropped', ('Dropped'))]
-    )
+# class Enrollment(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     classroom = models.ForeignKey(ClassroomModel, on_delete=models.CASCADE, related_name='enrollments')
+#     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
+#     role = models.CharField(max_length=32, default='student')
+#     enrolled_at = models.DateTimeField(auto_now_add=True)
+#     status = models.CharField(
+#         max_length=32,
+#         default='active',
+#         choices=[('active', ('Active')), ('pending', ('Pending')), ('dropped', ('Dropped'))]
+#     )
 
-    class Meta:
-        unique_together = ('classroom', 'student')
-        verbose_name = ('Enrollment')
-        verbose_name_plural = ('Enrollments')
+#     class Meta:
+#         unique_together = ('classroom', 'student')
+#         verbose_name = ('Enrollment')
+#         verbose_name_plural = ('Enrollments')
 
-    def __str__(self):
-        return f"{self.student} in {self.classroom}"
+#     def __str__(self):
+#         return f"{self.student} in {self.classroom}"
     
 
 class MembershipModel(models.Model):

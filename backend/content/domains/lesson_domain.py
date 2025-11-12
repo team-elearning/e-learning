@@ -6,7 +6,7 @@ from collections import deque
 
 from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
 from content.domains.lesson_version_domain import LessonVersionDomain
-from content.domains.value_objects import CreateLessonVersionCommand
+from content.domains.commands import CreateLessonVersionCommand
 
 
 
@@ -101,5 +101,3 @@ class LessonDomain:
             for v_m in model.versions_prefetched:
                 l.versions.append(LessonVersionDomain.from_model(v_m))
         return l
-    
-
