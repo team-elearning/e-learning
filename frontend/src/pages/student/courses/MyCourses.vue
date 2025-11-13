@@ -79,7 +79,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="c in baseList" :key="c.id" class="card" @click="openDetail(c.id)">
+              <article
+                v-for="c in baseList"
+                :key="`main-base-${activeTab}-${c.id}`"
+                class="card"
+                @click="openDetail(c.id)"
+              >
                 <div class="thumb">
                   <img :src="c.thumbnail" :alt="c.title" />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
@@ -117,7 +122,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="c in midList" :key="c.id" class="card" @click="openDetail(c.id)">
+              <article
+                v-for="c in midList"
+                :key="`main-mid-${activeTab}-${c.id}`"
+                class="card"
+                @click="openDetail(c.id)"
+              >
                 <div class="thumb">
                   <img :src="c.thumbnail" :alt="c.title" />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
@@ -154,7 +164,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="s in suppList" :key="s.id" class="card" @click="enroll(s.id)">
+              <article
+                v-for="s in suppList"
+                :key="`supp-${activeTab}-${s.id}`"
+                class="card"
+                @click="enroll(s.id)"
+              >
                 <div class="thumb">
                   <img :src="s.thumbnail" :alt="s.title" />
                   <span class="chip">{{ s.tag }}</span>
@@ -204,7 +219,7 @@
       </div>
 
       <!-- ============ SIDEBAR TIẾN ĐỘ ============ -->
-      <aside class="progress-sidebar">
+      <aside class="progress-sidebar" :key="activeTab">
         <!-- Tổng quan -->
         <div class="widget overview">
           <div class="widget-header">
@@ -222,7 +237,7 @@
                   cx="60"
                   cy="60"
                   r="52"
-                  :style="{ strokeDashoffset: overallDashOffset }"
+                  :style="{ '--progress-offset': `${overallDashOffset}` }"
                 />
               </svg>
               <div class="progress-text">
@@ -269,7 +284,9 @@
               <div class="goal-bar">
                 <div
                   class="goal-fill"
-                  :style="{ width: Math.min(100, (weeklyLessons / 5) * 100) + '%' }"
+                  :style="{
+                    '--progress-target': Math.min(100, (weeklyLessons / 5) * 100) + '%'
+                  }"
                 ></div>
               </div>
             </div>
@@ -282,7 +299,9 @@
               <div class="goal-bar">
                 <div
                   class="goal-fill"
-                  :style="{ width: Math.min(100, (dailyMinutes / 60) * 100) + '%' }"
+                  :style="{
+                    '--progress-target': Math.min(100, (dailyMinutes / 60) * 100) + '%'
+                  }"
                 ></div>
               </div>
             </div>
@@ -310,9 +329,12 @@
                 <div class="recent-title">{{ c.title }}</div>
                 <div class="recent-meta">
                   <span class="recent-progress">{{ c.progress }}%</span>
-                  <div class="mini-bar">
-                    <div class="mini-fill" :style="{ width: c.progress + '%' }"></div>
-                  </div>
+                    <div class="mini-bar">
+                      <div
+                        class="mini-fill"
+                        :style="{ '--progress-target': Math.min(100, c.progress) + '%' }"
+                      ></div>
+                    </div>
                 </div>
               </div>
             </article>
@@ -539,7 +561,8 @@ onMounted(load)
   display: flex;
   max-width: 1600px;
   margin: 0 auto;
-  gap: 18px;
+  gap: clamp(16px, 2vw, 28px);
+  align-items: flex-start;
 }
 .container {
   flex: 1;
@@ -871,9 +894,9 @@ h1 {
 
 /* ============ SIDEBAR TIẾN ĐỘ ============ */
 .progress-sidebar {
-  flex: 0 0 320px;
-  min-width: 320px;
-  width: 320px;
+  flex: 0 0 clamp(240px, 22vw, 320px);
+  min-width: clamp(240px, 22vw, 320px);
+  width: clamp(240px, 22vw, 320px);
   padding: 18px 18px 18px 0;
   display: flex;
   flex-direction: column;
@@ -971,7 +994,8 @@ h1 {
   stroke-width: 6;
   stroke-linecap: round;
   stroke-dasharray: 326.73;
-  transition: stroke-dashoffset 0.6s ease;
+  stroke-dashoffset: var(--progress-offset, 326.73);
+  animation: ringFill 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .progress-text {
   position: absolute;
@@ -1050,7 +1074,8 @@ h1 {
   height: 100%;
   background: linear-gradient(90deg, var(--brand), var(--accent));
   border-radius: 999px;
-  transition: width 0.3s ease;
+  width: var(--progress-target, 0%);
+  animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Recent Courses */
@@ -1123,7 +1148,25 @@ h1 {
   height: 100%;
   background: var(--accent);
   border-radius: 999px;
-  transition: width 0.3s ease;
+  width: var(--progress-target, 0%);
+  animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes ringFill {
+  from {
+    stroke-dashoffset: 326.73;
+  }
+  to {
+    stroke-dashoffset: var(--progress-offset, 326.73);
+  }
+}
+@keyframes barFill {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--progress-target, 0%);
+  }
 }
 
 @media (max-width: 1400px) {
@@ -1131,16 +1174,16 @@ h1 {
     max-width: 100%;
   }
   .progress-sidebar {
-    flex: 0 0 300px;
-    min-width: 300px;
-    width: 300px;
+    flex: 0 0 clamp(240px, 24vw, 300px);
+    min-width: clamp(240px, 24vw, 300px);
+    width: clamp(240px, 24vw, 300px);
   }
   .grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .layout {
     flex-direction: column;
   }

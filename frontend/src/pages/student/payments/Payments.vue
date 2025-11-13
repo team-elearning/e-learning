@@ -6,8 +6,8 @@
       <!-- Payment Methods -->
       <div class="grid">
         <div class="card method">
-          <h2>Chuyển khoản qua VietQR</h2>
-          <p>Quét mã QR bằng App ngân hàng (NAPAS 247) để thanh toán nhanh chóng.</p>
+          <h2>Thanh toán qua MoMo</h2>
+          <p>Thanh toán bảo mật qua ví MoMo, hỗ trợ thẻ ATM/ Visa và ví điện tử.</p>
           <div class="actions">
             <button class="btn-primary" :disabled="loading" @click="goCheckout">
               <span v-if="loading" class="spinner" />
@@ -17,7 +17,7 @@
         </div>
 
         <div class="card method muted-card">
-          <h2>Thẻ/Tài khoản (Đang phát triển)</h2>
+          <h2>Chuyển khoản ngân hàng (Đang phát triển)</h2>
           <p>Tính năng này sẽ sớm có mặt.</p>
         </div>
       </div>
@@ -75,107 +75,130 @@
           </div>
         </div>
 
-        <!-- Transactions: Desktop/Tablet Table -->
-        <div class="card only-desktop">
-          <div class="table-wrapper">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Mã đơn</th>
-                  <th>Gói học</th>
-                  <th>Số tiền</th>
-                  <th>Phương thức</th>
-                  <th>Ngày</th>
-                  <th>Trạng thái</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in filteredTransactions" :key="item.id">
-                  <td><div class="order-id">{{ item.orderId }}</div></td>
-                  <td><div class="plan-name">{{ item.plan }}</div></td>
-                  <td><div class="amount">{{ vnd(item.amount) }}</div></td>
-                  <td>
-                    <div class="method-badge">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
-                      </svg>
-                      {{ item.method }}
-                    </div>
-                  </td>
-                  <td><div class="date">{{ formatDate(item.date) }}</div></td>
-                  <td>
-                    <span :class="['badge', `badge-${item.status}`]">
-                      {{ statusText(item.status) }}
-                    </span>
-                  </td>
-                  <td>
-                    <button class="btn-view" @click="viewDetail(item)">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <div
+          class="history-scroll"
+          ref="historyScroll"
+          @scroll.passive="handleHistoryScroll"
+        >
+          <!-- Transactions: Desktop/Tablet Table -->
+          <div class="card only-desktop">
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Mã đơn</th>
+                    <th>Gói học</th>
+                    <th>Số tiền</th>
+                    <th>Phương thức</th>
+                    <th>Ngày</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in filteredTransactions" :key="item.id">
+                    <td><div class="order-id">{{ item.orderId }}</div></td>
+                    <td><div class="plan-name">{{ item.plan }}</div></td>
+                    <td><div class="amount">{{ vnd(item.amount) }}</div></td>
+                    <td>
+                      <div class="method-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                        </svg>
+                        {{ item.method }}
+                      </div>
+                    </td>
+                    <td><div class="date">{{ formatDate(item.date) }}</div></td>
+                    <td>
+                      <span :class="['badge', `badge-${statusVariant(item.status)}`]">
+                        {{ statusText(item.status) }}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="btn-view" @click="viewDetail(item)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            <div v-if="filteredTransactions.length === 0" class="empty-state">
+              <div v-if="!historyLoading && filteredTransactions.length === 0" class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
+                </svg>
+                <p>Chưa có giao dịch nào</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transactions: Mobile Cards -->
+          <div class="tx-list only-mobile">
+            <div
+              class="tx-card"
+              v-for="item in filteredTransactions"
+              :key="'m-' + item.id"
+            >
+              <div class="tx-row">
+                <span class="tx-label">Mã đơn</span>
+                <span class="tx-value tx-strong">{{ item.orderId }}</span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Gói học</span>
+                <span class="tx-value">{{ item.plan }}</span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Số tiền</span>
+                <span class="tx-value tx-strong">{{ vnd(item.amount) }}</span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Phương thức</span>
+                <span class="tx-value">{{ item.method }}</span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Ngày</span>
+                <span class="tx-value">{{ formatDate(item.date) }}</span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Trạng thái</span>
+                <span class="tx-value">
+                  <span :class="['badge', `badge-${statusVariant(item.status)}`]">
+                    {{ statusText(item.status) }}
+                  </span>
+                </span>
+              </div>
+              <div class="tx-actions">
+                <button class="btn-view" @click="viewDetail(item)">Xem</button>
+              </div>
+            </div>
+
+            <div v-if="!historyLoading && filteredTransactions.length === 0" class="empty-state">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
               </svg>
               <p>Chưa có giao dịch nào</p>
             </div>
           </div>
-        </div>
 
-        <!-- Transactions: Mobile Cards -->
-        <div class="tx-list only-mobile">
-          <div
-            class="tx-card"
-            v-for="item in filteredTransactions"
-            :key="'m-' + item.id"
-          >
-            <div class="tx-row">
-              <span class="tx-label">Mã đơn</span>
-              <span class="tx-value tx-strong">{{ item.orderId }}</span>
+          <div class="history-footer">
+            <div v-if="historyError" class="history-error">
+              {{ historyError }}
+              <button class="link-button" @click="fetchTransactions(true)">Thử lại</button>
             </div>
-            <div class="tx-row">
-              <span class="tx-label">Gói học</span>
-              <span class="tx-value">{{ item.plan }}</span>
+            <div v-else-if="historyLoading" class="history-loader">
+              <span class="spinner tiny" />
+              Đang tải dữ liệu...
             </div>
-            <div class="tx-row">
-              <span class="tx-label">Số tiền</span>
-              <span class="tx-value tx-strong">{{ vnd(item.amount) }}</span>
+            <div v-else-if="!hasMore && transactions.length > 0" class="history-end">
+              Đã hiển thị tất cả giao dịch
             </div>
-            <div class="tx-row">
-              <span class="tx-label">Phương thức</span>
-              <span class="tx-value">{{ item.method }}</span>
+            <div v-else class="history-hint">
+              Cuộn xuống để tải thêm
             </div>
-            <div class="tx-row">
-              <span class="tx-label">Ngày</span>
-              <span class="tx-value">{{ formatDate(item.date) }}</span>
-            </div>
-            <div class="tx-row">
-              <span class="tx-label">Trạng thái</span>
-              <span class="tx-value">
-                <span :class="['badge', `badge-${item.status}`]">
-                  {{ statusText(item.status) }}
-                </span>
-              </span>
-            </div>
-            <div class="tx-actions">
-              <button class="btn-view" @click="viewDetail(item)">Xem</button>
-            </div>
-          </div>
-
-          <div v-if="filteredTransactions.length === 0" class="empty-state">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
-            </svg>
-            <p>Chưa có giao dịch nào</p>
           </div>
         </div>
       </div>
@@ -184,14 +207,43 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { paymentService, type TxStatus, type TxSummary } from '@/services/payment.service'
 
 const router = useRouter()
 const loading = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+const historyScroll = ref<HTMLElement | null>(null)
+
+type HistoryVariant = '' | 'success' | 'pending' | 'failed'
+
+interface HistoryItem {
+  id: string
+  orderId: string
+  plan: string
+  amount: number
+  method: string
+  date: string
+  status: TxStatus
+}
+
+const transactions = ref<HistoryItem[]>([])
+const statusFilter = ref<HistoryVariant>('')
+const hasMore = ref(true)
+const page = ref(1)
+const pageSize = 10
 
 onMounted(() => {
   import('@/pages/student/payments/Checkout.vue')
+  fetchTransactions(true)
+})
+
+watch(statusFilter, () => {
+  if (historyScroll.value) {
+    historyScroll.value.scrollTop = 0
+  }
 })
 
 async function goCheckout() {
@@ -204,43 +256,108 @@ async function goCheckout() {
   }
 }
 
-interface Transaction {
-  id: number
-  orderId: string
-  plan: string
-  amount: number
-  method: string
-  date: string
-  status: 'success' | 'pending' | 'failed'
+async function fetchTransactions(reset = false) {
+  if (historyLoading.value) return
+  if (reset) {
+    page.value = 1
+    hasMore.value = true
+    transactions.value = []
+  }
+  if (!hasMore.value) return
+
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const { items } = await paymentService.list({
+      page: page.value,
+      pageSize,
+      sortBy: 'createdAt',
+      sortDir: 'descending',
+    })
+
+    const mapped = items.map(mapSummaryToHistory)
+    transactions.value = reset ? mapped : [...transactions.value, ...mapped]
+
+    if (mapped.length < pageSize) {
+      hasMore.value = false
+    } else {
+      page.value += 1
+    }
+  } catch (error) {
+    historyError.value = 'Không thể tải lịch sử thanh toán'
+  } finally {
+    historyLoading.value = false
+  }
 }
 
-const transactions = ref<Transaction[]>([
-  { id: 1, orderId: 'HOCVIEN-251016-A4F2E', plan: 'Gói Premium', amount: 499000, method: 'VietQR', date: '2025-10-16T10:30:00', status: 'success' },
-  { id: 2, orderId: 'HOCVIEN-251015-B8G3H', plan: 'Gói Standard', amount: 199000, method: 'VietQR', date: '2025-10-15T14:20:00', status: 'success' },
-  { id: 3, orderId: 'HOCVIEN-251014-C2J9K', plan: 'Gói Basic', amount: 99000, method: 'VietQR', date: '2025-10-14T09:15:00', status: 'pending' },
-  { id: 4, orderId: 'HOCVIEN-251013-D5L1M', plan: 'Gói Premium', amount: 499000, method: 'VietQR', date: '2025-10-13T16:45:00', status: 'failed' },
-])
+function mapSummaryToHistory(item: TxSummary): HistoryItem {
+  return {
+    id: item.id,
+    orderId: item.id,
+    plan: item.courseTitle,
+    amount: item.amount,
+    method: item.gateway,
+    date: item.createdAt,
+    status: item.status,
+  }
+}
 
-const statusFilter = ref('')
+function handleHistoryScroll(event: Event) {
+  if (historyLoading.value || !hasMore.value) return
+  const target = event.target as HTMLElement
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 60) {
+    fetchTransactions()
+  }
+}
+
+function statusVariant(status: TxStatus): Exclude<HistoryVariant, ''> {
+  if (status === 'Succeeded') return 'success'
+  if (status === 'Pending' || status === 'Processing') return 'pending'
+  return 'failed'
+}
+
+function statusText(status: TxStatus) {
+  const map: Record<TxStatus, string> = {
+    Pending: 'Đang xử lý',
+    Processing: 'Đang xử lý',
+    Succeeded: 'Thành công',
+    Failed: 'Thất bại',
+    Refunded: 'Hoàn tiền',
+    Disputed: 'Tranh chấp',
+  }
+  return map[status] || status
+}
 
 const filteredTransactions = computed(() => {
   if (!statusFilter.value) return transactions.value
-  return transactions.value.filter(t => t.status === statusFilter.value)
+  return transactions.value.filter(
+    (t) => statusVariant(t.status) === statusFilter.value
+  )
 })
 
 const totalSuccess = computed(() =>
-  transactions.value.filter(t => t.status === 'success').reduce((s, t) => s + t.amount, 0)
+  transactions.value
+    .filter((t) => statusVariant(t.status) === 'success')
+    .reduce((sum, t) => sum + t.amount, 0)
 )
-const pendingCount = computed(() => transactions.value.filter(t => t.status === 'pending').length)
-const successCount = computed(() => transactions.value.filter(t => t.status === 'success').length)
+const pendingCount = computed(
+  () => transactions.value.filter((t) => statusVariant(t.status) === 'pending').length
+)
+const successCount = computed(
+  () => transactions.value.filter((t) => statusVariant(t.status) === 'success').length
+)
 
-function vnd(n: number) { return n.toLocaleString('vi-VN') + 'đ' }
+function vnd(n: number) {
+  return n.toLocaleString('vi-VN') + 'đ'
+}
 function formatDate(s: string) {
   const d = new Date(s)
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
-function statusText(st: string) { return ({success:'Thành công', pending:'Đang xử lý', failed:'Thất bại'} as any)[st] || st }
-function viewDetail(item: Transaction) { alert(`Chi tiết: ${item.orderId}`) }
+
+function viewDetail(item: HistoryItem) {
+  alert(`Chi tiết giao dịch ${item.orderId} đang được phát triển.`)
+}
 </script>
 
 <style>
@@ -285,6 +402,7 @@ function viewDetail(item: Transaction) { alert(`Chi tiết: ${item.orderId}`) }
 .btn-primary[disabled]{ opacity:.7 !important; cursor:not-allowed !important; }
 
 .spinner{ width:16px; height:16px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+.spinner.tiny{ width:14px; height:14px; border-width:2px; border-color:rgba(16,185,129,.4); border-top-color:var(--accent); }
 @keyframes spin{ to{ transform: rotate(360deg); } }
 
 /* History Section */
@@ -297,6 +415,17 @@ function viewDetail(item: Transaction) { alert(`Chi tiết: ${item.orderId}`) }
   font-size:14px; font-weight:600; cursor:pointer; outline:none; min-width:150px;
 }
 .filter-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(22,163,74,0.1); }
+
+.history-scroll{
+  max-height:480px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  padding-right:6px;
+}
+.history-scroll::-webkit-scrollbar{ width:6px; }
+.history-scroll::-webkit-scrollbar-thumb{ background:#d1d5db; border-radius:999px; }
 
 /* Stats */
 .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:20px; }
@@ -347,6 +476,34 @@ function viewDetail(item: Transaction) { alert(`Chi tiết: ${item.orderId}`) }
 .tx-strong{ font-weight:800; }
 .tx-actions{ display:flex; justify-content:flex-end; }
 .tx-actions .btn-view{ width:auto; height:auto; padding:8px 10px; }
+
+.history-footer{
+  text-align:center;
+  padding:4px 0 12px;
+  font-size:13px;
+}
+.history-loader,
+.history-error{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-weight:600;
+  flex-wrap:wrap;
+}
+.history-loader{ color:var(--accent); }
+.history-error{ color:#ef4444; }
+.history-end{ color:var(--accent); font-weight:600; }
+.history-hint{ color:var(--muted); font-size:12px; }
+.link-button{
+  border:none;
+  background:none;
+  color:var(--accent);
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:underline;
+  padding:0;
+}
 
 /* Responsive */
 @media (max-width: 1024px){
