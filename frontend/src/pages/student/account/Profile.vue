@@ -135,33 +135,86 @@
 
           <div class="row">
             <label class="label">Tỉnh/Thành phố</label>
-            <select v-model="form.city" class="input select">
-              <option value="">Chọn</option>
-              <option>Hà Nội</option>
-              <option>TP. Hồ Chí Minh</option>
-              <option>Đà Nẵng</option>
-              <option>N/A</option>
-            </select>
+            <div>
+              <select
+                v-model="form.city"
+                class="input select"
+                :disabled="locationLoading.provinces"
+              >
+                <option value="">{{ locationLoading.provinces ? 'Đang tải...' : 'Chọn tỉnh/thành' }}</option>
+                <option
+                  v-for="province in provinces"
+                  :key="province.code"
+                  :value="province.code.toString()"
+                >
+                  {{ province.name }}
+                </option>
+              </select>
+              <small v-if="locationLoading.provinces" class="helper">Đang tải danh sách tỉnh/thành...</small>
+              <p v-if="locationErrors.provinces" class="err">{{ locationErrors.provinces }}</p>
+            </div>
           </div>
 
           <div class="row">
             <label class="label">Quận/Huyện</label>
-            <select v-model="form.district" class="input select">
-              <option value="">Chọn (có thể để trống)</option>
-              <option>Quận 1</option>
-              <option>Quận 2</option>
-              <option>Khác</option>
-            </select>
+            <div>
+              <select
+                v-model="form.district"
+                class="input select"
+                :disabled="!form.city || locationLoading.districts"
+              >
+                <option value="">
+                  {{
+                    !form.city
+                      ? 'Chọn tỉnh trước'
+                      : locationLoading.districts
+                        ? 'Đang tải quận/huyện...'
+                        : 'Chọn quận/huyện'
+                  }}
+                </option>
+                <option
+                  v-for="district in districts"
+                  :key="district.code"
+                  :value="district.code.toString()"
+                >
+                  {{ district.name }}
+                </option>
+              </select>
+              <small v-if="!form.city" class="helper">Vui lòng chọn Tỉnh/Thành trước.</small>
+              <small v-else-if="locationLoading.districts" class="helper">Đang tải danh sách quận/huyện...</small>
+              <p v-if="locationErrors.districts" class="err">{{ locationErrors.districts }}</p>
+            </div>
           </div>
 
           <div class="row">
             <label class="label">Phường/Xã</label>
-            <select v-model="form.ward" class="input select">
-              <option value="">Chọn (có thể để trống)</option>
-              <option>Phường A</option>
-              <option>Phường B</option>
-              <option>Khác</option>
-            </select>
+            <div>
+              <select
+                v-model="form.ward"
+                class="input select"
+                :disabled="!form.district || locationLoading.wards"
+              >
+                <option value="">
+                  {{
+                    !form.district
+                      ? 'Chọn quận trước'
+                      : locationLoading.wards
+                        ? 'Đang tải phường/xã...'
+                        : 'Chọn phường/xã'
+                  }}
+                </option>
+                <option
+                  v-for="ward in wards"
+                  :key="ward.code"
+                  :value="ward.code.toString()"
+                >
+                  {{ ward.name }}
+                </option>
+              </select>
+              <small v-if="!form.district" class="helper">Vui lòng chọn Quận/Huyện trước.</small>
+              <small v-else-if="locationLoading.wards" class="helper">Đang tải danh sách phường/xã...</small>
+              <p v-if="locationErrors.wards" class="err">{{ locationErrors.wards }}</p>
+            </div>
           </div>
 
           <div class="actions">
@@ -217,6 +270,7 @@ import { computed, onMounted, reactive, ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import type { UpdateProfileDto } from '@/services/auth.service'
+import { locationService, type Province, type District, type Ward } from '@/services/location.service'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -234,6 +288,26 @@ const currentAvatar = computed(() => auth.user?.avatar || defaultAvatar)
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string>('')
+
+/** LOCATION */
+const provinces = ref<Province[]>([])
+const districts = ref<District[]>([])
+const wards = ref<Ward[]>([])
+const locationLoading = reactive({ provinces: false, districts: false, wards: false })
+const locationErrors = reactive({ provinces: '', districts: '', wards: '' })
+
+async function loadProvinces() {
+  locationLoading.provinces = true
+  locationErrors.provinces = ''
+  try {
+    provinces.value = await locationService.getProvinces()
+  } catch (error) {
+    console.error('Failed to load provinces', error)
+    locationErrors.provinces = 'Không thể tải danh sách tỉnh/thành.'
+  } finally {
+    locationLoading.provinces = false
+  }
+}
 
 function openFile() { fileInput.value?.click() }
 
@@ -295,6 +369,72 @@ const form = reactive({
   ward: '',
 })
 
+let districtRequestToken = 0
+watch(
+  () => form.city,
+  async (provinceCode) => {
+    form.district = ''
+    form.ward = ''
+    wards.value = []
+    locationErrors.districts = ''
+    locationErrors.wards = ''
+    if (!provinceCode) {
+      districts.value = []
+      return
+    }
+    const currentToken = ++districtRequestToken
+    locationLoading.districts = true
+    try {
+      const data = await locationService.getDistricts(provinceCode)
+      if (currentToken === districtRequestToken) {
+        districts.value = data
+      }
+    } catch (error) {
+      if (currentToken === districtRequestToken) {
+        districts.value = []
+        locationErrors.districts = 'Không thể tải quận/huyện.'
+        console.error('Failed to load districts', error)
+      }
+    } finally {
+      if (currentToken === districtRequestToken) {
+        locationLoading.districts = false
+      }
+    }
+  }
+)
+
+let wardRequestToken = 0
+watch(
+  () => form.district,
+  async (districtCode) => {
+    form.ward = ''
+    if (!districtCode) {
+      wards.value = []
+      locationErrors.wards = ''
+      return
+    }
+    const currentToken = ++wardRequestToken
+    locationErrors.wards = ''
+    locationLoading.wards = true
+    try {
+      const data = await locationService.getWards(districtCode)
+      if (currentToken === wardRequestToken) {
+        wards.value = data
+      }
+    } catch (error) {
+      if (currentToken === wardRequestToken) {
+        wards.value = []
+        locationErrors.wards = 'Không thể tải phường/xã.'
+        console.error('Failed to load wards', error)
+      }
+    } finally {
+      if (currentToken === wardRequestToken) {
+        locationLoading.wards = false
+      }
+    }
+  }
+)
+
 const dob = reactive({ day: 1, month: 1, year: 2000 })
 const days = Array.from({ length: 31 }, (_, i) => i + 1)
 const months = Array.from({ length: 12 }, (_, i) => i + 1)
@@ -307,6 +447,7 @@ function snapshot() {
 }
 
 onMounted(() => {
+  loadProvinces()
   auth.init?.()
   if (auth.user) {
     form.username = auth.user.name || ''
