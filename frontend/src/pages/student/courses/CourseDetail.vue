@@ -31,9 +31,9 @@
 
           <!-- BOTTOM NAV -->
           <div class="bottom-nav">
-            <button class="btn bw" :disabled="!prevLesson" @click="goPrev">‹ BÀI TRƯỚC</button>
+            <button class="btn outline" :disabled="!prevLesson" @click="goPrev">‹ BÀI TRƯỚC</button>
             <div class="actions"></div>
-            <button class="btn bw" :disabled="!nextLesson" @click="goNext">BÀI TIẾP THEO ›</button>
+            <button class="btn accent" :disabled="!nextLesson" @click="goNext">BÀI TIẾP THEO ›</button>
           </div>
         </div>
 
@@ -259,42 +259,43 @@ onMounted(load)
 
 <style scoped>
 :root{
-  --page-bg:#0b1220;
+  --page-bg:#f6f7fb;
   --panel:#ffffff;
   --text:#0f172a;
   --muted:#6b7280;
   --line:#e5e7eb;
   --accent:#16a34a;
+  --accent-dark:#15803d;
 }
 
-.lesson-player{ background:var(--page-bg); min-height:100vh; }
-.container{ max-width:1440px; margin:0 auto; padding:14px; }
+.lesson-player{ background:var(--page-bg); min-height:100vh; color:var(--text); }
+.container{ max-width:1440px; margin:0 auto; padding:20px 14px 36px; }
 
 .topbar{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.link{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; }
+.link{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; color:var(--text); }
 .spacer{ flex:1; }
 
 .content{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:14px; }
 
 /* LEFT */
-.left{ background:#000; border-radius:12px; overflow:hidden; border:6px solid #000; }
+.left{ background:var(--panel); border-radius:16px; overflow:hidden; border:1px solid var(--line); box-shadow:0 18px 40px rgba(15,23,42,.08); }
 .video-shell{ background:#000; position:relative; }
 .video{ width:100%; aspect-ratio:16/9; display:block; background:#000; }
 
 .video-title{
   display:flex; justify-content:space-between; align-items:flex-end;
-  gap:12px; padding:12px 14px; background:#0b1220; color:#e5e7eb;
-  border-top:1px solid rgba(255,255,255,.08);
+  gap:12px; padding:16px 18px; background:var(--panel);
+  border-top:1px solid var(--line);
 }
-.video-title h2{ font-size:18px; font-weight:800; margin:0; }
-.video-title .subtitle{ opacity:.85; font-size:14px; margin:0; }
+.video-title h2{ font-size:20px; font-weight:800; margin:0; color:var(--text); }
+.video-title .subtitle{ color:var(--muted); font-size:14px; margin:0; }
 
 /* RIGHT */
 .right{ position:relative; }
 .panel{
   position:sticky; top:10px;
-  background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden;
-  box-shadow:0 8px 24px rgba(0,0,0,.08);
+  background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden;
+  box-shadow:0 18px 40px rgba(15,23,42,.08);
 }
 
 /* Progress head */
@@ -311,8 +312,8 @@ onMounted(load)
 /* <<< HẾT PHẦN SỬA >>> */
 
 /* Outline */
-.outline{ max-height:calc(100vh - 200px); overflow:auto; padding:8px; }
-.sec{ border-radius:10px; overflow:hidden; margin-bottom:8px; border:1px solid var(--line); background:#fff; }
+.outline{ max-height:calc(100vh - 200px); overflow:auto; padding:12px; }
+.sec{ border-radius:12px; overflow:hidden; margin-bottom:12px; border:1px solid var(--line); background:#fff; }
 .sec-head{
   width:100%; text-align:left; display:flex; align-items:center; gap:8px;
   padding:10px 12px; background:#fff; border:0; cursor:pointer;
@@ -327,21 +328,26 @@ onMounted(load)
 
 .row{
   display:flex; justify-content:space-between; align-items:center; gap:8px;
-  padding:10px 12px; border-top:1px solid var(--line); cursor:pointer; background:#fff;
+  padding:12px 14px; border-top:1px solid var(--line); cursor:pointer; background:#fff;
 }
 .row:hover{ background:#f8fafc; }
-.row.active{ background:#e8f2ff; }
-.row.done .title{ color:#16a34a; }
+.row.active{ background:var(--accent) !important; color:#fff !important; }
+.row.active:hover{ background:var(--accent) !important; }
+.row.active .title,
+.row.active .time,
+.row.active .idx{ color:#fff !important; }
+.row.done .title{ color:var(--accent); }
 .leftcell{ display:flex; align-items:center; gap:10px; min-width:0 }
 .idx{
   width:22px; height:22px; display:grid; place-items:center;
   border:1px solid #e5e7eb; border-radius:6px; font-size:12px; font-weight:800; color:#64748b;
   background:#f8fafc;
 }
-.title{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.title{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
 .rightcell{ display:flex; align-items:center; gap:10px; }
 .time{ color:#64748b; font-size:12px; }
-.state svg{ width:18px; height:18px; stroke:#16a34a; stroke-width:2; fill:none }
+.state svg{ width:18px; height:18px; stroke:var(--accent); stroke-width:2; fill:none }
+.row.active .state svg{ stroke:#fff; }
 
 /* Accordion anim */
 .acc-enter-from, .acc-leave-to{ max-height:0; opacity:.2 }
@@ -353,37 +359,51 @@ onMounted(load)
   padding:12px 20px;
   border-radius:12px;
   font-weight:800;
-  border:1.5px solid #e5e7eb;
+  border:1.5px solid var(--line);
   background:#fff;
-  color:#0f172a;
+  color:var(--text);
   transition:all .15s ease;
   cursor:pointer;
-  box-shadow:0 1px 0 rgba(0,0,0,.05);
+  box-shadow:0 1px 0 rgba(15,23,42,.05);
 }
 .btn:hover:not(:disabled){
+  transform:translateY(-1px);
+}
+.btn.outline:hover:not(:disabled){
   background:#f8fafc;
   border-color:#cbd5e1;
-  transform:translateY(-1px);
+}
+.btn.accent{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff !important;
+  box-shadow:0 6px 16px rgba(22,163,74,.35);
+}
+.btn.accent:hover:not(:disabled),
+.btn.accent:focus-visible:not(:disabled){
+  background:var(--accent-dark);
+  border-color:var(--accent-dark);
+  color:#fff !important;
 }
 .btn:disabled{
   opacity:.55;
   cursor:not-allowed;
-  background:#fff !important;
-  color:#0f172a !important;
-  border-color:#e5e7eb !important;
+  background:#f8fafc;
+  color:var(--muted);
+  border-color:var(--line);
   transform:none;
   box-shadow:none;
 }
-.btn.bw{ /* alias rõ ràng cho style này */
-  background:#fff;
-  color:#0f172a;
-  border-color:#e5e7eb;
+.btn.accent:disabled{
+  background:var(--accent) !important;
+  border-color:var(--accent) !important;
+  color:#fff !important;
+  opacity:.45;
 }
 
-/* BOTTOM NAV container */
 .bottom-nav{
   display:flex; justify-content:space-between; align-items:center;
-  gap:10px; padding:12px; background:#0b1220; border-top:1px solid rgba(255,255,255,.08);
+  gap:12px; padding:16px; background:var(--panel); border-top:1px solid var(--line);
 }
 .actions{ display:flex; align-items:center; gap:8px; }
 

@@ -50,11 +50,18 @@
             </div>
           </div>
 
-          <div class="row">
-            <label class="label">Tên đăng nhập</label>
+          <div class="row" >
+            <label  class="label">Tên đăng nhập</label>
             <div>
-              <input v-model.trim="form.username" type="text" class="input" />
-              <span class="helper muted">Có thể để trống nếu hệ thống tự sinh.</span>
+              <input
+                v-model.trim="form.username"
+                type="text"
+                class="input locked-input"
+                disabled
+                tabindex="-1"
+                aria-readonly="true"
+              />
+              <span class="helper muted">Tên đăng nhập do hệ thống cấp và không thể chỉnh sửa.</span>
             </div>
           </div>
 
@@ -420,6 +427,13 @@ async function saveProfile() {
 
 .input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; outline: none; font-size: 14px; }
 .input:focus { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-ring); }
+.input:disabled,
+.input.locked-input {
+  background: #f3f4f6;
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
 .select {
   appearance: none;
   background-image:
