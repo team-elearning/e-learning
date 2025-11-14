@@ -327,7 +327,7 @@ class ExplorationTransition(models.Model):
     from_state = models.ForeignKey(ExplorationState, on_delete=models.CASCADE, related_name='from_transitions')
     to_state_name = models.CharField(max_length=255, blank=True, null=True)
 
-    condition_type = models.CharField(max_length=255) # 'default' hoặc 'Equals', ...
+    condition_type = models.CharField(max_length=255, default='default') # 'default' hoặc 'Equals', ...
     condition_data_raw = models.JSONField(default=dict, blank=True)
     feedback_html = models.TextField(blank=True, null=True)
     feedback_text = models.TextField(blank=True, null=True)
