@@ -1,12 +1,15 @@
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from uuid import UUID
 from django.db import transaction
 from django.db.models import Max, F, Case, When, Value, Prefetch
 
-from content.models import Lesson, Module, LessonVersion, Enrollment, ContentBlock
+from content.models import Lesson, Module, Enrollment, ContentBlock
 from content.domains.lesson_domain import LessonDomain
 from content.services.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
+from content.services import content_block_service
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,55 +30,52 @@ def list_lessons_for_module(module_id: UUID) -> List[LessonDomain]:
     return lesson_domains
 
 
-@transaction.atomic
-def create_lesson(module_id: UUID, data: Dict[str, Any]) -> LessonDomain:
-    """
-    Tạo một bài học mới (Lesson) cho một Module.
-    """
-    # 1. Tìm Module cha
-    try:
-        module = Module.objects.get(pk=module_id)
-    except Module.DoesNotExist:
-        raise ModuleNotFoundError("Module not found.")
 
-    # 2. Xử lý logic nghiệp vụ (Business Invariants)
-    # Kiểm tra tiêu đề trùng lặp TRONG CÙNG module
-    if Lesson.objects.filter(module=module, title=data['title']).exists():
-        raise DomainError(f"Bài học với tiêu đề '{data['title']}' đã tồn tại trong module này.")
+def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[str]]:
+    """
+    Tạo Lesson VÀ các ContentBlock con của nó.
+    Kết hợp logic từ file mới của bạn.
+    """
+    # 1. Tách dữ liệu con
+    content_blocks_data = data.pop('content_blocks', [])
+    files_to_commit = []
 
-    # 3. Xác định thứ tự (order)
-    # Bài học mới luôn được thêm vào cuối cùng
-    current_max_order = Lesson.objects.filter(module=module).aggregate(
-        max_order=Max('order')
-    )['max_order'] or 0
+    # 2. Xử lý logic Lesson (Lấy từ code mới của bạn)
+    title = data.get('title')
+    if Lesson.objects.filter(module=module, title=title).exists():
+        raise DomainError(f"Bài học với tiêu đề '{title}' đã tồn tại.")
+
+    # (Sử dụng 'position' thay vì 'order' cho nhất quán)
+    position = data.get('position')
+    if position is None:
+        current_max_pos = Lesson.objects.filter(module=module).aggregate(
+            max_pos=Max('position')
+        )['max_pos'] or 0
+        position = 0 if current_max_pos is None else current_max_pos + 1
     
-    new_order = current_max_order + 1
+    content_type = data.get('content_type', 'lesson') 
+    published = data.get('published', False)
+    
 
-    # 4. Tạo Domain object (giống như register_user)
-    try:
-        lesson_domain = LessonDomain(
-            title=data['title'],
-            module_id=module_id,
-            order=new_order,
-            lesson_type=data.get('lesson_type', 'text'), # Giá trị mặc định
-            content=data.get('content', ''),
-            is_public=data.get('is_public', True)
+    # 3. Tạo Lesson (data giờ chỉ còn của lesson)
+    # **data chứa (title, content_type, published...)
+    new_lesson = Lesson.objects.create(
+        module=module,
+        title=title,
+        position=position,
+        content_type=content_type,
+        published=published
+    )
+    
+    # 4. ỦY QUYỀN cho hàm 'create_content_block' (Hàm 4)
+    for block_data in content_blocks_data:
+        block, block_files = content_block_service.create_content_block(
+            lesson=new_lesson,
+            data=block_data
         )
-        
-        # Thêm các trường khác từ 'data' nếu có
-        # (Giả sử LessonDomain của bạn chấp nhận chúng)
+        files_to_commit.extend(block_files)
 
-    except Exception as e:
-        logger.error(f"Lỗi khi khởi tạo LessonDomain: {e}")
-        raise DomainError(f"Dữ liệu đầu vào không hợp lệ: {e}")
-
-    # 5. Chuyển đổi sang Model và lưu
-    lesson_model = lesson_domain.to_model()
-    lesson_model.module = module  # Gán instance Module đã truy vấn
-    lesson_model.save()
-
-    # 6. Trả về domain object đã được tạo (với ID)
-    return LessonDomain.from_model(lesson_model)
+    return LessonDomain.from_model(new_lesson), files_to_commit
 
 
 def update_lesson(lesson_id: UUID, updates: Dict[str, Any]) -> LessonDomain:
@@ -175,87 +175,78 @@ def reorder_lessons(module_id: UUID, lesson_ids: List[UUID]):
     ).update(order=Case(*when_clauses))
 
 
-def get_published_lesson_content(user, lesson_id: str):
-    """
-    Lấy nội dung bài học đã được xuất bản cho một người học.
+# def get_published_lesson_content(user, lesson_id: str):
+#     """
+#     Lấy nội dung bài học đã được xuất bản cho một người học.
 
-    Quy tắc nghiệp vụ:
-    1. Bài học (Lesson) phải tồn tại và `published=True`.
-    2. Người dùng (user) phải ghi danh (enrolled) vào khóa học chứa bài học đó.
-    3. Phải có ít nhất một phiên bản (LessonVersion) với status='published'.
-    4. Trả về phiên bản 'published' mới nhất.
-    """
+#     Quy tắc nghiệp vụ:
+#     1. Bài học (Lesson) phải tồn tại và `published=True`.
+#     2. Người dùng (user) phải ghi danh (enrolled) vào khóa học chứa bài học đó.
+#     3. Phải có ít nhất một phiên bản (LessonVersion) với status='published'.
+#     4. Trả về phiên bản 'published' mới nhất.
+#     """
     
-    try:
-        # Lấy bài học và kiểm tra xem nó đã publish chưa
-        # Tối ưu DB query bằng select_related
-        lesson = Lesson.objects.select_related(
-            'module__course'
-        ).get(pk=lesson_id, published=True)
+#     try:
+#         # Lấy bài học và kiểm tra xem nó đã publish chưa
+#         # Tối ưu DB query bằng select_related
+#         lesson = Lesson.objects.select_related(
+#             'module__course'
+#         ).get(pk=lesson_id, published=True)
         
-    except Lesson.DoesNotExist:
-        # Nếu không tìm thấy (hoặc lesson.published=False)
-        raise LessonNotFoundError("Không tìm thấy bài học hoặc bài học chưa được xuất bản.")
+#     except Lesson.DoesNotExist:
+#         # Nếu không tìm thấy (hoặc lesson.published=False)
+#         raise LessonNotFoundError("Không tìm thấy bài học hoặc bài học chưa được xuất bản.")
 
-    # Kiểm tra quyền ghi danh (Enrollment)
-    course = lesson.module.course
-    is_enrolled = Enrollment.objects.filter(user=user, course=course).exists()
+#     # Kiểm tra quyền ghi danh (Enrollment)
+#     course = lesson.module.course
+#     is_enrolled = Enrollment.objects.filter(user=user, course=course).exists()
     
-    if not is_enrolled:
-        # User đã login nhưng chưa ghi danh
-        raise NotEnrolledError("Bạn chưa ghi danh vào khóa học này.")
+#     if not is_enrolled:
+#         # User đã login nhưng chưa ghi danh
+#         raise NotEnrolledError("Bạn chưa ghi danh vào khóa học này.")
 
-    # Lấy phiên bản đã 'published' mới nhất
-    # Dùng prefetch_related để lấy tất cả content_blocks
-    # chỉ bằng 2 câu truy vấn
-    published_version = LessonVersion.objects.prefetch_related(
-        Prefetch(
-            'content_blocks', 
-            queryset=ContentBlock.objects.order_by('position')
-        )
-    ).filter(
-        lesson=lesson, 
-        status='published'
-    ).order_by('-version').first() # Lấy version mới nhất
+#     # Lấy phiên bản đã 'published' mới nhất
+#     # Dùng prefetch_related để lấy tất cả content_blocks
+#     # chỉ bằng 2 câu truy vấn
+#     published_version = LessonVersion.objects.prefetch_related(
+#         Prefetch(
+#             'content_blocks', 
+#             queryset=ContentBlock.objects.order_by('position')
+#         )
+#     ).filter(
+#         lesson=lesson, 
+#         status='published'
+#     ).order_by('-version').first() # Lấy version mới nhất
 
-    # Kiểm tra xem có nội dung không
-    if not published_version:
-        raise NoPublishedContentError("Bài học này hiện chưa có nội dung được xuất bản.")
+#     # Kiểm tra xem có nội dung không
+#     if not published_version:
+#         raise NoPublishedContentError("Bài học này hiện chưa có nội dung được xuất bản.")
         
-    # Trả về domain object (model instance)
-    return published_version
+#     # Trả về domain object (model instance)
+#     return published_version
 
 
-def get_lesson_preview(lesson_id: str):
-    """
-    Lấy nội dung xem trước (preview) cho Admin hoặc Instructor.
+# def get_lesson_preview(lesson_id: str):
+#     """
+#     Lấy nội dung xem trước (preview) cho Admin hoặc Instructor.
 
-    Quy tắc nghiệp vụ:
-    1. Bài học (Lesson) phải tồn tại (không cần `published=True`).
-    2. Trả về phiên bản (LessonVersion) MỚI NHẤT, bất kể status
-       (draft, review, hay published).
-    """
+#     Quy tắc nghiệp vụ:
+#     1. Bài học (Lesson) phải tồn tại (không cần `published=True`).
+#     2. Trả về phiên bản (LessonVersion) MỚI NHẤT, bất kể status
+#        (draft, review, hay published).
+#     """
     
-    try:
-        # Kiểm tra bài học tồn tại
-        lesson = Lesson.objects.get(pk=lesson_id)
+#     try:
+#         # Kiểm tra bài học tồn tại
+#         lesson = Lesson.objects.get(pk=lesson_id)
         
-    except Lesson.DoesNotExist:
-        raise LessonNotFoundError("Không tìm thấy bài học.")
+#     except Lesson.DoesNotExist:
+#         raise LessonNotFoundError("Không tìm thấy bài học.")
 
-    # Lấy phiên bản MỚI NHẤT (latest)
-    latest_version = LessonVersion.objects.prefetch_related(
-        Prefetch(
-            'content_blocks', 
-            queryset=ContentBlock.objects.order_by('position')
-        )
-    ).filter(
-        lesson=lesson
-    ).order_by('-version').first() # Lấy version mới nhất
 
-    # 3. Kiểm tra xem có bất kỳ version nào không
-    if not latest_version:
-        raise VersionNotFoundError("Bài học này chưa có bất kỳ phiên bản nội dung nào.")
+#     # 3. Kiểm tra xem có bất kỳ version nào không
+#     if not lesson:
+#         raise VersionNotFoundError("Bài học này chưa có bất kỳ phiên bản nội dung nào.")
         
-    # 4. Trả về domain object (model instance)
-    return latest_version
+#     # 4. Trả về domain object 
+#     return latest_version

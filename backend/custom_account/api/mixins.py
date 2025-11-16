@@ -5,13 +5,10 @@ from rest_framework.views import APIView
 from django.db.models.query import QuerySet
 
 
-
 class DtoMappingError(APIException):
     status_code = 500
     default_detail = 'DTO mapping failed.'
     default_code = 'dto_mapping_error'
-
-
 class RoleBasedOutputMixin:
     """
     Choose the correct *output* DTO based on the requesting user.

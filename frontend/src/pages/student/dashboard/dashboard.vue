@@ -50,8 +50,11 @@
           >
             <img class="thumb" :src="c.thumbnail" :alt="c.title" />
             <div class="title">{{ c.title }}</div>
-            <div class="progress-line">
-              <div class="bar" :style="{ width: ((c.done ? 100 : c.progress) || 0) + '%' }"></div>
+            <div
+              class="progress-line"
+              :style="{ '--progress-target': ((c.done ? 100 : c.progress) || 0) + '%' }"
+            >
+              <div class="bar"></div>
             </div>
             <div class="status muted">
               {{ c.done ? 'Đã hoàn thành' : `Đang học · ${c.progress}%` }}
@@ -323,10 +326,21 @@ onMounted(async () => {
   background: #eef2f7;
   border-radius: 999px;
   overflow: hidden;
+  --progress-target: 0%;
 }
 .progress-line .bar {
   height: 100%;
   background: var(--accent);
+  width: var(--progress-target, 0%);
+  animation: fillProgress 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes fillProgress {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--progress-target, 0%);
+  }
 }
 .status {
   margin-top: 6px;

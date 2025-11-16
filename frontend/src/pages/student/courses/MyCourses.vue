@@ -71,7 +71,7 @@
                 <span class="sub">{{ baseList.length }} môn</span>
               </div>
               <div class="rh">
-                <span class="trophy">🏆 {{ baseTrophies.earned }}/{{ baseTrophies.total }}</span>
+                <span class="trophy">🏆 {{ getAnimatedTrophy(baseKey) }}/{{ baseTrophies.total }}</span>
                 <router-link class="ghost sm" :to="{ name: 'student-catalog', query: { grade: 1 } }"
                   >Xem tất cả ›</router-link
                 >
@@ -79,7 +79,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="c in baseList" :key="c.id" class="card" @click="openDetail(c.id)">
+              <article
+                v-for="c in baseList"
+                :key="`main-base-${activeTab}-${c.id}`"
+                class="card"
+                @click="playFirst(c.id)"
+              >
                 <div class="thumb">
                   <img :src="c.thumbnail" :alt="c.title" />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
@@ -92,9 +97,14 @@
                     <span class="state" :class="{ ok: c.done }">
                       <span class="dot"></span>
                       {{ c.done ? 'Đã hoàn thành' : 'Đang học'
-                      }}<template v-if="!c.done"> · {{ c.progress }}%</template>
+                      }}<template v-if="!c.done">
+                        · {{ getAnimatedProgress(c.id, c.progress) }}%
+                      </template>
                     </span>
-                    <span class="score"><span class="emoji">🏆</span> {{ c.score }}</span>
+                    <span class="score"
+                      ><span class="emoji">🏆</span>
+                      {{ getAnimatedCourseTrophy(c.id, c.scoreEarned) }}/{{ c.scoreTotal }}</span
+                    >
                   </div>
                 </div>
               </article>
@@ -109,7 +119,7 @@
                 <span class="sub">{{ midList.length }} môn</span>
               </div>
               <div class="rh">
-                <span class="trophy">🏆 {{ midTrophies.earned }}/{{ midTrophies.total }}</span>
+                <span class="trophy">🏆 {{ getAnimatedTrophy(midKey) }}/{{ midTrophies.total }}</span>
                 <router-link class="ghost sm" :to="{ name: 'student-catalog', query: { grade: 3 } }"
                   >Xem tất cả ›</router-link
                 >
@@ -117,7 +127,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="c in midList" :key="c.id" class="card" @click="openDetail(c.id)">
+              <article
+                v-for="c in midList"
+                :key="`main-mid-${activeTab}-${c.id}`"
+                class="card"
+                @click="playFirst(c.id)"
+              >
                 <div class="thumb">
                   <img :src="c.thumbnail" :alt="c.title" />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
@@ -130,9 +145,14 @@
                     <span class="state" :class="{ ok: c.done }">
                       <span class="dot"></span>
                       {{ c.done ? 'Đã hoàn thành' : 'Đang học'
-                      }}<template v-if="!c.done"> · {{ c.progress }}%</template>
+                      }}<template v-if="!c.done">
+                        · {{ getAnimatedProgress(c.id, c.progress) }}%
+                      </template>
                     </span>
-                    <span class="score"><span class="emoji">🏆</span> {{ c.score }}</span>
+                    <span class="score"
+                      ><span class="emoji">🏆</span>
+                      {{ getAnimatedCourseTrophy(c.id, c.scoreEarned) }}/{{ c.scoreTotal }}</span
+                    >
                   </div>
                 </div>
               </article>
@@ -154,7 +174,12 @@
             </div>
 
             <div class="grid">
-              <article v-for="s in suppList" :key="s.id" class="card" @click="enroll(s.id)">
+              <article
+                v-for="s in suppList"
+                :key="`supp-${activeTab}-${s.id}`"
+                class="card"
+                @click="enroll(s.id)"
+              >
                 <div class="thumb">
                   <img :src="s.thumbnail" :alt="s.title" />
                   <span class="chip">{{ s.tag }}</span>
@@ -204,7 +229,7 @@
       </div>
 
       <!-- ============ SIDEBAR TIẾN ĐỘ ============ -->
-      <aside class="progress-sidebar">
+      <aside class="progress-sidebar" :key="activeTab">
         <!-- Tổng quan -->
         <div class="widget overview">
           <div class="widget-header">
@@ -222,7 +247,7 @@
                   cx="60"
                   cy="60"
                   r="52"
-                  :style="{ strokeDashoffset: overallDashOffset }"
+                  :style="{ '--progress-offset': `${overallDashOffset}` }"
                 />
               </svg>
               <div class="progress-text">
@@ -269,7 +294,9 @@
               <div class="goal-bar">
                 <div
                   class="goal-fill"
-                  :style="{ width: Math.min(100, (weeklyLessons / 5) * 100) + '%' }"
+                  :style="{
+                    '--progress-target': Math.min(100, (weeklyLessons / 5) * 100) + '%'
+                  }"
                 ></div>
               </div>
             </div>
@@ -282,7 +309,9 @@
               <div class="goal-bar">
                 <div
                   class="goal-fill"
-                  :style="{ width: Math.min(100, (dailyMinutes / 60) * 100) + '%' }"
+                  :style="{
+                    '--progress-target': Math.min(100, (dailyMinutes / 60) * 100) + '%'
+                  }"
                 ></div>
               </div>
             </div>
@@ -301,7 +330,7 @@
               v-for="c in recentCourses"
               :key="c.id"
               class="recent-item"
-              @click="openDetail(c.id)"
+              @click="playFirst(c.id)"
             >
               <div class="recent-thumb">
                 <img :src="c.thumbnail" :alt="c.title" />
@@ -309,10 +338,13 @@
               <div class="recent-info">
                 <div class="recent-title">{{ c.title }}</div>
                 <div class="recent-meta">
-                  <span class="recent-progress">{{ c.progress }}%</span>
-                  <div class="mini-bar">
-                    <div class="mini-fill" :style="{ width: c.progress + '%' }"></div>
-                  </div>
+                  <span class="recent-progress">{{ getAnimatedProgress(c.id, c.progress) }}%</span>
+                    <div class="mini-bar">
+                      <div
+                        class="mini-fill"
+                        :style="{ '--progress-target': Math.min(100, c.progress) + '%' }"
+                      ></div>
+                    </div>
                 </div>
               </div>
             </article>
@@ -324,7 +356,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { courseService, type CourseSummary, type CourseDetail } from '@/services/course.service'
 
@@ -348,13 +380,78 @@ const err = ref('')
 type Item = CourseSummary & {
   progress: number
   done: boolean
-  score: string
+  scoreEarned: number
+  scoreTotal: number
   tag?: string
   isPurchased?: boolean
 }
 
 const all = ref<Item[]>([])
 const detailsMap = ref(new Map<string, CourseDetail>())
+const animatedProgressMap = reactive<Record<string, number>>({})
+const progressFrameMap = new Map<string, number>()
+const animatedCourseTrophiesMap = reactive<Record<string, number>>({})
+const courseTrophyFrameMap = new Map<string, number>()
+const trophyTarget = reactive<Record<string, number>>({ base: 0, mid: 0 })
+const trophyAnimated = reactive<Record<string, number>>({ base: 0, mid: 0 })
+const trophyFrameMap = new Map<string, number>()
+
+function getAnimatedProgress(id: number | string, fallback: number) {
+  const val = animatedProgressMap[String(id)]
+  return val == null ? fallback : val
+}
+
+function animateCourseProgress(id: number | string, target: number) {
+  const key = String(id)
+  if (progressFrameMap.has(key)) {
+    cancelAnimationFrame(progressFrameMap.get(key)!)
+    progressFrameMap.delete(key)
+  }
+  const start = animatedProgressMap[key] ?? 0
+  const duration = 700
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+  const step = (now: number) => {
+    const elapsed = now - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    animatedProgressMap[key] = Math.round(start + (target - start) * progress)
+    if (progress < 1) {
+      progressFrameMap.set(key, requestAnimationFrame(step))
+    } else {
+      progressFrameMap.delete(key)
+    }
+  }
+
+  progressFrameMap.set(key, requestAnimationFrame(step))
+}
+
+function getAnimatedCourseTrophy(id: number | string, fallback: number) {
+  const val = animatedCourseTrophiesMap[String(id)]
+  return val == null ? fallback : val
+}
+
+function animateCourseTrophy(id: number | string, target: number) {
+  const key = String(id)
+  if (courseTrophyFrameMap.has(key)) {
+    cancelAnimationFrame(courseTrophyFrameMap.get(key)!)
+    courseTrophyFrameMap.delete(key)
+  }
+  const start = animatedCourseTrophiesMap[key] ?? 0
+  const duration = 700
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+
+  const step = (now: number) => {
+    const progress = Math.min((now - startTime) / duration, 1)
+    animatedCourseTrophiesMap[key] = Math.round(start + (target - start) * progress)
+    if (progress < 1) {
+      courseTrophyFrameMap.set(key, requestAnimationFrame(step))
+    } else {
+      courseTrophyFrameMap.delete(key)
+    }
+  }
+
+  courseTrophyFrameMap.set(key, requestAnimationFrame(step))
+}
 
 function toLevelLabel(grade: number) {
   return grade <= 2 ? 'Khối 1–2' : 'Khối 3–5'
@@ -362,7 +459,7 @@ function toLevelLabel(grade: number) {
 
 function calcScore(progress: number) {
   const earned = Math.max(0, Math.min(5, Math.round(progress / 20)))
-  return `${earned}/5`
+  return { earned, total: 5 }
 }
 
 function calcProgressFromDetail(d: CourseDetail, id: number | string) {
@@ -392,6 +489,7 @@ async function load() {
     all.value = (items || []).map((i) => {
       const d = map.get(String(i.id))
       const progress = d ? calcProgressFromDetail(d, i.id) : (Number(i.id) * 13) % 100
+      const scoreInfo = calcScore(progress)
 
       const isPurchased = i.grade <= 2
 
@@ -399,7 +497,8 @@ async function load() {
         ...i,
         progress,
         done: progress >= 100,
-        score: calcScore(progress),
+        scoreEarned: scoreInfo.earned,
+        scoreTotal: scoreInfo.total,
         tag: i.subject?.toUpperCase?.(),
         isPurchased,
       }
@@ -408,6 +507,17 @@ async function load() {
     err.value = e?.message || String(e)
   }
 }
+
+watch(
+  all,
+  (list) => {
+    list.forEach((course) => {
+      animateCourseProgress(course.id, course.progress)
+      animateCourseTrophy(course.id, course.scoreEarned)
+    })
+  },
+  { deep: true },
+)
 
 /* ====== FILTERING ====== */
 const filteredMain = computed(() => {
@@ -423,14 +533,13 @@ const filteredMain = computed(() => {
 })
 const baseList = computed(() => filteredMain.value.filter((x) => x.grade <= 2))
 const midList = computed(() => filteredMain.value.filter((x) => x.grade >= 3))
-function parseScore(s: string) {
-  const [a, b] = s.split('/').map((n) => parseInt(n))
-  return { earned: a || 0, total: b || 0 }
+function parseScore(item: Item) {
+  return { earned: item.scoreEarned || 0, total: item.scoreTotal || 0 }
 }
 function sumTrophies(list: Item[]) {
   return list.reduce(
     (acc, c) => {
-      const s = parseScore(c.score)
+      const s = parseScore(c)
       acc.earned += s.earned
       acc.total += s.total
       return acc
@@ -440,6 +549,38 @@ function sumTrophies(list: Item[]) {
 }
 const baseTrophies = computed(() => sumTrophies(baseList.value))
 const midTrophies = computed(() => sumTrophies(midList.value))
+const baseKey = 'base'
+const midKey = 'mid'
+
+function animateTrophies(key: 'base' | 'mid', target: number) {
+  if (trophyFrameMap.has(key)) {
+    cancelAnimationFrame(trophyFrameMap.get(key)!)
+    trophyFrameMap.delete(key)
+  }
+  const start = trophyAnimated[key]
+  const duration = 700
+  const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const step = (now: number) => {
+    const progress = Math.min((now - startTime) / duration, 1)
+    trophyAnimated[key] = Math.round(start + (target - start) * progress)
+    if (progress < 1) trophyFrameMap.set(key, requestAnimationFrame(step))
+    else trophyFrameMap.delete(key)
+  }
+  trophyFrameMap.set(key, requestAnimationFrame(step))
+}
+
+watch(baseTrophies, (val) => {
+  trophyTarget.base = val.earned
+  animateTrophies('base', val.earned)
+})
+watch(midTrophies, (val) => {
+  trophyTarget.mid = val.earned
+  animateTrophies('mid', val.earned)
+})
+
+function getAnimatedTrophy(key: 'base' | 'mid') {
+  return trophyAnimated[key] ?? 0
+}
 
 /** Supp tab */
 const suppList = computed(() => {
@@ -539,7 +680,8 @@ onMounted(load)
   display: flex;
   max-width: 1600px;
   margin: 0 auto;
-  gap: 18px;
+  gap: clamp(16px, 2vw, 28px);
+  align-items: flex-start;
 }
 .container {
   flex: 1;
@@ -871,9 +1013,9 @@ h1 {
 
 /* ============ SIDEBAR TIẾN ĐỘ ============ */
 .progress-sidebar {
-  flex: 0 0 320px;
-  min-width: 320px;
-  width: 320px;
+  flex: 0 0 clamp(240px, 22vw, 320px);
+  min-width: clamp(240px, 22vw, 320px);
+  width: clamp(240px, 22vw, 320px);
   padding: 18px 18px 18px 0;
   display: flex;
   flex-direction: column;
@@ -971,7 +1113,8 @@ h1 {
   stroke-width: 6;
   stroke-linecap: round;
   stroke-dasharray: 326.73;
-  transition: stroke-dashoffset 0.6s ease;
+  stroke-dashoffset: var(--progress-offset, 326.73);
+  animation: ringFill 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .progress-text {
   position: absolute;
@@ -1050,7 +1193,8 @@ h1 {
   height: 100%;
   background: linear-gradient(90deg, var(--brand), var(--accent));
   border-radius: 999px;
-  transition: width 0.3s ease;
+  width: var(--progress-target, 0%);
+  animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Recent Courses */
@@ -1123,7 +1267,25 @@ h1 {
   height: 100%;
   background: var(--accent);
   border-radius: 999px;
-  transition: width 0.3s ease;
+  width: var(--progress-target, 0%);
+  animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes ringFill {
+  from {
+    stroke-dashoffset: 326.73;
+  }
+  to {
+    stroke-dashoffset: var(--progress-offset, 326.73);
+  }
+}
+@keyframes barFill {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--progress-target, 0%);
+  }
 }
 
 @media (max-width: 1400px) {
@@ -1131,16 +1293,16 @@ h1 {
     max-width: 100%;
   }
   .progress-sidebar {
-    flex: 0 0 300px;
-    min-width: 300px;
-    width: 300px;
+    flex: 0 0 clamp(240px, 24vw, 300px);
+    min-width: clamp(240px, 24vw, 300px);
+    width: clamp(240px, 24vw, 300px);
   }
   .grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .layout {
     flex-direction: column;
   }

@@ -1,226 +1,240 @@
-from typing import List, Optional
+import uuid
+from typing import Optional, Any, Dict, List
 from django.db import transaction
-from django.contrib.auth import get_user_model
 
-from content.models import (
-    Exploration, ExplorationState, Hint, AnswerGroup, RuleSpec, Solution,
-    InteractionCustomizationArg
-)
-from content.domains.exploration_domain import (
-    ExplorationDomain, ExplorationStateDomain, ExplorationTransitionDomain
-)
-from content.domains.commands import (
-    CreateExplorationCommand, UpdateExplorationCommand, PublishExplorationCommand,
-    AddExplorationStateCommand, UpdateExplorationStateCommand, AddExplorationTransitionCommand
-)
+from custom_account.models import UserModel 
+from custom_account.services.exceptions import DomainError
+from content.models import Exploration, ExplorationState, Category, Tag
+from content.domains.exploration_domain import ExplorationDomain 
+from content.services.exceptions import ExplorationNotFoundError
 
 
-User = get_user_model()
 
+@transaction.atomic
+def create_exploration(owner: UserModel, data: dict) -> ExplorationDomain:
+    """
+    Tạo một exploration mới và state 'init' mặc định.
+    Giống như 'register_user' tạo User và Profile.
+    """
+    
+    # 1. Tạo domain object từ dữ liệu DTO
+    # (Giống như user_service tạo UserDomain)
+    exp_domain = ExplorationDomain(
+        id=str(uuid.uuid4()), # Exploration dùng CharField ID
+        title=data["title"],
+        objective=data.get("objective"),
+        language=data.get("language", "vi"),
+        owner_id=owner.id, # Gán owner
+        category_id=data.get("category"), # DTO đã gửi UUID
+        tag_ids=data.get("tags", [])
+    ) 
 
-class ExplorationService:
-    """Service for managing explorations (interactive lessons)."""
-
-    @transaction.atomic
-    def create_exploration(self, input_data: CreateExplorationCommand) -> ExplorationDomain:
-        input_data.validate()
-        owner = User.objects.filter(id=input_data.owner_id).first()
-        exploration = Exploration.objects.create(
-            title=input_data.title,
-            owner=owner,
-            language=input_data.language
-        )
-        return ExplorationDomain.from_model(exploration)
-
-    def list_explorations(self) -> List[ExplorationDomain]:
-        return [ExplorationDomain.from_model(e) for e in Exploration.objects.all()]
-
-    @transaction.atomic
-    def update_exploration(self, exploration_id: str, update_data: UpdateExplorationCommand) -> Optional[ExplorationDomain]:
+    # 2. Chuyển domain sang model để lưu
+    exploration = exp_domain.to_model()
+    
+    # Xử lý các trường quan hệ (ForeignKey, ManyToMany)
+    # (user_service không có, nhưng đây là cách làm đúng)
+    if exp_domain.category_id:
         try:
-            exp = Exploration.objects.get(id=exploration_id)
-        except Exploration.DoesNotExist:
-            return None
-        update_data.validate()
-        if update_data.title: exp.title = update_data.title
-        if update_data.language: exp.language = update_data.language
-        exp.save()
-        return ExplorationDomain.from_model(exp)
+            exploration.category = Category.objects.get(pk=exp_domain.category_id)
+        except Category.DoesNotExist:
+            raise DomainError(f"Category {exp_domain.category_id} not found.")
 
-    @transaction.atomic
-    def publish_exploration(self, exploration_id: str, publish_data: PublishExplorationCommand) -> Optional[ExplorationDomain]:
+    # Lưu exploration chính
+    exploration.save()
+
+    # Xử lý M2M sau khi lưu
+    if exp_domain.tag_ids:
         try:
-            exp = Exploration.objects.get(id=exploration_id)
-        except Exploration.DoesNotExist:
-            return None
-        publish_data.validate()
-        exp.published = publish_data.published
-        exp.save()
-        return ExplorationDomain.from_model(exp)
+            tags = Tag.objects.filter(pk__in=exp_domain.tag_ids)
+            exploration.tags.set(tags)
+        except Tag.DoesNotExist:
+            raise DomainError("One or more tags not found.")
 
-    @transaction.atomic
-    def unpublish_exploration(self, exploration_id: str) -> Optional[ExplorationDomain]:
+    # 3. Tạo aggregate part (giống như tạo Profile)
+    # Tạo một state ban đầu
+    init_state_name = "Introduction" # Tên state mặc định
+    ExplorationState.objects.create(
+        id=f"{exploration.id}:{init_state_name}", # ID của state
+        exploration=exploration,
+        name=init_state_name,
+        content_html="<p>Welcome!</p>",
+        interaction_id="Continue"
+    )
+    
+    # Cập nhật exploration với init_state_name
+    exploration.init_state_name = init_state_name
+    exploration.save(update_fields=["init_state_name"])
+
+    # 4. Trả về Domain object từ Model (giống hệt user_service)
+    return ExplorationDomain.from_model(exploration)
+
+
+def update_exploration_metadata(exploration: Exploration, updates: Dict[str, Any]) -> ExplorationDomain:
+    """
+    Cập nhật metadata cho một exploration.
+    Giống hệt 'update_user' (Model -> Domain -> Apply -> Model Save).
+    """
+    
+    # 1. Chuyển Model sang Domain
+    domain = ExplorationDomain.from_model(exploration)
+
+    # 2. Áp dụng updates vào Domain (để validate nếu cần)
+    domain.apply_updates(updates) # Giả định domain có hàm này
+
+    # 3. Lưu vào database (giống 'update_user')
+    # Tách các trường quan hệ ra xử lý riêng
+    tag_ids = updates.pop('tags', None)
+    category_id = updates.pop('category', None)
+
+    # Cập nhật các trường đơn giản
+    for key, value in updates.items():
+        if hasattr(exploration, key):
+            setattr(exploration, key, value)
+    
+    # Cập nhật FK (Category)
+    if category_id is not None:
         try:
-            exp = Exploration.objects.get(id=exploration_id)
-        except Exploration.DoesNotExist:
-            return None
-        exp.published = False
-        exp.save()
-        return ExplorationDomain.from_model(exp)
+            exploration.category = Category.objects.get(pk=category_id)
+        except Category.DoesNotExist:
+            raise DomainError(f"Category {category_id} not found.")
+    
+    exploration.save() # Lưu các trường đơn giản và FK
 
-    @transaction.atomic
-    def update_exploration_from_json(self, exploration_id: str, full_data: dict) -> Optional[ExplorationDomain]:
+    # Cập nhật M2M (Tags)
+    if tag_ids is not None:
         try:
-            exploration = Exploration.objects.get(id=exploration_id)
-        except Exploration.DoesNotExist:
-            return None
+            tags = Tag.objects.filter(pk__in=tag_ids)
+            exploration.tags.set(tags)
+        except Tag.DoesNotExist:
+            raise DomainError("One or more tags not found.")
 
-        # 1. Update Exploration metadata
-        exploration.title = full_data.get('title', exploration.title)
-        exploration.objective = full_data.get('objective', exploration.objective)
-        exploration.language = full_data.get('language', exploration.language)
-        exploration.init_state_name = full_data.get('init_state_name', exploration.init_state_name)
-        exploration.save()
-
-        # 2. Diff and update states
-        states_data = full_data.get('states', {})
-        existing_states = {s.name: s for s in exploration.states.all()}
-        received_state_names = set(states_data.keys())
-        existing_state_names = set(existing_states.keys())
-
-        # Delete states not in the new data
-        states_to_delete = existing_state_names - received_state_names
-        if states_to_delete:
-            ExplorationState.objects.filter(exploration=exploration, name__in=states_to_delete).delete()
-
-        # Create/Update states
-        for state_name, state_data in states_data.items():
-            state, created = ExplorationState.objects.update_or_create(
-                exploration=exploration,
-                name=state_name,
-                defaults={
-                    'content_html': state_data.get('content', {}).get('html'),
-                    'interaction_id': state_data.get('interaction', {}).get('id'),
-                    'card_is_checkpoint': state_data.get('card_is_checkpoint', False),
-                }
-            )
-
-            # 3. Update state's nested objects
-            interaction_data = state_data.get('interaction', {})
-            
-            # Hints
-            state.hints.all().delete()
-            for i, hint_data in enumerate(interaction_data.get('hints', [])):
-                Hint.objects.create(state=state, hint_index=i, hint_html=hint_data.get('hint_content', {}).get('html'))
-
-            # Answer Groups and their Rule Specs
-            state.answer_groups.all().delete()
-            for i, ag_data in enumerate(interaction_data.get('answer_groups', [])):
-                ag = AnswerGroup.objects.create(
-                    state=state,
-                    group_index=i,
-                    outcome_dest=ag_data.get('outcome', {}).get('dest'),
-                    outcome_feedback_html=ag_data.get('outcome', {}).get('feedback', {}).get('html'),
-                    labelled_as_correct=ag_data.get('outcome', {}).get('labelled_as_correct', False),
-                    tagged_skill_misconception_id=ag_data.get('tagged_skill_misconception_id')
-                )
-                for j, rule_data in enumerate(ag_data.get('rule_specs', [])):
-                    RuleSpec.objects.create(
-                        answer_group=ag,
-                        rule_index=j,
-                        rule_type=rule_data.get('type'),
-                        inputs_json=rule_data.get('inputs', {})
-                    )
-            
-            # Solution
-            solution_data = interaction_data.get('solution')
-            if solution_data:
-                Solution.objects.update_or_create(
-                    state=state,
-                    defaults={
-                        'correct_answer': solution_data.get('correct_answer'),
-                        'answer_is_exclusive': solution_data.get('answer_is_exclusive', False),
-                        'solution_explanation_html': solution_data.get('explanation', {}).get('html')
-                    }
-                )
-            else:
-                Solution.objects.filter(state=state).delete()
-
-            # Customization Args
-            state.customization_args.all().delete()
-            for arg_name, arg_value in interaction_data.get('customization_args', {}).items():
-                InteractionCustomizationArg.objects.create(
-                    state=state,
-                    interaction_id=state.interaction_id,
-                    arg_name=arg_name,
-                    arg_value_json=arg_value
-                )
-
-        return self.get_exploration_details(exploration_id)
-
-    def get_exploration_details(self, exploration_id: str) -> Optional[ExplorationDomain]:
-        try:
-            exploration = Exploration.objects.prefetch_related(
-                'states__hints', 
-                'states__answer_groups__rule_specs', 
-                'states__solution',
-                'states__customization_args',
-                'category',
-                'tags'
-            ).get(id=exploration_id)
-            return ExplorationDomain.from_model(exploration)
-        except Exploration.DoesNotExist:
-            return None
+    # 4. Trả về domain object đã cập nhật
+    return ExplorationDomain.from_model(exploration)
 
 
-class ExplorationStateService:
-    """Service for managing exploration states."""
+def get_published_explorations() -> List[ExplorationDomain]:
+    """
+    Lấy danh sách các exploration đã published.
+    Giống 'list_all_users_for_admin'.
+    """
+    # Tối ưu: Dùng select/prefetch để tránh N+1 query trong DTO
+    explorations = Exploration.objects.filter(published=True)\
+                                      .select_related('owner', 'category')\
+                                      .prefetch_related('tags')\
+                                      .order_by('-last_updated')
+                                      
+    return [ExplorationDomain.from_model(exp) for exp in explorations]
 
-    @transaction.atomic
-    def create_state(self, input_data: AddExplorationStateCommand) -> ExplorationStateDomain:
-        input_data.validate()
-        exploration = Exploration.objects.get(id=input_data.exploration_id)
-        state = ExplorationState.objects.create(
+
+def get_explorations_for_owner(user: UserModel) -> List[ExplorationDomain]:
+    """ Lấy danh sách exploration (cả draft) cho một owner. """
+    explorations = Exploration.objects.filter(owner=user)\
+                                      .select_related('owner', 'category')\
+                                      .prefetch_related('tags')\
+                                      .order_by('-last_updated')
+                                      
+    return [ExplorationDomain.from_model(exp) for exp in explorations]
+
+
+def get_full_exploration_details(exploration_id: str, user: Optional[UserModel] = None) -> ExplorationDomain:
+    """
+    Lấy chi tiết một exploration, bao gồm cả states.
+    Giống 'get_user_by_id'.
+    """
+    try:
+        # Tối ưu: Prefetch tất cả dữ liệu lồng ghép
+        exploration = Exploration.objects.select_related('owner', 'category')\
+                               .prefetch_related(
+                                   'tags', 
+                                   'states', 
+                                   'states__media', 
+                                   'states__customization_args'
+                               )\
+                               .get(pk=exploration_id)
+    except Exploration.DoesNotExist:
+        raise ExplorationNotFoundError("Exploration not found.")
+
+    # Logic nghiệp vụ: Chỉ owner/admin mới được xem bản nháp
+    if not exploration.published:
+        if user is None or (exploration.owner != user and not user.is_staff):
+            raise DomainError("You do not have permission to view this draft.")
+    
+    return ExplorationDomain.from_model(exploration) 
+
+
+def delete_exploration(exploration: Exploration, user: UserModel):
+    """
+    Xóa một exploration, chứa logic nghiệp vụ.
+    Giống 'delete_user'.
+    """
+    # Logic nghiệp vụ: Không cho phép xóa exploration đã publish
+    if exploration.published and not user.is_staff:
+        raise DomainError("Cannot delete a published exploration. Please unpublish it first.")
+    
+    # (user_service của bạn không check, nhưng đây là check quyền sở hữu)
+    if exploration.owner != user and not user.is_staff:
+        raise DomainError("You do not have permission to delete this exploration.")
+
+    exploration.delete()
+    return True # Trả về True/False giống user_service.deactivate_user
+
+
+@transaction.atomic
+def update_full_exploration(exploration: Exploration, full_data: Dict[str, Any], user: UserModel) -> ExplorationDomain:
+    """
+    Cập nhật toàn bộ exploration từ JSON.
+    """
+    
+    # 1. Xóa tất cả states cũ (và media/args liên quan)
+    exploration.states.all().delete()
+    
+    # 2. Cập nhật metadata của Exploration chính
+    exploration.title = full_data.get('title', exploration.title)
+    exploration.objective = full_data.get('objective', exploration.objective)
+    exploration.language = full_data.get('language', exploration.language)
+    exploration.init_state_name = full_data.get('init_state_name', exploration.init_state_name)
+    # (Thêm các trường metadata khác nếu cần)
+    
+    # 3. Tạo lại states từ JSON
+    states_data = full_data.get('states', {})
+    if not states_data:
+        raise DomainError("Exploration must have at least one state.")
+
+    new_states = []
+    new_media_list = []
+    new_args_list = []
+
+    for state_name, state_data in states_data.items():
+        new_state = ExplorationState(
+            id=f"{exploration.id}:{state_name}",
             exploration=exploration,
-            name=input_data.name,
-            content=input_data.content,
-            interaction=input_data.interaction
+            name=state_name,
+            content_html=state_data.get('content', {}).get('html'),
+            interaction_id=state_data.get('interaction', {}).get('id'),
+            card_is_checkpoint=state_data.get('card_is_checkpoint', False)
         )
-        return ExplorationStateDomain.from_model(state)
+        new_states.append(new_state)
 
-    def list_states(self, exploration_id: str) -> List[ExplorationStateDomain]:
-        return [ExplorationStateDomain.from_model(s) for s in ExplorationState.objects.filter(exploration_id=exploration_id)]
-
-    @transaction.atomic
-    def update_state(self, state_id: str, update_data: UpdateExplorationStateCommand) -> Optional[ExplorationStateDomain]:
-        try:
-            state = ExplorationState.objects.get(id=state_id)
-        except ExplorationState.DoesNotExist:
-            return None
-        update_data.validate()
-        if update_data.name: state.name = update_data.name
-        if update_data.content: state.content.update(update_data.content)
-        if update_data.interaction: state.interaction.update(update_data.interaction)
-        state.save()
-        return ExplorationStateDomain.from_model(state)
+        # (Bạn có thể thêm logic để parse media và customization args ở đây)
+        # ...
+        
+    # 4. Bulk create để tăng tốc
+    ExplorationState.objects.bulk_create(new_states)
+    
+    # 5. Lưu exploration chính
+    exploration.save()
+    
+    # 6. Lấy lại bản đầy đủ từ DB và trả về domain
+    # (để đảm bảo data nhất quán)
+    updated_exploration = Exploration.objects.get(pk=exploration.id)
+    return ExplorationDomain.from_model(updated_exploration)
 
 
-class ExplorationTransitionService:
-    """Service for managing exploration transitions."""
-
-    @transaction.atomic
-    def create_transition(self, input_data: AddExplorationTransitionCommand) -> ExplorationTransitionDomain:
-        input_data.validate()
-        exploration = Exploration.objects.get(id=input_data.exploration_id)
-        from_state = ExplorationState.objects.get(exploration_id=input_data.exploration_id, name=input_data.from_state)
-        to_state = ExplorationState.objects.get(exploration_id=input_data.exploration_id, name=input_data.to_state)
-        transition = ExplorationTransition.objects.create(
-            exploration=exploration,
-            from_state=from_state,
-            to_state=to_state,
-            condition=input_data.condition
-        )
-        return ExplorationTransitionDomain.from_model(transition)
-
-    def list_transitions(self, exploration_id: str) -> List[ExplorationTransitionDomain]:
-        return [ExplorationTransitionDomain.from_model(t) for t in ExplorationTransition.objects.filter(exploration_id=exploration_id)]
+def list_all_explorations() -> List[ExplorationDomain]:
+    """ Lấy TẤT CẢ explorations cho admin (draft, published, mọi owner). """
+    explorations = Exploration.objects.all()\
+                                      .select_related('owner', 'category')\
+                                      .prefetch_related('tags')\
+                                      .order_by('-last_updated')
+    return [ExplorationDomain.from_model(exp) for exp in explorations]

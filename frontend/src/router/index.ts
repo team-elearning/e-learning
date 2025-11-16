@@ -348,7 +348,7 @@ const routes: RouteRecordRaw[] = [
         props: true,
         meta: { title: 'Làm bài luyện tập' },
       },
-      
+
       // Official Tests (Thi chính thức)
       {
         path: 'tests',
@@ -363,7 +363,7 @@ const routes: RouteRecordRaw[] = [
         props: true,
         meta: { title: (to: any) => `Đề thi #${to.params.id}` },
       },
-      
+
       // Legacy routes for backward compatibility
       {
         path: 'exams',

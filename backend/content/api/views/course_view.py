@@ -9,9 +9,9 @@ from pydantic import ValidationError as PydanticValidationError
 from django.http import Http404
 
 from content import models
-from content.serializers import CourseSerializer, CourseDetailReadSerializer
+from content.serializers import CourseSerializer, CourseCreateSerializer
 from content.services import course_service     
-from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput 
+from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput
 from content.services.exceptions import DomainError, ValidationError as DRFValidationError    
 from content.api.permissions import IsInstructor
 from content.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
@@ -143,7 +143,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
         """ Tạo course mới (logic y hệt) """
         
         # 1. Validate DRF (nhớ sửa lỗi import)
-        serializer = CourseSerializer(data=request.data)
+        serializer = CourseCreateSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -243,7 +243,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": "Lỗi máy chủ khi xoá course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class AdminCoursePublishView(APIView):
+class AdminCoursePublishView(RoleBasedOutputMixin, APIView):
     """
     POST /courses/{id}/publish/
     body: {"require_all_lessons_published": false}
@@ -258,16 +258,14 @@ class AdminCoursePublishView(APIView):
         try:
             # Using a simple dict as command for simplicity, matching service layer
             publish_command_data = {"published": True, "require_all_lessons_published": require_all}
-            course_service.publish_course(course_id=course_id, publish_data=type("PublishCmd", (), publish_command_data))
+            course_domain = course_service.publish_course(course_id=course_id, publish_data=type("PublishCmd", (), publish_command_data))
             
-            updated_instance = models.Course.objects.get(id=course_id)
-            read_serializer = CourseDetailReadSerializer(updated_instance)
-            return Response(read_serializer.data)
+            return Response(course_domain)
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class AdminCourseUnpublishView(APIView):
+class AdminCourseUnpublishView(RoleBasedOutputMixin, APIView):
     """
     POST /courses/{id}/unpublish/
     """
@@ -279,9 +277,7 @@ class AdminCourseUnpublishView(APIView):
             if not updated:
                 return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
             
-            updated_instance = models.Course.objects.get(id=course_id)
-            read_serializer = CourseDetailReadSerializer(updated_instance)
-            return Response(read_serializer.data)
+            return Response(updated)
         except Exception as ex:
             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -289,13 +285,13 @@ class AdminCourseUnpublishView(APIView):
 # ------------------ INSTRUCTOR --------------------
 class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/v1/instructor/courses/ - List các course CỦA TÔI.
-    POST /api/v1/instructor/courses/ - Tạo course mới (owner là TÔI).
+    GET /instructor/courses/ - List các course CỦA TÔI.
+    POST /instructor/courses/ - Tạo course mới (owner là TÔI).
     """
     permission_classes = [IsInstructor] # Chỉ Instructor mới được vào
 
     # Instructor cũng thấy DTO admin cho course của mình
-    output_dto_public = CourseAdminOutput
+    output_dto_public = CoursePublicOutput
     output_dto_admin  = CourseAdminOutput
 
     def __init__(self, *args, **kwargs):
@@ -306,15 +302,16 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
         """ Lấy list course CỦA TÔI """
         try:
             courses_list = self.course_service.list_courses_for_instructor(owner=request.user)
+            print(courses_list[0].to_dict())
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
             return Response({"detail": f"Đã xảy ra lỗi: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        
     def post(self, request, *args, **kwargs):
         """ Tạo course mới (logic y hệt Admin post) """
         
-        serializer = CourseSerializer(data=request.data)
+        serializer = CourseCreateSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -334,6 +331,8 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
@@ -438,7 +437,10 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             self.course_service.delete_course_for_instructor(
                 course_id=pk, owner=request.user
             )
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"detail": f"Đã xóa thành công khóa học (ID: {pk})."}, 
+                status=status.HTTP_200_OK
+            )
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         

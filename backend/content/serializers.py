@@ -2,8 +2,10 @@
 from typing import Any, Dict, List, Optional
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from datetime import datetime, timedelta
 
-from content.models import Module, Category, Tag, Subject, Course, LessonVersion, ContentBlock, Lesson, Exploration, ExplorationState, ExplorationTransition, AnswerGroup, Hint, Solution, RuleSpec
+
+from content.models import Module, Category, Tag, Subject, Course, ContentBlock, Lesson, Exploration, ExplorationState, ExplorationTransition, AnswerGroup, Hint, Solution, RuleSpec, Question
 from content.domains.subject_domain import SubjectDomain
 from content.domains.course_domain import CourseDomain
 from content.domains.lesson_domain import LessonDomain
@@ -14,7 +16,7 @@ from content.domains.commands import ChangeVersionStatusCommand, ReorderContentB
 User = get_user_model()
 
 
-# -----------------------
+# ----------------------- 
 # Helpers
 # -----------------------
 def _maybe_pk_to_id(obj):
@@ -127,22 +129,22 @@ class ModuleSerializer(serializers.ModelSerializer):
             'position': {'required': False},
         }
 
-class ModuleCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer cho POST (tạo mới) và PUT (cập nhật toàn bộ).
-    Validate các trường bắt buộc trong body.
-    """
-    class Meta:
-        model = Module
-        fields = [
-            'title', 
-            'position'
-        ]
-        # course_id không có ở đây vì nó đến từ URL
-        extra_kwargs = {
-            'title': {'required': True},
-            'position': {'required': False}, # Model có default
-        }
+# class ModuleCreateSerializer(serializers.ModelSerializer):
+#     """
+#     Serializer cho POST (tạo mới) và PUT (cập nhật toàn bộ).
+#     Validate các trường bắt buộc trong body.
+#     """
+#     class Meta:
+#         model = Module
+#         fields = [
+#             'title', 
+#             'position'
+#         ]
+#         # course_id không có ở đây vì nó đến từ URL
+#         extra_kwargs = {
+#             'title': {'required': True},
+#             'position': {'required': False}, # Model có default
+#         }
 
 class ModuleReorderSerializer(serializers.Serializer):
     """
@@ -156,8 +158,8 @@ class ModuleReorderSerializer(serializers.Serializer):
 
 
 class ContentBlockSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
-    lesson_version = serializers.PrimaryKeyRelatedField(queryset=LessonVersion.objects.all(), source="lesson_version_id")
+    id = serializers.UUIDField(required=False, allow_null=True)
+    lesson = serializers.PrimaryKeyRelatedField(queryset=Lesson.objects.all(), required=False, source="lesson_version_id")
     type = serializers.ChoiceField(choices=[("text", "Text"), ("image", "Image"), ("video", "Video"), ("quiz", "Quiz"), ("exploration_ref", "ExplorationRef")])
     position = serializers.IntegerField(default=0, min_value=0)
     payload = serializers.JSONField()
@@ -184,25 +186,35 @@ class ContentBlockSerializer(serializers.ModelSerializer):
     @staticmethod
     def from_domain(domain: ContentBlockDomain) -> Dict[str, Any]:
         return domain.to_dict()
+    
+
+class ReorderBlocksSerializer(serializers.Serializer):
+    """
+    Serializer này CHỈ dùng để validate payload cho việc sắp xếp lại.
+    """
+    ordered_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=True  # Cho phép gửi một list rỗng (nếu logic nghiệp vụ cho phép)
+    )
 
 
-class LessonVersionSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
-    lesson = serializers.PrimaryKeyRelatedField(queryset=Lesson.objects.all(), source="lesson_id")
-    version = serializers.IntegerField(read_only=True)
-    status = serializers.ChoiceField(choices=[("draft", "Draft"), ("review", "Review"), ("published", "Published")], default="draft")
-    author = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
-    content = serializers.JSONField()
-    change_summary = serializers.CharField(allow_blank=True, required=False)
-    created_at = serializers.DateTimeField(read_only=True)
-    published_at = serializers.DateTimeField(read_only=True)
-    # nested read-only list of content blocks (if prefetched)
-    content_blocks = ContentBlockSerializer(many=True, read_only=True)
+# class LessonVersionSerializer(serializers.ModelSerializer):
+#     id = serializers.UUIDField(read_only=True)
+#     lesson = serializers.PrimaryKeyRelatedField(queryset=Lesson.objects.all(), source="lesson_id")
+#     version = serializers.IntegerField(read_only=True)
+#     status = serializers.ChoiceField(choices=[("draft", "Draft"), ("review", "Review"), ("published", "Published")], default="draft")
+#     author = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
+#     content = serializers.JSONField()
+#     change_summary = serializers.CharField(allow_blank=True, required=False)
+#     created_at = serializers.DateTimeField(read_only=True)
+#     published_at = serializers.DateTimeField(read_only=True)
+#     # nested read-only list of content blocks (if prefetched)
+#     content_blocks = ContentBlockSerializer(many=True, read_only=True)
 
-    class Meta:
-        model = LessonVersion
-        fields = ["id", "lesson", "version", "status", "author", "content", "change_summary", "created_at", "published_at", "content_blocks"]
-        read_only_fields = ["id", "version", "created_at", "published_at", "content_blocks"]
+#     class Meta:
+#         model = LessonVersion
+#         fields = ["id", "lesson", "version", "status", "author", "content", "change_summary", "created_at", "published_at", "content_blocks"]
+#         read_only_fields = ["id", "version", "created_at", "published_at", "content_blocks"]
 
     def to_domain(self) -> LessonVersionDomain:
         """
@@ -232,17 +244,17 @@ class LessonVersionSerializer(serializers.ModelSerializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
+    id = serializers.UUIDField(required = False)
     module = serializers.PrimaryKeyRelatedField(queryset=Module.objects.all(), source="module_id")
     title = serializers.CharField(max_length=255)
     position = serializers.IntegerField(default=0, min_value=0)
     content_type = serializers.ChoiceField(choices=[("lesson", "Lesson"), ("exploration", "Exploration"), ("exercise", "Exercise"), ("quiz", "Quiz")], default="lesson")
     published = serializers.BooleanField(default=False)
-    versions = LessonVersionSerializer(many=True, read_only=True)
+    # versions = LessonVersionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Lesson
-        fields = ["id", "module", "title", "position", "content_type", "published", "versions"]
+        fields = ["id", "module", "title", "position", "content_type", "published"]
         read_only_fields = ["id", "versions"]
 
     def to_domain(self) -> LessonDomain:
@@ -274,49 +286,26 @@ class SetStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=VALID_STATUSES)
 
 
-class ContentBlockInputSerializer(serializers.Serializer):
-    """
-    Serializer con, KHÔNG PHẢI ModelSerializer.
-    Dùng để validate từng block trong danh sách 'content_blocks'
-    khi client gửi lên.
-    """
-    # 'id' là Optional. 
-    # - Nếu có (UUID), service sẽ hiểu là CẬP NHẬT.
-    # - Nếu không có (None), service sẽ hiểu là TẠO MỚI.
-    id = serializers.UUIDField(required=False, allow_null=True)
-    
-    # Lấy choices từ model ContentBlock
-    TYPE_CHOICES = [
-        ('text', ('Text')), ('image', ('Image')), ('video', ('Video')),
-        ('quiz', ('Quiz')), ('exploration_ref', ('Exploration Reference'))
-    ]
-    type = serializers.ChoiceField(choices=TYPE_CHOICES)
-    position = serializers.IntegerField(min_value=0)
-    payload = serializers.JSONField(default=dict)
-
-    # Không cần 'lesson_version' vì nó được lồng (nested)
-
-
-class LessonVersionCreateSerializer(serializers.Serializer):
-    """
-    Serializer Input (Đầu vào) cho POST (Tạo mới) một Cụm LessonVersion.
-    """
-    change_summary = serializers.CharField(required=False, allow_blank=True)
-    # Đây là nơi client gửi lên danh sách các block
-    content_blocks = ContentBlockInputSerializer(many=True, required=False, default=[])
+# class LessonVersionCreateSerializer(serializers.Serializer):
+#     """
+#     Serializer Input (Đầu vào) cho POST (Tạo mới) một Cụm LessonVersion.
+#     """
+#     change_summary = serializers.CharField(required=False, allow_blank=True)
+#     # Đây là nơi client gửi lên danh sách các block
+#     content_blocks = ContentBlockInputSerializer(many=True, required=False, default=[])
     
 
-class LessonVersionUpdateSerializer(serializers.Serializer):
-    """
-    Serializer Input (Đầu vào) cho PATCH (Cập nhật) một Cụm LessonVersion.
-    Tất cả các trường đều là 'required=False'.
-    """
-    change_summary = serializers.CharField(required=False, allow_blank=True)
+# class LessonVersionUpdateSerializer(serializers.Serializer):
+#     """
+#     Serializer Input (Đầu vào) cho PATCH (Cập nhật) một Cụm LessonVersion.
+#     Tất cả các trường đều là 'required=False'.
+#     """
+#     change_summary = serializers.CharField(required=False, allow_blank=True)
     
-    # 'content_blocks' cũng là optional.
-    # Nếu client không gửi key này, service sẽ không đụng đến blocks.
-    # Nếu client gửi key này (kể cả list rỗng), service sẽ "Sync" theo list đó.
-    content_blocks = ContentBlockInputSerializer(many=True, required=False)
+#     # 'content_blocks' cũng là optional.
+#     # Nếu client không gửi key này, service sẽ không đụng đến blocks.
+#     # Nếu client gửi key này (kể cả list rỗng), service sẽ "Sync" theo list đó.
+#     content_blocks = ContentBlockInputSerializer(many=True, required=False)
 
 
 class ExplorationStateSerializer(serializers.ModelSerializer):
@@ -412,44 +401,137 @@ class ExplorationSerializer(serializers.ModelSerializer):
     @staticmethod
     def from_domain(domain: ExplorationDomain) -> Dict[str, Any]:
         return domain.to_dict()
+    
 
+class ExplorationCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer để xác thực dữ liệu khi TẠO MỚI (POST) một exploration.
+    Không chứa các trường read-only như 'states' hay 'transitions'.
+    """
+    
+    # Cho phép client gửi ID (ví dụ: UUID) của category và tags
+    # Tên trường 'category' và 'tags' phải khớp với model
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), 
+        allow_null=True, 
+        required=False,
+        pk_field=serializers.UUIDField() # Giả sử Category dùng UUID
+    )
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), 
+        many=True, 
+        required=False,
+        pk_field=serializers.UUIDField() # Giả sử Tag dùng UUID
+    )
+    
+    # Ghi đè trường 'owner' để nó không bắt buộc (sẽ được gán trong view)
+    owner = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), 
+        allow_null=True, 
+        required=False
+    )
 
-# ---------------------------------
-# Full Read Serializers for nesting
-# ---------------------------------
+    class Meta:
+        model = Exploration
+        # Chỉ bao gồm các trường có thể ghi (writable) khi tạo mới
+        fields = [
+            'title', 
+            'objective', 
+            'language', 
+            'category', 
+            'tags',
+            'owner', # Mặc dù owner sẽ được gán từ request.user
+            'published', # Cho phép set 'published' ngay khi tạo
+            # Bỏ qua: 'id', 'states', 'transitions', 'blurb', 'version', v.v.
+        ]
+        
+        # Đặt các giá trị mặc định nếu client không gửi
+        extra_kwargs = {
+            'language': {'default': 'vi'},
+            'objective': {'required': False, 'allow_null': True},
+            'published': {'default': False},
+        }
 
-class LessonReadSerializer(LessonSerializer):
-    """Read-only serializer for a lesson, with nested versions."""
-    versions = LessonVersionSerializer(many=True, read_only=True)
+    def to_domain(self) -> ExplorationDomain:
+        """
+        Chuyển đổi validated_data thành một Domain object.
+        (Giống hệt logic trong UserSerializer của bạn)
+        """
+        d = self.validated_data
+        
+        # Lấy các đối tượng đã được DRF hydrate
+        category_obj = d.get("category")
+        tags_list = d.get("tags", [])
+        owner_obj = d.get("owner") # Sẽ là None nếu không gửi
 
-    class Meta(LessonSerializer.Meta):
-        fields = LessonSerializer.Meta.fields + ['versions']
+        # Tạo domain object
+        exp_domain = ExplorationDomain(
+            title=d["title"],
+            objective=d.get("objective"),
+            language=d.get("language", "vi"),
+            published=d.get("published", False),
+            
+            # Truyền ID vào domain object
+            category_id=(category_obj.id if category_obj else None),
+            tag_ids=[tag.id for tag in tags_list],
+            owner_id=(owner_obj.id if owner_obj else None) 
+            # Lưu ý: owner_id này sẽ bị ghi đè bởi request.user trong view
+        )
+        
+        # Giả sử domain object có hàm validate riêng
+        # exp_domain.validate() 
+        return exp_domain
+    
 
+class ExplorationMetadataSerializer(serializers.ModelSerializer):
+    """
+    Serializer để xác thực dữ liệu khi CẬP NHẬT (PATCH) metadata.
+    Không có logic 'to_domain()'.
+    """
+    
+    # Tương tự như CreateSerializer, cho phép cập nhật category/tags
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), 
+        allow_null=True, 
+        required=False,
+        pk_field=serializers.UUIDField()
+    )
+    tags = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(), 
+        many=True, 
+        required=False,
+        pk_field=serializers.UUIDField()
+    )
 
-class ModuleReadSerializer(ModuleSerializer):
-    """Read-only serializer for a module, with nested lessons."""
-    lessons = LessonReadSerializer(many=True, read_only=True)
+    class Meta:
+        model = Exploration
+        # Bao gồm tất cả các trường metadata muốn cho phép cập nhật
+        fields = [
+            'title', 
+            'objective', 
+            'language', 
+            'category', 
+            'tags',
+            'blurb',         # Mô tả ngắn
+            'author_notes',  # Ghi chú của tác giả
+            'published',     # Trạng thái publish
+        ]
 
-    class Meta(ModuleSerializer.Meta):
-        fields = ModuleSerializer.Meta.fields + ['lessons']
-
-
-class CourseDetailReadSerializer(CourseSerializer):
-    """Read-only serializer for a course, with nested modules."""
-    modules = ModuleReadSerializer(many=True, read_only=True)
-    subject = SubjectSerializer(read_only=True)
-
-    class Meta(CourseSerializer.Meta):
-        fields = CourseSerializer.Meta.fields + ['modules']
-
-
-class LessonVersionReadSerializer(LessonVersionSerializer):
-    """Read-only serializer for a lesson version, with content blocks."""
-    content_blocks = ContentBlockSerializer(many=True, read_only=True)
-
-    class Meta(LessonVersionSerializer.Meta):
-        fields = LessonVersionSerializer.Meta.fields + ['content_blocks']
-
+        # Quan trọng: Khi dùng cho PATCH, tất cả các trường phải là 'required=False'
+        # để client chỉ cần gửi các trường họ muốn thay đổi.
+        # 'partial=True' trong view sẽ xử lý việc này, 
+        # nhưng khai báo rõ ràng ở đây cũng tốt.
+        extra_kwargs = {
+            'title': {'required': False},
+            'objective': {'required': False, 'allow_null': True},
+            'language': {'required': False},
+            'category': {'required': False},
+            'tags': {'required': False},
+            'blurb': {'required': False, 'allow_null': True},
+            'author_notes': {'required': False, 'allow_null': True},
+            'published': {'required': False},
+        }
+    
 
 # ---------------------------------
 # Full Exploration Serializer
@@ -602,7 +684,7 @@ class PublishLessonVersionInputSerializer(serializers.Serializer):
             publish_comment=d.get('publish_comment')
         )
 
-class AddContentBlockInputSerializer(serializers.Serializer):
+class ContentBlockCreateSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=ContentBlockDomain.VALID_TYPES)
     position = serializers.IntegerField(required=False, min_value=0)
     payload = serializers.JSONField()
@@ -683,3 +765,154 @@ class ReorderItemsInputSerializer(serializers.Serializer):
         if reorder_type == 'blocks':
             return ReorderContentBlocksCommand(order_map=order_map)
         raise ValueError("Invalid reorder type")
+    
+
+##########################################################################################################################################################################
+class QuestionSerializer(serializers.Serializer):
+    position = serializers.IntegerField(default=0, required=False)
+    
+    # Lấy choices trực tiếp từ model Question
+    type = serializers.ChoiceField(
+        choices=[q_type[0] for q_type in Question.QUESTION_TYPES]
+    )
+    
+    # Dùng JSONField để validate, vì cấu trúc bên trong 
+    # sẽ được xử lý bởi logic domain (khi tạo câu hỏi)
+    prompt = serializers.JSONField()
+    answer_payload = serializers.JSONField()
+    hint = serializers.JSONField(required=False, allow_null=True)
+
+    def validate_prompt(self, value):
+        # Bạn có thể thêm logic validate cơ bản ở đây
+        # Ví dụ: 'prompt' phải có key 'text'
+        if 'text' not in value and 'image_url' not in value:
+             raise serializers.ValidationError("Prompt phải có 'text' hoặc 'image_url'.")
+        return value
+
+
+class QuizSerializer(serializers.Serializer):
+    """
+    Validate định nghĩa Quiz được nhúng trong payload.
+    """
+    title = serializers.CharField(max_length=255)
+    time_limit = serializers.DurationField(required=False, allow_null=True)
+    # Thêm 2 trường thời gian từ model Quiz
+    time_open = serializers.DateTimeField(required=False, allow_null=True)
+    time_close = serializers.DateTimeField(required=False, allow_null=True)
+
+    # ---> THAY ĐỔI QUAN TRỌNG <---
+    # Dùng Serializer câu hỏi mới
+    questions = QuestionSerializer(many=True, required=True, min_length=1)
+
+    def validate(self, attrs):
+        """
+        Đây là "bước chuyển" thích hợp.
+        Chạy sau khi các trường đã được validate.
+        """
+        
+        # 2. Lấy 'time_limit' (đang là object timedelta)
+        time_limit_delta = attrs.get('time_limit')
+        if isinstance(time_limit_delta, timedelta):
+            # 3. Chuyển nó thành Integer (tổng số giây)
+            attrs['time_limit'] = int(time_limit_delta.total_seconds())
+
+        # 4. (Tùy chọn) Chuyển đổi datetime thành string ISO
+        #    Để nhất quán và JSON-safe ngay từ đầu
+        time_open = attrs.get('time_open')
+        if isinstance(time_open, datetime):
+            attrs['time_open'] = time_open.isoformat()
+            
+        time_close = attrs.get('time_close')
+        if isinstance(time_close, datetime):
+            attrs['time_close'] = time_close.isoformat()
+
+        return attrs
+
+
+class ContentBlockInputSerializer(serializers.Serializer):
+    """
+    Serializer con, KHÔNG PHẢI ModelSerializer.
+    Dùng để validate từng block trong danh sách 'content_blocks'
+    """
+    # 'id' là Optional. 
+    # - Nếu có (UUID), service sẽ hiểu là CẬP NHẬT.
+    # - Nếu không có (None), service sẽ hiểu là TẠO MỚI.
+    id = serializers.UUIDField(required=False, allow_null=True)
+    
+    type = serializers.ChoiceField(
+        choices=[choice[0] for choice in ContentBlock.type.field.choices]
+    )
+    position = serializers.IntegerField(min_value=0)
+    payload = serializers.JSONField(default=dict)
+
+    def validate(self, attrs):
+        """
+        Validate chéo: Validate 'payload' dựa trên giá trị của 'type'.
+        Hàm này chạy SAU KHI các trường (id, type, payload...) đã valid riêng lẻ.
+        """
+        # 'attrs' là dictionary chứa các giá trị đã được validate cơ bản
+        block_type = attrs.get('type')
+        payload = attrs.get('payload', {}) # Lấy payload đã valid (là JSON)
+
+        if block_type == 'quiz':
+            # Dùng QuizSerializer (bạn vừa cung cấp) để validate payload
+            quiz_serializer = QuizSerializer(data=payload)
+            quiz_serializer.is_valid(raise_exception=True)
+            
+            # QUAN TRỌNG: Cập nhật lại payload trong attrs
+            # bằng dữ liệu đã được QuizSerializer validate
+            attrs['payload'] = quiz_serializer.validated_data
+        
+        if block_type == 'text':
+            if 'text' not in payload:
+                raise serializers.ValidationError("Payload 'text' phải có 'text' field.")
+            
+        if block_type in ['image', 'video', 'pdf', 'docx']:
+            # Kiểm tra xem có URL file không
+            url_key = f"{block_type}_url" if block_type in ['image', 'video'] else 'file_url'
+            if url_key not in payload:
+                raise serializers.ValidationError(f"Payload '{block_type}' phải có '{url_key}'.")
+
+        # (Thêm các validation khác cho các type khác...)
+        
+        return attrs
+
+class LessonCreateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    position = serializers.IntegerField(default=0)
+    content_type = serializers.CharField(max_length=32) 
+    published = serializers.BooleanField(default=False)
+    
+    # Sử dụng Serializer lồng nhau
+    content_blocks = ContentBlockInputSerializer(many=True, required=False, allow_empty=True)
+
+
+class ModuleCreateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    position = serializers.IntegerField(default=0)
+    
+    # Sử dụng Serializer lồng nhau
+    lessons = LessonCreateSerializer(many=True, required=False, allow_empty=True)
+
+
+class CourseCreateSerializer(serializers.Serializer):
+    """
+    Serializer chính để validate toàn bộ cấu trúc "Big JSON"
+    """
+    title = serializers.CharField(max_length=255)
+    image_url = serializers.CharField(max_length=1024, required=False, allow_blank=True, allow_null=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    
+    # Nhận vào một list các string (tên Category)
+    categories = serializers.ListField(
+        child=serializers.CharField(max_length=255), required=False, allow_empty=True
+    )
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=255), required=False, allow_empty=True
+    )
+    
+    grade = serializers.CharField(max_length=16, required=False, allow_blank=True)
+    published = serializers.BooleanField(default=False)
+    
+    # Sử dụng Serializer lồng nhau
+    modules = ModuleCreateSerializer(many=True, required=False, allow_empty=True)

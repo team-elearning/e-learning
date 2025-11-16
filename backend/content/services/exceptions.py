@@ -38,3 +38,18 @@ class NotEnrolledError(DomainError):
 
 class NoPublishedContentError(DomainError):
     pass
+
+class ContentBlockNotFoundError(DomainError): 
+    pass
+
+class LessonVersionNotFoundError(DomainError):
+    pass
+
+class BlockMismatchError(DomainError):
+    pass
+
+class VersionNotPublishedError(DomainError):
+    pass
+
+class ExplorationNotFoundError(DomainError):
+    pass
