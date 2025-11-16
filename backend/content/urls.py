@@ -12,74 +12,78 @@ from content.api.views.content_block_view import PublicLessonBlockListView, Admi
 
 
 urlpatterns = [
-    # Category
-    path("categories/", PublicCategoryListView.as_view(), name="public-category-list"),
-    path("categories/<uuid:id>/", PublicCategoryDetailView.as_view(), name="public-category-detail"),
+    # # Category
+    # path("categories/", PublicCategoryListView.as_view(), name="public-category-list"),
+    # path("categories/<uuid:id>/", PublicCategoryDetailView.as_view(), name="public-category-detail"),
 
-    # Course
-    path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
-    path('courses/<uuid:pk>/', PublicCourseDetailView.as_view(), name='public-course-detail'),
-    path('courses/<uuid:course_id>/enroll/', CourseEnrollView.as_view(), name='course-enroll'),
+    # # Course
+    # path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
+    # path('courses/<uuid:pk>/', PublicCourseDetailView.as_view(), name='public-course-detail'),
+    # path('courses/<uuid:course_id>/enroll/', CourseEnrollView.as_view(), name='course-enroll'),
 
-    # Module
-    path('courses/<uuid:course_id>/modules/', PublicModuleListView.as_view(), name='public-course-list'),
-    path('modules/<uuid:pk>/', PublicModuleDetailView.as_view(), name='public-course-detail'),
+    # # Module
+    # path('courses/<uuid:course_id>/modules/', PublicModuleListView.as_view(), name='public-course-list'),
+    # path('modules/<uuid:pk>/', PublicModuleDetailView.as_view(), name='public-course-detail'),
 
-    # Lesson
-    path('modules/<uuid:module_id>/lessons/', PublicLessonListView.as_view(), name='public-lesson-list'),
-    path('lessons/<uuid:pk>/', PublicLessonDetailView.as_view(), name='public-lesson-detail'),
+    # # Lesson
+    # path('modules/<uuid:module_id>/lessons/', PublicLessonListView.as_view(), name='public-lesson-list'),
+    # path('lessons/<uuid:pk>/', PublicLessonDetailView.as_view(), name='public-lesson-detail'),
 
-    # Lesson - content
-    path('lessons/<uuid:lesson_id>/content/', LessonContentView.as_view(), name='lesson-content'),
+    # # Lesson - content
+    # path('lessons/<uuid:lesson_id>/content/', LessonContentView.as_view(), name='lesson-content'),
 
-    # Content - block
-    path('lesson-versions/<uuid:lesson_version_id>/blocks/', PublicLessonBlockListView.as_view(), name='public-block-list'),
+    # # Content - block
+    # path('lesson-versions/<uuid:lesson_version_id>/blocks/', PublicLessonBlockListView.as_view(), name='public-block-list'),
 
-    # ---------------------------- ADMIN ---------------------------------------
-    path("admin/categories/", AdminCategoryListView.as_view(), name="admin-category-list"),
-    path("admin/categories/<uuid:id>/", AdminCategoryDetailView.as_view(), name="admin-category-detail"),
+    # # ---------------------------- ADMIN ---------------------------------------
+    # path("admin/categories/", AdminCategoryListView.as_view(), name="admin-category-list"),
+    # path("admin/categories/<uuid:id>/", AdminCategoryDetailView.as_view(), name="admin-category-detail"),
 
-    path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
-    path('admin/subjects/<uuid:pk>/', AdminSubjectDetailView.as_view(), name='admin-subject-detail'),
+    # path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
+    # path('admin/subjects/<uuid:pk>/', AdminSubjectDetailView.as_view(), name='admin-subject-detail'),
 
-    path('admin/courses/', AdminCourseListCreateView.as_view(), name='admin-course-list-create'),
-    path('admin/courses/<uuid:course_id>', AdminCourseDetailView.as_view(), name='admin-course-detail'),
-    path('admin/courses/<uuid:course_id>/publish/', AdminCoursePublishView.as_view(), name='admin-course-publish'),
-    path('admin/courses/<uuid:course_id>/unpublish/', AdminCourseUnpublishView.as_view(), name='admin-course-unpublish'),
+    # path('admin/courses/', AdminCourseListCreateView.as_view(), name='admin-course-list-create'),
+    # path('admin/courses/<uuid:course_id>', AdminCourseDetailView.as_view(), name='admin-course-detail'),
+    # path('admin/courses/<uuid:course_id>/publish/', AdminCoursePublishView.as_view(), name='admin-course-publish'),
+    # path('admin/courses/<uuid:course_id>/unpublish/', AdminCourseUnpublishView.as_view(), name='admin-course-unpublish'),
 
-    path('admin/courses/<uuid:course_id>/modules/', AdminModuleListCreateView.as_view(), name='admin-module-list'),
-    path('admin/modules/<uuid:pk>/', AdminModuleDetailView.as_view(), name='admin-module-detail'),
-    path('admin/courses/<uuid:course_id>/modules/reorder/', AdminModuleReorderView.as_view(), name='admin-module-reorder'),
+    # path('admin/courses/<uuid:course_id>/modules/', AdminModuleListCreateView.as_view(), name='admin-module-list'),
+    # path('admin/modules/<uuid:pk>/', AdminModuleDetailView.as_view(), name='admin-module-detail'),
+    # path('admin/courses/<uuid:course_id>/modules/reorder/', AdminModuleReorderView.as_view(), name='admin-module-reorder'),
 
-    path('admin/modules/<uuid:module_id>/lessons/', AdminModuleLessonView.as_view(), name='admin-module-lesson-list-create'),
-    path('admin/lessons/', AdminLessonListView.as_view(), name='admin-lesson-list-all'),
-    path('admin/lessons/<uuid:pk>/', AdminLessonDetailView.as_view(), name='admin-lesson-detail'),
+    # path('admin/modules/<uuid:module_id>/lessons/', AdminModuleLessonView.as_view(), name='admin-module-lesson-list-create'),
+    # path('admin/lessons/', AdminLessonListView.as_view(), name='admin-lesson-list-all'),
+    # path('admin/lessons/<uuid:pk>/', AdminLessonDetailView.as_view(), name='admin-lesson-detail'),
 
-    path('admin/lessons/<uuid:lesson_id>/preview/', AdminLessonPreviewView.as_view(), name='admin-lesson-preview'),
+    # path('admin/lessons/<uuid:lesson_id>/preview/', AdminLessonPreviewView.as_view(), name='admin-lesson-preview'),
 
-    path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/', AdminLessonVersionContentBlockListView.as_view(), name='admin-lesson-block-list'),
-    path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', AdminContentBlockReorderView.as_view(), name='admin-block-reorder'),
-    path('admin/content-blocks/<uuid:pk>/', AdminContentBlockDetailView.as_view(), name='admin-block-detail'),
+    # path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/', AdminLessonVersionContentBlockListView.as_view(), name='admin-lesson-block-list'),
+    # path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', AdminContentBlockReorderView.as_view(), name='admin-block-reorder'),
+    # path('admin/content-blocks/<uuid:pk>/', AdminContentBlockDetailView.as_view(), name='admin-block-detail'),
 
-    # ---------------------------- INSTRUCTOR ---------------------------------------
+    # # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
-    path('instructor/courses/<uuid:course_id>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-publish'),
-    path('instructor/courses/<uuid:course_id>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublish'),
+    # path('instructor/courses/<uuid:course_id>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-publish'),
+    # path('instructor/courses/<uuid:course_id>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublish'),
 
-    path('instructor/courses/<uuid:course_id>/modules/', InstructorModuleListCreateView.as_view(), name='instructor-module-list'),
-    path('instructor/modules/<uuid:pk>/', InstructorModuleDetailView.as_view(), name='instructor-module-detail'),
-    path('instructor/courses/<uuid:course_id>/modules/reorder/', InstructorModuleReorderView.as_view(), name='instructor-module-reorder'),
+    # path('instructor/courses/<uuid:course_id>/modules/', InstructorModuleListCreateView.as_view(), name='instructor-module-list'),
+    # path('instructor/modules/<uuid:pk>/', InstructorModuleDetailView.as_view(), name='instructor-module-detail'),
+    # path('instructor/courses/<uuid:course_id>/modules/reorder/', InstructorModuleReorderView.as_view(), name='instructor-module-reorder'),
 
-    path('instructor/modules/<uuid:module_id>/lessons/', InstructorLessonListView.as_view(), name='instructor-lesson-list-create'),
-    path('instructor/lessons/<uuid:pk>/', InstructorLessonDetailView.as_view(), name='instructor-lesson-detail'),
-    path('instructor/modules/<uuid:module_id>/lessons/reorder/', InstructorLessonReorderView.as_view(), name='instructor-lesson-reorder'),
+    # path('instructor/modules/<uuid:module_id>/lessons/', InstructorLessonListView.as_view(), name='instructor-lesson-list-create'),
+    # path('instructor/lessons/<uuid:pk>/', InstructorLessonDetailView.as_view(), name='instructor-lesson-detail'),
+    # path('instructor/modules/<uuid:module_id>/lessons/reorder/', InstructorLessonReorderView.as_view(), name='instructor-lesson-reorder'),
 
-    path('instructor/lessons/<uuid:lesson_id>/preview/', InstructorLessonPreviewView.as_view(), name='instructor-lesson-preview'),
+    # path('instructor/lessons/<uuid:lesson_id>/preview/', InstructorLessonPreviewView.as_view(), name='instructor-lesson-preview'),
 
-    path('lesson-versions/<uuid:lesson_version_id>/blocks/', InstructorLessonVersionContentBlockListView.as_view(), name='instructor-lesson-block-list'),   
-    path('lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', InstructorContentBlockReorderView.as_view(), name='instructor-block-reorder'),    
-    path('content-blocks/<uuid:pk>/', InstructorContentBlockDetailView.as_view(), name='instructor-block-detail'),
+    # path('lesson-versions/<uuid:lesson_version_id>/blocks/', InstructorLessonVersionContentBlockListView.as_view(), name='instructor-lesson-block-list'),   
+    # path('lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', InstructorContentBlockReorderView.as_view(), name='instructor-block-reorder'),    
+    # path('content-blocks/<uuid:pk>/', InstructorContentBlockDetailView.as_view(), name='instructor-block-detail'),
+
+
+
+
 
     # # ---------------------------
     # # Search & Utility

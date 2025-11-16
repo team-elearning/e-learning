@@ -29,8 +29,8 @@ class CourseDomain:
                  id: Optional[str] = None,
                  published: bool = False,
                  published_at: Optional[datetime] = None, 
-                 category_ids: List[str] = None,
-                 tag_ids: List[str] = None):
+                 category_names: List[str] = None,
+                 tag_names: List[str] = None):
         self.id = id or str(uuid.uuid4())
         self.title = title
         self.subject_id = subject_id
@@ -40,8 +40,8 @@ class CourseDomain:
         self.slug = slug
         self.published = published
         self.published_at = published_at 
-        self.category_ids = category_ids or []
-        self.tag_ids = tag_ids or []
+        self.category_names = category_names or []
+        self.tag_names = tag_names or []
         self.modules: List["ModuleDomain"] = []
         self.validate()
 
@@ -156,8 +156,8 @@ class CourseDomain:
             "published": self.published,
             "published_at": self.published_at,
             "modules": [m.to_dict() for m in self.modules],
-            "category_ids": self.category_ids,
-            "tag_ids": self.tag_ids,
+            "category_names": self.category_names,
+            "tag_names": self.tag_names,
         }
 
     @classmethod
@@ -181,10 +181,10 @@ class CourseDomain:
             published_at=model.published_at, # Đọc trường published_at mới
             
             # Đọc M2M (yêu cầu service phải prefetch)
-            category_ids=[str(cat.id) for cat in model.categories.all()],
-            tag_ids=[str(tag.id) for tag in model.tags.all()]
+            category_names=[cat.name for cat in model.categories.all()],
+            tag_names=[cat.name for cat in model.tags.all()]
         )
-        
+
         # Giữ nguyên logic load module của bạn
         if hasattr(model, "modules_prefetched") and model.modules_prefetched:
             for mod_m in model.modules_prefetched:

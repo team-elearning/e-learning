@@ -1,11 +1,13 @@
 import uuid
+import logging
 from typing import Any, Dict, List
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Prefetch
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.db import IntegrityError
 from django.utils.text import slugify
-from django.contrib.contenttypes.models import ContentType
-import logging
+
 
 from custom_account.models import UserModel 
 from media.services import file_service
@@ -15,7 +17,7 @@ from content.domains.course_domain import CourseDomain
 from content.domains import module_domain 
 from content.services import module_service
 from content.services.exceptions import DomainError, CourseNotFoundError, NotFoundError, InvalidOperation
-from content.models import Course, Module, Lesson, Enrollment, Category
+from content.models import Course, Module, Lesson, Enrollment, Category, Tag
 
 
 
@@ -25,9 +27,10 @@ def create_course(data: dict, owner) -> Course:
     Hàm ĐIỀU PHỐI. Quản lý transaction cho toàn bộ quá trình.
     """
     # 1. Tách dữ liệu lồng nhau và M2M ra khỏi data chính
-    modules_data = data.pop('modules', [])
-    categories_names = data.pop('categories', [])
-    image_url = data.pop('image_url', None)
+    modules_data = data.get('modules', [])
+    categories_names = data.get('categories', [])
+    tag_names = data.get('tags', [])
+    image_url = data.get('image_url', None)
     
     # (Bạn có thể xử lý tags tương tự)
     
@@ -37,14 +40,58 @@ def create_course(data: dict, owner) -> Course:
     # (Bạn nên có logic kiểm tra slug trùng ở đây)
 
     # 3. Tạo đối tượng gốc (Course)
-    # **data chứa (title, description, grade, published, slug...)
-    course = Course.objects.create(owner=owner, **data)
+    try:
+        # Thay vì dùng **data, chúng ta liệt kê tường minh các trường
+        # từ model 'Course' mà chúng ta mong đợi có trong 'data'.
+        
+        course = Course.objects.create(
+            owner=owner,
+            
+            # Các trường được xử lý hoặc bắt buộc
+            title=data['title'],  # Sẽ báo lỗi KeyError nếu thiếu (đây là điều tốt)
+            slug=data['slug'],    # Đã được đảm bảo có từ Bước 2
+            
+            # Các trường tùy chọn (dùng .get() để an toàn)
+            description=data.get('description'),
+            grade=data.get('grade'),
+            published=data.get('published', False), # Mặc định là False nếu thiếu
+            
+            # Xử lý ForeignKey tùy chọn (null=True, blank=True)
+            # Model của bạn có 'subject'. Bạn cần quyết định cách 'data'
+            # cung cấp thông tin này.
+            
+            # === CHỌN 1 TRONG 2 CÁCH SAU ===
+            
+            # Cách 1: Nếu data['subject'] là một object Subject (hoặc None)
+            subject=data.get('subject')
+            
+            # Cách 2: Nếu data['subject_id'] là một UUID/int (hoặc None)
+            # subject_id=data.get('subject_id') 
+            
+            # (Xóa dòng bạn không dùng)
+        )
+    
+    except IntegrityError as e:
+        # Bắt lỗi vi phạm ràng buộc CSDL (thường là do 'slug' bị trùng).
+        raise ValueError(f"Slug '{data['slug']}' đã tồn tại. Vui lòng chọn một tiêu đề khác.")
+    
+    except KeyError as e:
+        # Bắt lỗi nếu 'data' thiếu 'title' (hoặc 'slug' nếu Bước 2 lỗi)
+        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {str(e)}")
     
     # 4. Xử lý M2M (Category)
     # (Phải tạo course trước mới gán M2M được)
     files_to_commit = []
     if image_url:
         files_to_commit.append(image_url)
+
+    for tag_name in tag_names:
+        # Tìm hoặc tạo Tag
+        tag, _ = Tag.objects.get_or_create(
+            name=tag_name, 
+            defaults={'slug': slugify(tag_name)}
+        )
+        course.tags.add(tag)
 
     for cat_name in categories_names:
         # Tìm hoặc tạo Category
@@ -374,24 +421,78 @@ def list_courses_for_instructor(owner: UserModel) -> List[CourseDomain]:
     return course_domains
 
 
-def get_course_by_id_for_instructor(course_id: uuid.UUID, owner: UserModel) -> CourseDomain:
-    """
-    Lấy một course theo ID, NHƯNG phải check quyền sở hữu.
-    """
-    try:
-        # Lấy course VÀ lọc theo owner
-        course = Course.objects.select_related(
-            'owner', 'subject'
-        ).prefetch_related(
-            'categories', 'tags'
-        ).get(pk=course_id, owner=owner) 
+# def get_course_by_id_for_instructor(course_id: uuid.UUID, owner: UserModel) -> CourseDomain:
+#     """
+#     Lấy một course theo ID, check quyền sở hữu, VÀ tải trước (prefetch)
+#     toàn bộ cây dữ liệu (modules, lessons, files...) để tối ưu hiệu suất.
+#     """
+#     try:
+#         # Chúng ta sẽ prefetch theo từng cấp.
+#         # Giả định bạn có trường 'order' (hoặc 'created_at') để sắp xếp.
         
-        return CourseDomain.from_model(course)
+#         # Cấp 3: Nội dung chi tiết (ví dụ: Explorations) và file của chúng
+#         # (Nếu không có cấp này, bạn có thể bỏ qua)
+#         prefetch_explorations = Prefetch(
+#             'explorations', # Tên related_name từ Lesson -> Exploration
+#             queryset=Exploration.objects.order_by('order').prefetch_related('files'),
+#             to_attr='ordered_explorations' # Gán vào thuộc tính mới
+#         )
+
+#         # Cấp 2: Lessons và file của chúng (và cả cấp 3 bên trong)
+#         prefetch_lessons = Prefetch(
+#             'lessons', # Tên related_name từ Module -> Lesson
+#             queryset=Lesson.objects.order_by('order').prefetch_related(
+#                 'files', # File đính kèm của Lesson
+#                 prefetch_explorations # Lồng prefetch của cấp 3
+#             ),
+#             to_attr='ordered_lessons'
+#         )
+
+#         # Cấp 1: Modules và file của chúng (và cả cấp 2 bên trong)
+#         prefetch_modules = Prefetch(
+#             'modules', # Tên related_name từ Course -> Module
+#             queryset=Module.objects.order_by('order').prefetch_related(
+#                 'files', # File đính kèm của Module
+#                 prefetch_lessons # Lồng prefetch của cấp 2
+#             ),
+#             to_attr='ordered_modules'
+#         )
+
+#         # Cấp 0: Course (đối tượng gốc)
+#         course = Course.objects.select_related(
+#             'owner', 'subject'
+#         ).prefetch_related(
+#             'categories', 
+#             'tags',
+            
+#             # --- Phần thêm mới ---
+            
+#             # 1. File đính kèm TRỰC TIẾP với Course (ví dụ: ảnh bìa)
+#             # (Giả định bạn đã thêm GenericRelation 'files' vào model Course)
+#             'files', 
+            
+#             # 2. Toàn bộ cây nội dung đã được định nghĩa ở trên
+#             prefetch_modules
+            
+#         ).get(pk=course_id, owner=owner) 
         
-    except ObjectDoesNotExist:
-        raise CourseNotFoundError("Không tìm thấy khóa học.")
-    except Exception as e:
-        raise DomainError(f"Lỗi khi lấy khóa học: {e}")
+#         # Bây giờ, khi CourseDomain.from_model(course) chạy,
+#         # nó có thể truy cập course.ordered_modules,
+#         # và mỗi module trong đó có .ordered_lessons,
+#         # và mỗi lesson có .ordered_explorations (nếu có) và .files
+#         # ... mà không cần truy vấn CSDL thêm một lần nào nữa.
+        
+#         # Bạn CẦN cập nhật CourseDomain.from_model để đọc từ
+#         # 'ordered_modules' thay vì 'modules.all()',
+#         # 'ordered_lessons' thay vì 'lessons.all()', v.v.
+        
+#         return CourseDomain.from_model(course)
+        
+#     except ObjectDoesNotExist:
+#         raise CourseNotFoundError("Không tìm thấy khóa học.")
+#     except Exception as e:
+#         logger.error(f"Lỗi khi lấy chi tiết khóa học {course_id}: {e}", exc_info=True)
+#         raise DomainError(f"Lỗi khi lấy khóa học: {e}")
 
 
 @transaction.atomic
@@ -407,19 +508,6 @@ def update_course_for_instructor(course_id: uuid.UUID, updates: Dict[str, Any], 
 
     # 2. Nếu đã qua check quyền, gọi hàm update_course chung
     return update_course(course_id=course_id, updates=updates)
-
-
-def delete_course_for_instructor(course_id: uuid.UUID, owner: UserModel):
-    """
-    Xóa một course, NHƯNG phải check quyền sở hữu.
-    """
-    try:
-        course_to_delete = Course.objects.get(id=course_id, owner=owner) 
-    except ObjectDoesNotExist:
-        raise CourseNotFoundError("Không tìm thấy khóa học để xóa.")
-    
-    course_to_delete.delete()
-    return True
 
 
 # --- CÁC HÀM AGGREGATE (PUBLISH/UNPUBLISH) CHO INSTRUCTOR ---

@@ -302,6 +302,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
         """ Lấy list course CỦA TÔI """
         try:
             courses_list = self.course_service.list_courses_for_instructor(owner=request.user)
+            print(courses_list[0].to_dict())
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -330,6 +331,8 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
@@ -434,7 +437,10 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             self.course_service.delete_course_for_instructor(
                 course_id=pk, owner=request.user
             )
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(
+                {"detail": f"Đã xóa thành công khóa học (ID: {pk})."}, 
+                status=status.HTTP_200_OK
+            )
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         

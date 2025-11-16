@@ -145,6 +145,7 @@ class CourseCreateInput(BaseModel):
     # 2. Sửa categories (từ List[UUID] thành List[str])
     # JSON của bạn gửi ["Toán"], là list[str], không phải list[uuid]
     categories: List[str] = []
+    tags: List[str] = []
 
     # 3. Thêm modules (DTO lồng nhau)
     modules: List[ModuleCreateInput] = []
@@ -256,9 +257,10 @@ class CoursePublicOutput(BaseModel):
     
     # Giả sử bạn muốn public các trường này
     subject: Optional[SubjectPublicOutput] = None
-    categories: List[CategoryOutput] = []
-    tags: List[TagOutput] = []
-
+    slug: str
+    categories: List[str] = Field(default=[], alias="category_names")
+    tags: List[str] = Field(default=[], alias="tag_names")
+    
     # --- THÊM CẤU TRÚC LỒNG NHAU ---
     modules: List[ModulePublicOutput] = []
 

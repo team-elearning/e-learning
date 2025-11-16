@@ -907,6 +907,10 @@ class CourseCreateSerializer(serializers.Serializer):
     categories = serializers.ListField(
         child=serializers.CharField(max_length=255), required=False, allow_empty=True
     )
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=255), required=False, allow_empty=True
+    )
+    
     grade = serializers.CharField(max_length=16, required=False, allow_blank=True)
     published = serializers.BooleanField(default=False)
     
