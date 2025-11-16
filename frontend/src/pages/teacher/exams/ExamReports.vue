@@ -123,7 +123,7 @@
 
           <div class="flex shrink-0 gap-2">
             <button class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="openDetail(e.id)">Chi tiết</button>
-            <button class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="openGrading(e.id)">Chấm</button>
+            <button class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50" @click="openGrading(e.id)">Xem bài</button>
           </div>
         </article>
       </div>

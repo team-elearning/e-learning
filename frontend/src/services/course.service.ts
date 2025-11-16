@@ -26,6 +26,7 @@ export interface Lesson {
   title: string
   type: 'video' | 'pdf' | 'quiz'
   durationMinutes?: number
+  videoUrl?: string
   isPreview?: boolean
 }
 

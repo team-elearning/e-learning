@@ -71,7 +71,7 @@ export interface ActivityLog { time: string; action: string; entity?: string; by
 export interface Transaction { id: string; courseTitle: string; amount: number; gateway: 'Momo' | 'VNPay' | 'QR' | 'Bank'; status: 'Pending' | 'Processing' | 'Succeeded' | 'Failed' | 'Refunded' | 'Disputed'; time: string }
 export interface NoteItem { id: string; author?: string; note: string; time: string }
 
-const USE_MOCK = false// dùng dữ liệu mock vì backend chưa sẵn sàng
+const USE_MOCK = true // bật mock học viên
 
 function mapServerToUser(s: any): User {
     // server sample fields: id, username, email, created_on, updated_on, phone, role, is_active

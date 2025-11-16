@@ -244,6 +244,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Bài kiểm tra' },
       },
       {
+        path: 'exams/new',
+        name: 'teacher-exam-new',
+        component: () => import('@/pages/teacher/exams/ExamCreate.vue'),
+        meta: { title: 'Tạo bài kiểm tra' },
+      },
+      {
         path: 'exams/:id',
         name: 'teacher-exam-detail',
         component: () => import('@/pages/teacher/exams/ExamDetail.vue'),
