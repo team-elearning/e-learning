@@ -7,8 +7,14 @@ export type ExamStatus = 'draft' | 'published' | 'archived'
 
 export type QType = 'single' | 'multi' | 'boolean' | 'fill' | 'match' | 'order'
 
-export interface Choice { id: string; text: string }
-export interface MatchPair { left: string; right: string } // cho 'match'
+export interface Choice {
+  id: string
+  text: string
+}
+export interface MatchPair {
+  left: string
+  right: string
+} // cho 'match'
 export interface QuestionBase {
   id: ID
   type: QType
@@ -93,19 +99,38 @@ function makeId(prefix: string, i: number) {
 }
 
 function makeSingle(i: number): Question {
-  const choices = Array.from({ length: 4 }, (_, k) => ({ id: `c${k + 1}`, text: `Phương án ${k + 1}` }))
+  const choices = Array.from({ length: 4 }, (_, k) => ({
+    id: `c${k + 1}`,
+    text: `Phương án ${k + 1}`,
+  }))
   const ans = [choices[i % 4].id]
-  return { id: makeId('qS', i), type: 'single', text: `Câu đơn #${i}`, score: 1, choices, answer: ans }
+  return {
+    id: makeId('qS', i),
+    type: 'single',
+    text: `Câu đơn #${i}`,
+    score: 1,
+    choices,
+    answer: ans,
+  }
 }
 
 function makeMulti(i: number): Question {
-  const choices = Array.from({ length: 5 }, (_, k) => ({ id: `c${k + 1}`, text: `Đáp án ${k + 1}` }))
-  const answer = choices.filter((_, idx) => (i + idx) % 2 === 0).map(c => c.id) // vài đáp án đúng
+  const choices = Array.from({ length: 5 }, (_, k) => ({
+    id: `c${k + 1}`,
+    text: `Đáp án ${k + 1}`,
+  }))
+  const answer = choices.filter((_, idx) => (i + idx) % 2 === 0).map((c) => c.id) // vài đáp án đúng
   return { id: makeId('qM', i), type: 'multi', text: `Chọn nhiều #${i}`, score: 2, choices, answer }
 }
 
 function makeBoolean(i: number): Question {
-  return { id: makeId('qB', i), type: 'boolean', text: `Đúng / Sai #${i}`, score: 1, answer: i % 2 === 0 }
+  return {
+    id: makeId('qB', i),
+    type: 'boolean',
+    text: `Đúng / Sai #${i}`,
+    score: 1,
+    answer: i % 2 === 0,
+  }
 }
 
 function makeFill(i: number): Question {
@@ -189,11 +214,19 @@ function makeExamSubmissions(examId: number): SubmissionRow[] {
   return Array.from({ length: total }).map((_, i) => {
     const sid = Number(examId) * 1000 + i + 1
     const graded = (i + Number(examId)) % 3 !== 0
-    const score = graded ? Math.round(((6 + ((i + Number(examId)) % 5)) + 0.1) * 10) / 10 : null
+    const score = graded ? Math.round((6 + ((i + Number(examId)) % 5) + 0.1) * 10) / 10 : null
     const cls = `L${(Number(examId) % 4) + 1}${String((i % 3) + 1).padStart(2, '0')}`
     const name = `HS ${(Number(examId) % 9) + 1}${String(i + 1).padStart(2, '0')}`
     const submittedAt = new Date(Date.now() - (i + 1) * 36e5).toLocaleString()
-    return { id: sid, examId: Number(examId), studentName: name, classCode: cls, submittedAt, score, status: graded ? 'graded' : 'pending' }
+    return {
+      id: sid,
+      examId: Number(examId),
+      studentName: name,
+      classCode: cls,
+      submittedAt,
+      score,
+      status: graded ? 'graded' : 'pending',
+    }
   })
 }
 
@@ -220,7 +253,7 @@ function scoreQuestion(q: Question, ans: any): number {
     case 'multi': {
       const a = new Set((ans as string[]) || [])
       const gold = new Set(q.answer)
-      const correctAll = q.answer.every(x => a.has(x)) && a.size === gold.size
+      const correctAll = q.answer.every((x) => a.has(x)) && a.size === gold.size
       return correctAll ? q.score : 0
     }
     case 'boolean':
@@ -235,7 +268,7 @@ function scoreQuestion(q: Question, ans: any): number {
     }
     case 'match': {
       const given = (ans as string[]) || []
-      const gold = q.pairs.map(p => p.right)
+      const gold = q.pairs.map((p) => p.right)
       let c = 0
       for (let i = 0; i < gold.length; i++) if (given[i] === gold[i]) c++
       return (c / gold.length) * q.score
@@ -254,16 +287,16 @@ function scoreQuestion(q: Question, ans: any): number {
 export const examService = {
   async list(params?: { level?: Level; q?: string }): Promise<ExamSummary[]> {
     let list = MOCK_EXAMS.slice()
-    if (params?.level) list = list.filter(e => e.level === params.level)
+    if (params?.level) list = list.filter((e) => e.level === params.level)
     if (params?.q) {
       const key = params.q.toLowerCase()
-      list = list.filter(e => e.title.toLowerCase().includes(key))
+      list = list.filter((e) => e.title.toLowerCase().includes(key))
     }
     return list.map(toSummary)
   },
 
   async detail(id: ID): Promise<ExamDetail> {
-    const found = MOCK_EXAMS.find(e => String(e.id) === String(id))
+    const found = MOCK_EXAMS.find((e) => String(e.id) === String(id))
     if (!found) throw new Error('Không tìm thấy đề thi')
     return JSON.parse(JSON.stringify(found))
   },
@@ -278,7 +311,7 @@ export const examService = {
     let qs = d.questions.slice()
     if (d.shuffleQuestions) qs = randPick(qs, qs.length)
     if (d.shuffleChoices) {
-      qs = qs.map(q =>
+      qs = qs.map((q) =>
         q.type === 'single' || q.type === 'multi'
           ? { ...q, choices: randPick(q.choices, q.choices.length) }
           : q,
@@ -289,9 +322,12 @@ export const examService = {
       examId,
       startedAt: new Date().toISOString(),
       deadlineAt: new Date(Date.now() + d.durationSec * 1000).toISOString(),
-      questions: qs.map(q => {
+      questions: qs.map((q) => {
         const base: AttemptQuestion = {
-          id: q.id, type: q.type, text: q.text, score: q.score,
+          id: q.id,
+          type: q.type,
+          text: q.text,
+          score: q.score,
         }
         if (q.type === 'single' || q.type === 'multi') base.choices = q.choices
         if (q.type === 'fill') base.blanks = q.blanks
@@ -305,7 +341,11 @@ export const examService = {
     return att
   },
 
-  async submit(examId: ID, attemptId: string, answers: Record<string, any>): Promise<AttemptResult> {
+  async submit(
+    examId: ID,
+    attemptId: string,
+    answers: Record<string, any>,
+  ): Promise<AttemptResult> {
     const d = await this.detail(examId)
     let totalScore = 0
     let maxScore = 0

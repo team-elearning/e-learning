@@ -31,6 +31,8 @@ class Payment(models.Model):
     paid_at = models.DateTimeField(null=True, blank=True)
     transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
     metadata = models.JSONField(default=dict)  # e.g., {'gateway': 'vnpay'}
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         verbose_name = ('Payment')

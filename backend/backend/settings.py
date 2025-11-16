@@ -295,3 +295,23 @@ SOCIALACCOUNT_PROVIDERS = {
         # }                                                                                                                       
     }                                                                                                                           
 }  
+
+# -------------------------------
+# Payments (MoMo)
+# -------------------------------
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+
+MOMO_PARTNER_CODE = os.getenv("MOMO_PARTNER_CODE", "MOMO")
+MOMO_ACCESS_KEY = os.getenv("MOMO_ACCESS_KEY", "F8BBA842ECF85")
+MOMO_SECRET_KEY = os.getenv("MOMO_SECRET_KEY", "K951B6PE1waDMi640xX08PD3vg6EkVlz")
+MOMO_ENDPOINT = os.getenv("MOMO_ENDPOINT", "https://test-payment.momo.vn/v2/gateway/api/create")
+MOMO_PARTNER_NAME = os.getenv("MOMO_PARTNER_NAME", "MoMo Payment")
+MOMO_STORE_ID = os.getenv("MOMO_STORE_ID", "E-learning Store")
+MOMO_REQUEST_TYPE = os.getenv("MOMO_REQUEST_TYPE", "payWithMethod")
+MOMO_ORDER_TYPE = os.getenv("MOMO_ORDER_TYPE", "momo_wallet")
+MOMO_LANG = os.getenv("MOMO_LANG", "vi")
+MOMO_AUTO_CAPTURE = os.getenv("MOMO_AUTO_CAPTURE", "true").lower() == "true"
+
+MOMO_REDIRECT_URL = os.getenv("MOMO_REDIRECT_URL", f"{FRONTEND_BASE_URL.rstrip('/')}/student/payments")
+MOMO_IPN_URL = os.getenv("MOMO_IPN_URL", f"{BACKEND_BASE_URL.rstrip('/')}/api/payments/momo/ipn/")
