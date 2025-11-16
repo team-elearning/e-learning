@@ -10,7 +10,7 @@ from content.services import content_block_service, exceptions
 from content.serializers import ContentBlockSerializer, ReorderBlocksSerializer
 from content.api.dtos.content_block_dto import ContentBlockInput, ContentBlockUpdateInput, ContentBlockAdminOutput, ContentBlockPublicOutput
 from content.services.exceptions import DomainError 
-from content.api.mixins import LessonVersionPermissionMixin, ContentBlockPermissionMixin, RoleBasedOutputMixin
+from content.api.mixins import ContentBlockPermissionMixin, RoleBasedOutputMixin, LessonPermissionMixin
 from content.api.permissions import IsInstructor
 
 
@@ -286,7 +286,7 @@ class AdminContentBlockReorderView(RoleBasedOutputMixin, APIView):
 #=================================================================
 # API: instructor/lesson-versions/<uuid:lesson_version_id>/blocks/
 #=================================================================
-class InstructorLessonVersionContentBlockListView(RoleBasedOutputMixin, LessonVersionPermissionMixin, APIView):
+class InstructorLessonVersionContentBlockListView(RoleBasedOutputMixin, LessonPermissionMixin, APIView):
     """
     GET /instructor/lesson-versions/<uuid:lesson_version_id>/blocks/
     POST /instructor/lesson-versions/<uuid:lesson_version_id>/blocks/
@@ -306,7 +306,7 @@ class InstructorLessonVersionContentBlockListView(RoleBasedOutputMixin, LessonVe
         Lấy danh sách blocks (chỉ instructor/admin mới thấy).
         """
         # Kiểm tra quyền
-        self.check_lesson_version_permission(request, lesson_version_id)
+        self.check_lesson_permission(request, lesson_version_id)
         
         try:
             blocks = self.service.list_blocks_for_version(
@@ -432,7 +432,7 @@ class InstructorContentBlockDetailView(RoleBasedOutputMixin, ContentBlockPermiss
 #=================================================================
 # API: /instructor/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/
 #=================================================================
-class InstructorContentBlockReorderView(RoleBasedOutputMixin, LessonVersionPermissionMixin, APIView):
+class InstructorContentBlockReorderView(RoleBasedOutputMixin, LessonPermissionMixin, APIView):
     """
     POST /instructor/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/
     """
@@ -450,7 +450,7 @@ class InstructorContentBlockReorderView(RoleBasedOutputMixin, LessonVersionPermi
         Sắp xếp lại blocks (chỉ instructor/admin).
         """
         # Kiểm tra quyền
-        self.check_lesson_version_permission(request, lesson_version_id)
+        self.check_lesson_permission(request, lesson_version_id)
 
         serializer = ReorderBlocksSerializer(data=request.data)
         try:

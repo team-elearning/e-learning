@@ -50,3 +50,6 @@ class BlockMismatchError(DomainError):
 
 class VersionNotPublishedError(DomainError):
     pass
+
+class ExplorationNotFoundError(DomainError):
+    pass

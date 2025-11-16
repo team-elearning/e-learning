@@ -1,10 +1,10 @@
 import uuid
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from django.db import transaction, models
-from django.db.models import F
+from django.db.models import F, Max
 
 from custom_account.models import UserModel
-from content.models import ContentBlock, LessonVersion, Enrollment
+from content.models import ContentBlock, Enrollment, Lesson, Course, Module
 from content.domains.content_block_domain import ContentBlockDomain 
 from content.services.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 
@@ -12,13 +12,13 @@ from content.services.exceptions import LessonVersionNotFoundError, ContentBlock
 
 # --- Helper Function ---
 
-def _get_lesson_version_model(lesson_version_id: uuid.UUID) -> LessonVersion:
+def _get_lesson_model(lesson_id: uuid.UUID) -> Lesson:
     """
     Helper riêng tư để lấy LessonVersion model.
     """
     try:
-        return LessonVersion.objects.get(id=lesson_version_id)
-    except LessonVersion.DoesNotExist:
+        return Lesson.objects.get(id=lesson_id)
+    except Lesson.DoesNotExist:
         raise LessonVersionNotFoundError("LessonVersion not found.")
 
 def _get_block_model(block_id: uuid.UUID) -> ContentBlock:
@@ -33,13 +33,13 @@ def _get_block_model(block_id: uuid.UUID) -> ContentBlock:
 
 # --- Service Functions ---
 
-def list_blocks_for_version(lesson_version_id: uuid.UUID) -> List[ContentBlockDomain]:
+def list_blocks_for_version(lesson_id: uuid.UUID) -> List[ContentBlockDomain]:
     """
     Lấy danh sách các content block cho một lesson version,
     trả về list các domain object.
     (Tương tự list_all_users_for_admin)
     """
-    version_model = _get_lesson_version_model(lesson_version_id)
+    version_model = _get_lesson_model(lesson_id)
     
     # Model đã có Meta ordering = ['position'], nên .all() đã được sắp xếp
     block_models = version_model.content_blocks.all()
@@ -49,38 +49,48 @@ def list_blocks_for_version(lesson_version_id: uuid.UUID) -> List[ContentBlockDo
     return block_domains
 
 
-@transaction.atomic
-def create_block(lesson_version_id: uuid.UUID, data: Dict[str, Any]) -> ContentBlockDomain:
+
+def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
     """
-    Tạo một content block mới.
+    Tạo ContentBlock và thu thập file URLs từ payload.
+    Kết hợp logic từ file mới của bạn.
     """
-    version_model = _get_lesson_version_model(lesson_version_id)
+    files_to_commit = []
+    payload = data.get('payload', {})
+    block_type = data.get('type')
+
+    # 1. Xử lý logic Block (Lấy từ code mới của bạn)
+    position = data.get('position')
+    if position is None:
+        current_max = lesson.content_blocks.aggregate( # Giả sử related_name là 'content_blocks'
+            max_pos=Max('position')
+        )['max_pos']
+        position = 0 if current_max is None else current_max + 1
     
-    # --- Business Logic: Gán position ---
-    # Block mới luôn được thêm vào cuối cùng
-    current_max = version_model.content_blocks.aggregate(
-        max_pos=models.Max('position')
-    )['max_pos']
-    
-    next_position = 0 if current_max is None else current_max + 1
-    
-    # Tạo Domain object trước (giống register_user)
-    block_domain = ContentBlockDomain(
-        type=data['type'],
-        payload=data.get('payload', {}),
-        position=next_position
+    # 2. Tạo ContentBlock
+    new_block = ContentBlock.objects.create(
+        lesson=lesson,
+        type=block_type,
+        payload=payload,
+        position=position
+        # Hoặc: lesson=lesson, position=position, **data
     )
+
+    # 3. Thu thập file (Logic này khớp với Serializer của bạn)
+    url_key = None
+    if block_type == 'image':
+        url_key = 'image_url'
+    elif block_type == 'video':
+        url_key = 'video_url'
+    elif block_type in ['pdf', 'docx']:
+        url_key = 'file_url'
     
-    # (Nếu domain có validation)
-    # block_domain.validate() 
-    
-    # Chuyển Domain -> Model
-    block_model = block_domain.to_model()
-    block_model.lesson_version = version_model # Gán Foreign Key
-    block_model.save()
-    
-    # Trả về domain object mới nhất từ model đã lưu
-    return ContentBlockDomain.from_model(block_model)
+    if url_key and url_key in payload:
+        files_to_commit.append(payload[url_key])
+
+    # (Lưu ý: Nếu 'quiz' có file, bạn cũng cần thêm logic đó ở đây)
+
+    return ContentBlockDomain.from_model(new_block), files_to_commit
 
 
 def get_block_by_id(block_id: uuid.UUID) -> ContentBlockDomain:
@@ -103,7 +113,7 @@ def update_block(block_id: uuid.UUID, updates: Dict[str, Any]) -> ContentBlockDo
     # --- Business Logic: Ngăn chặn thay đổi nhạy cảm ---
     if 'position' in updates:
         raise DomainError("Cannot change 'position' directly. Use the /reorder/ endpoint.")
-    if 'lesson_version' in updates or 'lesson_version_id' in updates:
+    if 'lesson_version' in updates or 'lesson_id' in updates:
         raise DomainError("Cannot move a block to a different lesson version.")
     
     # Chuyển Model -> Domain
@@ -146,12 +156,12 @@ def delete_block(block_id: uuid.UUID) -> None:
 
 
 @transaction.atomic
-def reorder_blocks(lesson_version_id: uuid.UUID, ordered_ids: List[str]) -> None:
+def reorder_blocks(lesson_id: uuid.UUID, ordered_ids: List[str]) -> None:
     """
     Sắp xếp lại vị trí của tất cả các block trong một version.
     (Tương tự synchronize_roles ở khía cạnh bulk update)
     """
-    version_model = _get_lesson_version_model(lesson_version_id)
+    version_model = _get_lesson_model(lesson_id)
     
     # Lấy tất cả block hiện tại
     blocks = ContentBlock.objects.filter(lesson_version=version_model)
@@ -183,7 +193,7 @@ def reorder_blocks(lesson_version_id: uuid.UUID, ordered_ids: List[str]) -> None
 
 def get_public_blocks_for_version(
     user: UserModel, 
-    lesson_version_id: uuid.UUID
+    lesson_id: uuid.UUID
 ) -> List[ContentBlockDomain]:
     """
     Service nghiệp vụ cho HỌC SINH (public).
@@ -192,11 +202,11 @@ def get_public_blocks_for_version(
     """
     try:
         # Lấy LessonVersion và join sẵn
-        version = LessonVersion.objects.select_related(
+        version = Lesson.objects.select_related(
             'lesson__module__course'
-        ).get(pk=lesson_version_id)
+        ).get(pk=lesson_id)
         
-    except LessonVersion.DoesNotExist:
+    except Lesson.DoesNotExist:
         raise LessonVersionNotFoundError("Không tìm thấy phiên bản bài học.")
 
     if version.status != 'published':

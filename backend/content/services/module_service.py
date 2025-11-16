@@ -1,52 +1,57 @@
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from django.db import transaction
 from django.db.models import Max, F
 from django.core.exceptions import ObjectDoesNotExist
 
 from content.services.exceptions import DomainError, ModuleNotFoundError, CourseNotFoundError
+from content.services import lesson_service
 from content.domains.module_domain import ModuleDomain
 from content.models import Module, Course
 
 
 
-@transaction.atomic
-def create_module(course_id: uuid.UUID, data: Dict[str, Any]) -> ModuleDomain:
+def create_module(course: Course, data: Dict[str, Any]) -> Tuple[ModuleDomain, List[str]]:
     """
-    Tạo một module mới cho một khóa học.
-    
-    Logic nghiệp vụ:
-    1. Kiểm tra Course tồn tại.
-    2. Nếu position không được cung cấp, tự động gán position lớn nhất + 1.
-    3. Kiểm tra title không trùng lặp TRONG course đó.
+    Tạo một module VÀ CÁC CON (lesson, content_block) của nó.
+    Hàm này được gọi BÊN TRONG một transaction (của create_course).
     """
-    try:
-        course = Course.objects.get(id=course_id)
-    except ObjectDoesNotExist:
-        raise CourseNotFoundError("Khóa học không tồn tại.")
+    # 1. Tách dữ liệu con (lessons) ra khỏi dữ liệu (module)
+    lessons_data = data.pop('lessons', [])
+    files_to_commit = [] # Danh sách file của riêng module này
 
+    # 2. Xử lý logic nghiệp vụ của Module (lấy từ code cũ của bạn)
     title = data.get('title')
-    
-    # 2. Kiểm tra title trùng lặp
     if Module.objects.filter(course=course, title=title).exists():
         raise DomainError(f"Module với title '{title}' đã tồn tại trong khóa học này.")
 
-    # 3. Xử lý position
     position = data.get('position')
     if position is None:
-        # Lấy vị trí lớn nhất hiện tại của course và + 1
         max_pos_data = Module.objects.filter(course=course).aggregate(max_pos=Max('position'))
         max_pos = max_pos_data.get('max_pos')
         position = 0 if max_pos is None else max_pos + 1
     
-    # Tạo đối tượng Module
+    # 3. Tạo Module
+    # 'data' lúc này chỉ còn 'title' (và các trường khác nếu có)
+    # 'position' đã được tính toán
     new_module = Module.objects.create(
         course=course,
         title=title,
         position=position
+        # Hoặc: **data, nếu data từ serializer đã có position
     )
     
-    return ModuleDomain.from_model(new_module)
+    # 4. (QUAN TRỌNG) Gọi hàm con để tạo Lessons
+    for lesson_data in lessons_data:
+        # Chúng ta cần một hàm tương tự: _create_lesson
+        lesson, lesson_files = lesson_service.create_lesson(
+            module=new_module, 
+            data=lesson_data
+        )
+        files_to_commit.extend(lesson_files) # Gom file từ các lesson con
+    
+    # 5. Trả về module đã tạo VÀ danh sách file đã gom
+    return ModuleDomain.from_model(new_module), files_to_commit
 
 
 def list_modules_for_course(course_id: uuid.UUID) -> List[ModuleDomain]:

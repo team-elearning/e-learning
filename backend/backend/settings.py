@@ -14,11 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # nơi collectstatic sẽ gom các file tĩn
 
-# -------------------------------
-# Media files
-# -------------------------------
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -164,8 +160,8 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = Path('/var/www/elearning/staticfiles')
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = Path('/var/www/elearning/media')
+MEDIA_URL = os.getenv("MEDIA_URL", "")
+MEDIA_ROOT = BASE_DIR.parent.parent / 'media'
 
 # -------------------------------
 # Email / SMTP

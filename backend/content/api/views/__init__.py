@@ -2,7 +2,6 @@ from .subject_view import *
 from .course_view import *
 from .module_view import *
 from .lesson_view import *
-from .lesson_version_view import *
 from .content_block_view import *
 from .exploration_view import *
 from .search_view import *

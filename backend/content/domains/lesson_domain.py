@@ -1,17 +1,13 @@
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
-from collections import deque
+from typing import Optional
 
-from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
-from content.domains.lesson_version_domain import LessonVersionDomain
-from content.domains.commands import CreateLessonVersionCommand
+from content.services.exceptions import DomainValidationError, InvalidOperation
 
 
 
 class LessonDomain:
-    VALID_CONTENT_TYPES = ("lesson", "exploration", "exercise", "quiz")
+    VALID_CONTENT_TYPES = ("lesson", "exploration", "exercise", "quiz", "video")
 
     def __init__(self,
                  module_id: str,
@@ -26,7 +22,6 @@ class LessonDomain:
         self.position = int(position)
         self.content_type = content_type
         self.published = published  # convenience flag; canonical source is versions
-        self.versions: List["LessonVersionDomain"] = []
         self.validate()
 
     def validate(self):
@@ -36,26 +31,6 @@ class LessonDomain:
             raise DomainValidationError("Lesson.title required.")
         if self.content_type not in self.VALID_CONTENT_TYPES:
             raise DomainValidationError("Invalid Lesson.content_type.")
-
-    def create_version(self, author_id: Optional[int], content: Dict[str, Any], change_summary: Optional[str] = None) -> "LessonVersionDomain":
-        # Next version number = max existing +1 or 1
-        next_v = 1 + (max((v.version for v in self.versions), default=0))
-        lv = LessonVersionDomain(lesson_id=self.id, version=next_v, status="draft", author_id=author_id, content=content, change_summary=change_summary)
-        # validate content blocks if present
-        lv.validate_content()
-        self.versions.append(lv)
-        return lv
-
-    def get_version(self, version: int) -> "LessonVersionDomain":
-        v = next((x for x in self.versions if x.version == version), None)
-        if not v:
-            raise NotFoundError("LessonVersion not found.")
-        return v
-
-    def get_latest_version(self) -> Optional["LessonVersionDomain"]:
-        if not self.versions:
-            return None
-        return max(self.versions, key=lambda x: x.version)
 
     def has_published_version(self) -> bool:
         return any(v.status == "published" for v in self.versions)
@@ -97,7 +72,4 @@ class LessonDomain:
     @classmethod
     def from_model(cls, model):
         l = cls(module_id=str(getattr(model,'module_id',None) or ""), title=model.title, position=model.position, content_type=model.content_type, published=model.published, id=str(model.id))
-        if hasattr(model, "versions_prefetched") and model.versions_prefetched:
-            for v_m in model.versions_prefetched:
-                l.versions.append(LessonVersionDomain.from_model(v_m))
         return l

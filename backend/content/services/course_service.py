@@ -3,56 +3,80 @@ from typing import Any, Dict, List
 from django.db import transaction
 from django.db.models import Prefetch
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.utils.text import slugify
+from django.contrib.contenttypes.models import ContentType
+import logging
 
-from content.models import Course
 from custom_account.models import UserModel 
+from media.services import file_service
+from media.models import UploadedFile
+from content.models import Course
 from content.domains.course_domain import CourseDomain
+from content.domains import module_domain 
+from content.services import module_service
 from content.services.exceptions import DomainError, CourseNotFoundError, NotFoundError, InvalidOperation
-from content.models import Course, Module, Lesson, LessonVersion, Enrollment
+from content.models import Course, Module, Lesson, Enrollment, Category
 
 
 
 @transaction.atomic
-def create_course(data: dict, owner: UserModel) -> CourseDomain:
+def create_course(data: dict, owner) -> Course:
     """
-    Tạo một course mới và các quan hệ của nó.
-    'data' là dict đã được validate từ Serializer/Input DTO.
-    'owner' là user instance (ví dụ: request.user).
+    Hàm ĐIỀU PHỐI. Quản lý transaction cho toàn bộ quá trình.
     """
-
-    # 1. Kiểm tra các quy tắc nghiệp vụ (ví dụ: title là duy nhất)
-    # (Bạn có thể bỏ qua nếu không cần)
-    if Course.objects.filter(title=data['title']).exists():
-        raise DomainError(f"Một khóa học với tiêu đề '{data['title']}' đã tồn tại.")
-
-    # 2. Tách các trường M2M và FK ra khỏi 'data'
-    category_ids = data.pop('categories', [])
-    tag_ids = data.pop('tags', [])
-    subject_id = data.pop('subject', None) # Giả sử DTO gửi 'subject' là subject_id
-
-    # 3. Tạo Domain object (giống pattern của register_user)
-    # Chúng ta thêm owner và subject_id vào data để Pydantic validate
-    domain_data = {**data, "owner_id": owner.id, "subject_id": subject_id}
+    # 1. Tách dữ liệu lồng nhau và M2M ra khỏi data chính
+    modules_data = data.pop('modules', [])
+    categories_names = data.pop('categories', [])
+    image_url = data.pop('image_url', None)
     
+    # (Bạn có thể xử lý tags tương tự)
+    
+    # 2. Xử lý logic cho Course (ví dụ: tạo slug nếu thiếu)
+    if 'slug' not in data or not data['slug']:
+        data['slug'] = slugify(data['title'])
+    # (Bạn nên có logic kiểm tra slug trùng ở đây)
+
+    # 3. Tạo đối tượng gốc (Course)
+    # **data chứa (title, description, grade, published, slug...)
+    course = Course.objects.create(owner=owner, **data)
+    
+    # 4. Xử lý M2M (Category)
+    # (Phải tạo course trước mới gán M2M được)
+    files_to_commit = []
+    if image_url:
+        files_to_commit.append(image_url)
+
+    for cat_name in categories_names:
+        # Tìm hoặc tạo Category
+        category, _ = Category.objects.get_or_create(
+            name=cat_name, 
+            defaults={'slug': slugify(cat_name)}
+        )
+        course.categories.add(category)
+    
+    # 5. GỌI VÀ ỦY QUYỀN cho domain/service con
+    # Đây là phần bạn đã làm đúng
+    for module_data in modules_data:
+        # Hàm con này KHÔNG cần transaction, vì nó đang chạy bên trong
+        # transaction của hàm cha.
+        module, module_files = module_service.create_module(
+            course=course, 
+            data=module_data
+        )
+        files_to_commit.extend(module_files) # Gom file để commit
+    
+    # 6. (Rất quan trọng) Commit file
+    # Chỉ chạy khi toàn bộ 1-5 ở trên thành công
+    # Nếu bước này lỗi, toàn bộ transaction (bước 3, 4, 5) sẽ
+    # TỰ ĐỘNG ROLLBACK. Đây chính là sức mạnh của @transaction.atomic.
     try:
-        course_domain = CourseDomain(**domain_data)
-    except Exception as e: # Bắt lỗi validation của Pydantic
-        raise DomainError(f"Dữ liệu tạo course không hợp lệ: {e}")
+        file_service.commit_files_for_object(files_to_commit, course)
+    except Exception as e:
+        # Nếu commit file lỗi, chúng ta cần chủ động rollback DB
+        # Bằng cách raise một Exception để @transaction.atomic bắt được
+        raise ValueError(f"Lỗi khi commit file: {str(e)}")
 
-    # 4. Chuyển domain sang model
-    course = course_domain.to_model()
-
-    # 5. Lưu model chính (để lấy ID)
-    course.save()
-
-    # 6. Set các quan hệ M2M
-    if category_ids:
-        course.categories.set(category_ids)
-    if tag_ids:
-        course.tags.set(tag_ids)
-
-    # 7. Trả về Domain object từ model đã lưu (giống pattern của register_user)
-    return CourseDomain.from_model(course)
+    return course
 
 
 def list_courses() -> List[CourseDomain]:
@@ -134,25 +158,49 @@ def update_course(course_id: uuid.UUID, updates: Dict[str, Any]) -> CourseDomain
     return CourseDomain.from_model(course)
 
 
-def delete_course(course_id: uuid.UUID):
+logger = logging.getLogger(__name__)
+@transaction.atomic
+def delete_course_for_instructor(course_id: uuid.UUID, owner) -> None:
     """
-    Xóa một course.
-    (Giống pattern của delete_user)
+    Xóa một khóa học và dọn dẹp TẤT CẢ các file liên quan.
+    Chỉ owner (Instructor) mới được xóa.
     """
+    
+    # 1. Tìm và xác thực course (giống hàm delete của bạn)
     try:
-        course_to_delete = Course.objects.get(id=course_id)
-    except ObjectDoesNotExist:
-        raise CourseNotFoundError("Không tìm thấy khóa học để xóa.")
+        course = Course.objects.get(pk=course_id, owner=owner)
+    except Course.DoesNotExist:
+        raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn không có quyền xóa.")
+
+    # 2. (QUAN TRỌNG) Dọn dẹp file vật lý
+    #    Hàm create_course đã dùng ContentType để gán file,
+    #    giờ chúng ta dùng nó để tìm lại file.
     
-    # Business logic (nếu có):
-    # Ví dụ: if course_to_delete.has_active_students:
-    #           raise DomainError("Không thể xóa course đang có học viên.")
-    
-    course_to_delete.delete()
-    
-    # (Hàm delete_user của bạn không trả về gì, 
-    #  nhưng sẽ tốt hơn nếu trả về True)
-    # return True
+    try:
+        # Tìm ContentType của model 'Course'
+        course_content_type = ContentType.objects.get_for_model(course)
+        
+        # Tìm tất cả các bản ghi 'UploadedFile' đã được "commit"
+        # cho chính đối tượng Course này (ảnh bìa, file pdf, v.v.)
+        linked_files = UploadedFile.objects.filter(
+            content_type=course_content_type, 
+            object_id=course.pk
+        )
+
+        # Gọi 'file_service.delete_file' cho từng file
+        # (Hàm 'delete_file' của bạn đã tự xử lý việc xóa file vật lý)
+        for file_record in linked_files:
+            file_service.delete_file(file_record.pk)
+            
+    except Exception as e:
+        # Nếu xóa file lỗi, chúng ta rollback toàn bộ
+        logger.error(f"Lỗi khi dọn dẹp file cho Course {course_id}: {e}", exc_info=True)
+        raise DomainError(f"Lỗi khi dọn dẹp file: {e}")
+
+    # 3. Xóa bản ghi CSDL (và để CASCADE lo phần còn lại)
+    #    Phải làm sau cùng, sau khi đã xóa file thành công.
+    course.delete()
+    return None
 
 
 def get_course(course_id: str) -> CourseDomain:
@@ -175,12 +223,7 @@ def get_course(course_id: str) -> CourseDomain:
                 queryset=Module.objects.all().order_by('position').prefetch_related(
                     Prefetch(
                         'lessons', # Giả định related_name='lessons' (đúng)
-                        queryset=Lesson.objects.all().order_by('position').prefetch_related(
-                            Prefetch(
-                                'versions', # Giả định related_name='versions' (đúng)
-                                queryset=LessonVersion.objects.all().order_by('-version')
-                            )
-                        )
+                        queryset=Lesson.objects.all().order_by('position')
                     )
                 )
             )
@@ -392,9 +435,7 @@ def get_course_for_instructor(course_id: str, owner: UserModel) -> CourseDomain:
             .prefetch_related(
                 'categories', 'tags',
                 Prefetch('modules', queryset=Module.objects.all().order_by('position').prefetch_related(
-                    Prefetch('lessons', queryset=Lesson.objects.all().order_by('position').prefetch_related(
-                        Prefetch('versions', queryset=LessonVersion.objects.all().order_by('-version'))
-                    ))
+                    Prefetch('lessons', queryset=Lesson.objects.all().order_by('position'))
                 ))
             )
             .get(id=course_id, owner=owner) # <
