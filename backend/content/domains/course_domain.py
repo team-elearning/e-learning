@@ -30,7 +30,8 @@ class CourseDomain:
                  published: bool = False,
                  published_at: Optional[datetime] = None, 
                  category_names: List[str] = None,
-                 tag_names: List[str] = None):
+                 tag_names: List[str] = None,
+                 image_url: Optional[str] = None):
         self.id = id or str(uuid.uuid4())
         self.title = title
         self.subject_id = subject_id
@@ -40,9 +41,10 @@ class CourseDomain:
         self.slug = slug
         self.published = published
         self.published_at = published_at 
-        self.category_names = category_names or []
-        self.tag_names = tag_names or []
-        self.modules: List["ModuleDomain"] = []
+        self.categories = category_names or []
+        self.tags = tag_names or []
+        self.modules: List[ModuleDomain] = []
+        self.image_url = image_url
         self.validate()
 
     def validate(self):
@@ -156,39 +158,56 @@ class CourseDomain:
             "published": self.published,
             "published_at": self.published_at,
             "modules": [m.to_dict() for m in self.modules],
-            "category_names": self.category_names,
-            "tag_names": self.tag_names,
+            "categories": self.categories,
+            "tags": self.tags,
+            "image_url": self.image_url,
+            "modules": [m.to_dict() for m in self.modules],
         }
 
     @classmethod
     def from_model(cls, model):
         """
-        Optional helper: nếu có Django model, mapping sang domain.
-        model expected to have attributes and related loaders for modules->lessons->versions.
+        [CẬP NHẬT] Hàm 'nặng' (full) này dùng cho Detail View.
+        Nó sẽ gọi hàm 'nhẹ' trước.
+        """
+        # Dùng lại hàm overview để lấy tất cả metadata cơ bản
+        c = cls.from_model_overview(model)
+        
+        # Giờ mới load 'children' (phần nặng)
+        # Service nào gọi hàm này PHẢI prefetch 'modules__lessons'
+        modules_sorted = sorted(model.modules.all(), key=lambda m: m.position)
+        for module_model in modules_sorted:
+            module_domain = ModuleDomain.from_model(module_model)
+            c.modules.append(module_domain)
+        
+        return c
+    
+    @classmethod
+    def from_model_overview(cls, model):
+        """
+        [MỚI] Hàm "nhẹ" - Chỉ map metadata, KHÔNG load 'children' (modules).
         """
         c = cls(
             id=str(model.id),
             title=model.title,
             
-            # Đọc ID trực tiếp (an toàn hơn getattr)
             subject_id=str(model.subject_id) if model.subject_id else None,
             owner_id=model.owner_id if model.owner_id else None,
             
             description=model.description,
             grade=model.grade,
-            slug=model.slug, # Đọc trường slug mới
+            slug=model.slug,
             published=model.published,
-            published_at=model.published_at, # Đọc trường published_at mới
+            published_at=model.published_at,
             
-            # Đọc M2M (yêu cầu service phải prefetch)
+            # M2M này OK vì đã prefetch ở service
             category_names=[cat.name for cat in model.categories.all()],
-            tag_names=[cat.name for cat in model.tags.all()]
+            tag_names=[tag.name for tag in model.tags.all()] # Sửa: cat.name -> tag.name
         )
-
-        # Giữ nguyên logic load module của bạn
-        if hasattr(model, "modules_prefetched") and model.modules_prefetched:
-            for mod_m in model.modules_prefetched:
-                mod_d = ModuleDomain.from_model(mod_m)
-                c.modules.append(mod_d)
-                
+        
+        # Dòng này giờ sẽ rất nhanh VÌ chúng ta sẽ prefetch 'files' ở Bước 3
+        first_file = model.files.first() 
+        if first_file:
+            c.image_url = first_file.url
+        
         return c

@@ -216,31 +216,31 @@ class ReorderBlocksSerializer(serializers.Serializer):
 #         fields = ["id", "lesson", "version", "status", "author", "content", "change_summary", "created_at", "published_at", "content_blocks"]
 #         read_only_fields = ["id", "version", "created_at", "published_at", "content_blocks"]
 
-    def to_domain(self) -> LessonVersionDomain:
-        """
-        For creation/updating of lesson versions.
-        If instance exists, it's an update; for create, version will be assigned by domain/Service.
-        """
+    # def to_domain(self) -> LessonVersionDomain:
+    #     """
+    #     For creation/updating of lesson versions.
+    #     If instance exists, it's an update; for create, version will be assigned by domain/Service.
+    #     """
 
-        d = self.validated_data
-        lesson = d.get("lesson")
-        lesson_id = _maybe_pk_to_id(lesson)
-        author = d.get("author")
-        lv = LessonVersionDomain(
-            lesson_id=lesson_id,
-            version=d.get("version", 0) or 0,  # service will set real version on create
-            status=d.get("status", "draft"),
-            author_id=(author.id if author else None),
-            content=d.get("content", {}),
-            change_summary=d.get("change_summary")
-        )
-        # Validate content structure (this will validate content blocks payload)
-        lv.validate_content()
-        return lv
+    #     d = self.validated_data
+    #     lesson = d.get("lesson")
+    #     lesson_id = _maybe_pk_to_id(lesson)
+    #     author = d.get("author")
+    #     lv = LessonVersionDomain(
+    #         lesson_id=lesson_id,
+    #         version=d.get("version", 0) or 0,  # service will set real version on create
+    #         status=d.get("status", "draft"),
+    #         author_id=(author.id if author else None),
+    #         content=d.get("content", {}),
+    #         change_summary=d.get("change_summary")
+    #     )
+    #     # Validate content structure (this will validate content blocks payload)
+    #     lv.validate_content()
+    #     return lv
 
-    @staticmethod
-    def from_domain(domain: LessonVersionDomain) -> Dict[str, Any]:
-        return domain.to_dict()
+    # @staticmethod
+    # def from_domain(domain: LessonVersionDomain) -> Dict[str, Any]:
+    #     return domain.to_dict()
 
 
 class LessonSerializer(serializers.ModelSerializer):
@@ -768,6 +768,39 @@ class ReorderItemsInputSerializer(serializers.Serializer):
     
 
 ##########################################################################################################################################################################
+class QuestionPatchInputSerializer(serializers.Serializer):
+    """
+    Serializer con: Validate một câu hỏi trong mảng 'questions' khi PATCH.
+    Tất cả các trường là optional.
+    """
+    id = serializers.UUIDField(required=False, allow_null=True)
+    type = serializers.CharField(required=False)
+    position = serializers.IntegerField(required=False)
+    prompt = serializers.JSONField(required=False)
+    answer_payload = serializers.JSONField(required=False)
+    hint = serializers.JSONField(required=False, allow_null=True)
+
+class QuizPatchInputSerializer(serializers.Serializer):
+    """
+    Serializer chính: Validate body của request PATCH /api/quizzes/{id}/.
+    Dùng trong QuizDetailView.
+    """
+    title = serializers.CharField(required=False)
+    
+    # Chúng ta dùng CharField để chấp nhận chuỗi "HH:MM:SS"
+    # Pydantic DTO (ở bước sau) sẽ parse nó thành timedelta
+    time_limit = serializers.CharField(required=False, allow_null=True) 
+    
+    time_open = serializers.DateTimeField(required=False, allow_null=True)
+    time_close = serializers.DateTimeField(required=False, allow_null=True)
+    
+    # Mảng questions lồng nhau
+    questions = QuestionPatchInputSerializer(
+        many=True, 
+        required=False, 
+        allow_empty=True
+    )
+
 class QuestionSerializer(serializers.Serializer):
     position = serializers.IntegerField(default=0, required=False)
     
@@ -800,33 +833,7 @@ class QuizSerializer(serializers.Serializer):
     time_open = serializers.DateTimeField(required=False, allow_null=True)
     time_close = serializers.DateTimeField(required=False, allow_null=True)
 
-    # ---> THAY ĐỔI QUAN TRỌNG <---
-    # Dùng Serializer câu hỏi mới
     questions = QuestionSerializer(many=True, required=True, min_length=1)
-
-    def validate(self, attrs):
-        """
-        Đây là "bước chuyển" thích hợp.
-        Chạy sau khi các trường đã được validate.
-        """
-        
-        # 2. Lấy 'time_limit' (đang là object timedelta)
-        time_limit_delta = attrs.get('time_limit')
-        if isinstance(time_limit_delta, timedelta):
-            # 3. Chuyển nó thành Integer (tổng số giây)
-            attrs['time_limit'] = int(time_limit_delta.total_seconds())
-
-        # 4. (Tùy chọn) Chuyển đổi datetime thành string ISO
-        #    Để nhất quán và JSON-safe ngay từ đầu
-        time_open = attrs.get('time_open')
-        if isinstance(time_open, datetime):
-            attrs['time_open'] = time_open.isoformat()
-            
-        time_close = attrs.get('time_close')
-        if isinstance(time_close, datetime):
-            attrs['time_close'] = time_close.isoformat()
-
-        return attrs
 
 
 class ContentBlockInputSerializer(serializers.Serializer):
@@ -869,7 +876,10 @@ class ContentBlockInputSerializer(serializers.Serializer):
             
         if block_type in ['image', 'video', 'pdf', 'docx']:
             # Kiểm tra xem có URL file không
-            url_key = f"{block_type}_url" if block_type in ['image', 'video'] else 'file_url'
+            if block_type in ['image', 'video']:
+                url_key = f"{block_type}_id"
+            else:
+                url_key = "file_id"
             if url_key not in payload:
                 raise serializers.ValidationError(f"Payload '{block_type}' phải có '{url_key}'.")
 
@@ -900,7 +910,7 @@ class CourseCreateSerializer(serializers.Serializer):
     Serializer chính để validate toàn bộ cấu trúc "Big JSON"
     """
     title = serializers.CharField(max_length=255)
-    image_url = serializers.CharField(max_length=1024, required=False, allow_blank=True, allow_null=True)
+    image_id = serializers.CharField(max_length=1024, required=False, allow_blank=True, allow_null=True)
     description = serializers.CharField(required=False, allow_blank=True)
     
     # Nhận vào một list các string (tên Category)
@@ -916,3 +926,66 @@ class CourseCreateSerializer(serializers.Serializer):
     
     # Sử dụng Serializer lồng nhau
     modules = ModuleCreateSerializer(many=True, required=False, allow_empty=True)
+
+
+class ContentBlockPatchSerializer(serializers.Serializer):
+    """
+    Serializer con cho ContentBlock (PATCH).
+    'id' là bắt buộc cho logic so khớp (Update).
+    Nếu không có 'id', nó sẽ được coi là (Create).
+    """
+    id = serializers.UUIDField(required=False, allow_null=True)
+    type = serializers.CharField(required=False)
+    payload = serializers.JSONField(required=False)
+    position = serializers.IntegerField(required=False, min_value=0)
+
+
+class LessonPatchSerializer(serializers.Serializer):
+    """Serializer con cho Lesson (PATCH)."""
+    id = serializers.UUIDField(required=False, allow_null=True)
+    title = serializers.CharField(max_length=255, required=False)
+    content_type = serializers.CharField(max_length=50, required=False)
+    published = serializers.BooleanField(required=False)
+    position = serializers.IntegerField(required=False, min_value=0)
+    
+    # Lồng nhau
+    content_blocks = ContentBlockPatchSerializer(many=True, required=False)
+
+
+class ModulePatchSerializer(serializers.Serializer):
+    """Serializer con cho Module (PATCH)."""
+    id = serializers.UUIDField(required=False, allow_null=True)
+    title = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    position = serializers.IntegerField(required=False, min_value=0)
+    
+    # Lồng nhau
+    lessons = LessonPatchSerializer(many=True, required=False)
+
+
+class CoursePatchInputSerializer(serializers.Serializer):
+    """
+    Serializer chính để validate "Big JSON" cho PATCH.
+    Nó KHÔNG phải là ModelSerializer và không cần 'instance'.
+    MỌI TRƯỜNG đều là 'required=False'.
+    """
+    title = serializers.CharField(max_length=255, required=False)
+    image_id = serializers.CharField(max_length=1024, required=False, allow_blank=True, allow_null=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    
+    # Thêm trường 'subject' (dạng UUID) mà service 'patch_course' cần
+    subject = serializers.UUIDField(required=False, allow_null=True)
+
+    # List các string (tên)
+    categories = serializers.ListField(
+        child=serializers.CharField(max_length=255), required=False
+    )
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=255), required=False
+    )
+    
+    grade = serializers.CharField(max_length=16, required=False, allow_blank=True)
+    published = serializers.BooleanField(required=False)
+    
+    # Sử dụng Serializer lồng nhau (PATCH)
+    modules = ModulePatchSerializer(many=True, required=False)

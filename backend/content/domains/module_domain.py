@@ -60,19 +60,30 @@ class ModuleDomain:
             raise NotFoundError("Lesson not found.")
         return l
 
-    def to_dict(self, summary: bool = False):
-        base = {"id": self.id, "course_id": self.course_id, "title": self.title, "position": self.position}
-        if summary:
-            base["lessons_count"] = len(self.lessons)
-        else:
-            base["lessons"] = [l.to_dict() for l in self.lessons]
-        return base
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "course_id": self.course_id,
+            "title": self.title,
+            "position": self.position,
+            "lessons": [l.to_dict() for l in self.lessons]
+        }
 
     @classmethod
     def from_model(cls, model):
-        # model expected to have .id, .title, .position and maybe prefetched lessons
-        m = cls(course_id=(str(getattr(model,'course_id', None)) or ""), title=model.title, position=model.position, id=str(model.id))
-        if hasattr(model, "lessons_prefetched") and model.lessons_prefetched:
-            for l_m in model.lessons_prefetched:
-                m.lessons.append(LessonDomain.from_model(l_m))
-        return m
+        """Tạo domain từ model Module, lồng Lesson"""
+        module_domain = cls(
+            id=str(model.id),
+            course_id=(str(getattr(model,'course_id', None)) or ""),
+            title=model.title,
+            position=model.position
+        )
+        
+        # Service phải prefetch '...__lessons__...'
+        for lesson_model in model.lessons.all():
+            module_domain.lessons.append(
+                LessonDomain.from_model(lesson_model)
+            )
+            
+        return module_domain
+    

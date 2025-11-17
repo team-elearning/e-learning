@@ -9,7 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 from django.http import Http404
 
 from content import models
-from content.serializers import CourseSerializer, CourseCreateSerializer
+from content.serializers import CourseSerializer, CourseCreateSerializer, CoursePatchInputSerializer
 from content.services import course_service     
 from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput
 from content.services.exceptions import DomainError, ValidationError as DRFValidationError    
@@ -30,7 +30,7 @@ class PublicCourseListView(RoleBasedOutputMixin, APIView):
 
     # Cấu hình DTO output
     output_dto_public = CoursePublicOutput
-    output_dto_admin  = CoursePublicOutput # Luôn là public
+    output_dto_admin  = CourseAdminOutput # Luôn là public
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -53,13 +53,13 @@ class PublicCourseListView(RoleBasedOutputMixin, APIView):
 
 class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/v1/courses/<pk>/ - Lấy chi tiết course (public).
+    GET /courses/<pk>/ - Lấy chi tiết course (public).
     """
     permission_classes = [permissions.IsAuthenticated]
 
     # Cấu hình DTO output
     output_dto_public = CoursePublicOutput
-    output_dto_admin  = CoursePublicOutput # Luôn là public
+    output_dto_admin  = CoursePublicOutput 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -83,34 +83,81 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
 
 class CourseEnrollView(APIView):
     """
-    POST /courses/{id}/enroll/ -> enroll current user
-    DELETE /courses/{id}/enroll/ -> unenroll
+    POST /courses/<pk>/enroll/ -> Ghi danh user hiện tại vào khóa học.
+    DELETE /courses/<pk>/unenroll/ -> Hủy ghi danh user hiện tại.
     """
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request, course_id: str):
-        try:
-            course = course_service.get_course(course_id)
-            if not course:
-                return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-            # This feature might not be fully implemented in the service
-            if hasattr(course_service, 'enroll_user'):
-                course_service.enroll_user(course_id=course_id, user_id=request.user.id)
-                return Response({"success": True}, status=status.HTTP_200_OK)
-            else:
-                return Response({"detail": "Enroll feature not implemented"}, status=status.HTTP_501_NOT_IMPLEMENTED)
-        except Exception as ex:
-            return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Giữ sự nhất quán với các View khác của bạn
+        self.course_service = course_service 
 
-    def delete(self, request, course_id: str):
+    def post(self, request, pk: uuid.UUID, *args, **kwargs):
+        """
+        Ghi danh user hiện tại (request.user) vào khóa học (pk).
+        """
         try:
-            if hasattr(course_service, 'unenroll_user'):
-                course_service.unenroll_user(course_id=course_id, user_id=request.user.id)
-                return Response({"success": True}, status=status.HTTP_200_OK)
-            else:
-                return Response({"detail": "Unenroll feature not implemented"}, status=status.HTTP_501_NOT_IMPLEMENTED)
-        except Exception as ex:
-            return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+            # 1. Ủy quyền hoàn toàn cho service
+            # Service sẽ lo việc:
+            # - Tìm course (published=True)
+            # - Check xem user có phải owner không
+            # - Check xem user đã enroll chưa
+            # - Tạo record Enrollment
+            
+            # (Chúng ta sẽ định nghĩa hàm này ở bước 2)
+            enrollment_domain = self.course_service.enroll_user_in_course(
+                course_id=pk, 
+                user=request.user
+            )
+            
+            # 2. Trả về thành công
+            # POST tạo mới resource nên dùng 201 CREATED
+            return Response(
+                {"detail": "Ghi danh thành công."},
+                status=status.HTTP_201_CREATED 
+            )
+        
+        except DomainError as e:
+            # Lỗi nghiệp vụ (đã enroll, là owner, course not found)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            # Lỗi hệ thống
+            logger.error(f"Lỗi trong CourseEnrollView (POST): {e}", exc_info=True)
+            return Response({"detail": "Lỗi máy chủ khi ghi danh."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, pk: uuid.UUID, *args, **kwargs):
+        """
+        Hủy ghi danh user hiện tại (request.user) khỏi khóa học (pk).
+        """
+        try:
+            # 1. Ủy quyền hoàn toàn cho service
+            # Service sẽ lo việc:
+            # - Tìm record Enrollment
+            # - Xóa record
+            
+            # (Chúng ta sẽ định nghĩa hàm này ở bước 2)
+            self.course_service.unenroll_user_from_course(
+                course_id=pk, 
+                user=request.user
+            )
+            
+            # 2. Trả về thành công
+            return Response(
+                {"detail": "Hủy ghi danh thành công."},
+                status=status.HTTP_200_OK # DELETE thành công
+            )
+        
+        except DomainError as e:
+            # Lỗi nghiệp vụ (chưa enroll, course not found)
+            # Dùng 404 vì không tìm thấy record enrollment
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND) 
+        
+        except Exception as e:
+            # Lỗi hệ thống
+            logger.error(f"Lỗi trong CourseEnrollView (DELETE): {e}", exc_info=True)
+            return Response({"detail": "Lỗi máy chủ khi hủy ghi danh."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ------------------ ADMIN -------------------------------
@@ -301,8 +348,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     def get(self, request, *args, **kwargs):
         """ Lấy list course CỦA TÔI """
         try:
-            courses_list = self.course_service.list_courses_for_instructor(owner=request.user)
-            print(courses_list[0].to_dict())
+            courses_list = self.course_service.list_course_overviews_for_instructor(owner=request.user)
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -345,9 +391,9 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
     DELETE /instructor/courses/<pk>/ - Xoá (của tôi).
     """
     # Phải là Instructor 
-    permission_classes = [IsInstructor] 
+    permission_classes = [permissions.IsAuthenticated, IsInstructor] 
 
-    output_dto_public = CourseAdminOutput
+    output_dto_public = CoursePublicOutput
     output_dto_admin  = CourseAdminOutput
 
     def __init__(self, *args, **kwargs):
@@ -355,72 +401,95 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         self.course_service = course_service
 
     def get(self, request, pk: uuid.UUID, *args, **kwargs):
-        """ Lấy chi tiết """
+        """ Lấy chi tiết (Đã tối ưu) """
         try:
-            # 1. Kiểm tra quyền (Admin hoặc Owner)
-            self.check_course_permission(request, course_id=pk)
-        except Http404 as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-            # Gọi hàm service mới
-            course = self.course_service.get_course_by_id_for_instructor(
-                course_id=pk, owner=request.user
+            # 1. Gọi thẳng service
+            #    Hàm này đã bao gồm cả check quyền owner
+            course = self.course_service.get_course(
+                course_id=pk, 
+                owner=request.user
             )
+            # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
+        
         except DomainError as e: 
+            # Bắt lỗi từ service (Không tìm thấy hoặc không có quyền)
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        
         except Exception as e:
+            logger.error(f"Lỗi không xác định trong DetailView (GET): {e}", exc_info=True)
             return Response({"detail": f"Lỗi không xác định: {str(e)}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     def patch(self, request, pk: uuid.UUID, *args, **kwargs):
-        """ Cập nhật (đã check quyền sở hữu) """
-        try:
-            # Kiểm tra quyền VÀ lấy instance
-            course_instance = self.check_course_permission(request, course_id=pk)
-        except Http404 as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        """
+        Cập nhật (PATCH) một course theo logic Moodle (granular).
+        View chỉ validate input và ủy quyền cho service.
+        """
         
-        # Validate 
-        try:
-            instance = self.course_service.get_course_by_id_for_instructor(
-                course_id=pk, owner=request.user
-            )
-        except DomainError as e:
-            return Response({"detail": f"Không tìm thấy course: {e}"}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = CourseSerializer(instance, data=request.data, partial=True)
+        # 1. Validate Input (Giống hệt POST)
+        # KHÔNG cần lấy instance hay check permission ở đây.
+        # Service 'patch_course' sẽ làm việc đó.
+        
+        # GHI CHÚ: Bạn cần một Serializer (ví dụ: CoursePatchInputSerializer)
+        # chỉ để validate input, KHÔNG phải là ModelSerializer cần 'instance'.
+        # Nó giống hệt 'CourseCreateSerializer' của bạn.
+        serializer = CoursePatchInputSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
         except DRFValidationError:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # 2. Convert sang Pydantic DTO (Giống hệt POST)
         try:
+            # Giả sử CourseUpdateInput có các trường Optional
             update_dto = CourseUpdateInput(**validated_data)
-            updates_payload = update_dto.model_dump(exclude_none=True)
+            
+            # --- ĐIỂM MẤU CHỐT CỦA PATCH ---
+            # Dùng 'exclude_unset=True' để dict chỉ chứa
+            # CÁC TRƯỜNG MÀ USER THỰC SỰ GỬI LÊN.
+            # Service 'patch_course' của chúng ta dựa vào việc key
+            # không tồn tại (ví dụ: 'modules') để biết là "không thay đổi".
+            patch_data = update_dto.model_dump(exclude_unset=True)
+            
         except PydanticValidationError as e:
-             return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not updates_payload:
-            return Response({"instance": instance}, status=status.HTTP_200_OK)
+        # 3. "No Updates" Check (Optional, nhưng nên có)
+        # Nếu user gửi body rỗng, hoặc không có trường nào hợp lệ
+        if not patch_data:
+            # Nếu không có gì để cập nhật, chúng ta chỉ cần
+            # lấy và trả về instance hiện tại.
+            try:
+                instance = self.course_service.get_course(
+                    course_id=pk, owner=request.user
+                )
+                return Response({"instance": instance}, status=status.HTTP_200_OK)
+            except (DomainError, ValueError) as e:
+                # (Hoặc Http404 tùy bạn định nghĩa)
+                return Response({"detail": f"Không tìm thấy course: {e}"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Gọi service 
+        # 4. Gọi Service (Giống hệt POST)
+        # GỌI HÀM 'patch_course' MÀ CHÚNG TA VỪA TẠO
         try:
-            updated_course = self.course_service.update_course_for_instructor(
+            updated_course = self.course_service.patch_course(
                 course_id=pk,
-                updates=updates_payload,
+                data=patch_data, # Dùng dict đã lọc
                 owner=request.user
             )
+            # 'updated_course' là một CourseDomain đã được cập nhật
             return Response({"instance": updated_course}, status=status.HTTP_200_OK)
+        
+        # 5. Error Handling (Copy từ POST cho nhất quán)
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e: # service 'patch_course' ném ValueError
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Lỗi trong InstructorCourseDetailView (PATCH): {e}", exc_info=True)
+            return Response({"detail": "Lỗi máy chủ khi cập nhật course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     def delete(self, request, pk: uuid.UUID, *args, **kwargs):
@@ -445,70 +514,70 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-class InstructorCoursePublishView(APIView):
-    """
-    POST /instructor/courses/{id}/publish/
-    """
-    permission_classes = [IsInstructor] 
+# class InstructorCoursePublishView(APIView):
+#     """
+#     POST /instructor/courses/{id}/publish/
+#     """
+#     permission_classes = [IsInstructor] 
 
-    def post(self, request, course_id: str):
-        try:
-            # Kiểm tra quyền
-            self.check_course_permission(request, course_id=course_id)
-        except Http404 as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+#     def post(self, request, course_id: str):
+#         try:
+#             # Kiểm tra quyền
+#             self.check_course_permission(request, course_id=course_id)
+#         except Http404 as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+#         except PermissionDenied as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
-        require_all = request.data.get("require_all_lessons_published", False)
+#         require_all = request.data.get("require_all_lessons_published", False)
         
-        try:
-            publish_command_data = {"published": True, "require_all_lessons_published": require_all}
+#         try:
+#             publish_command_data = {"published": True, "require_all_lessons_published": require_all}
             
-            # Gọi service mới của Instructor
-            course_domain = course_service.publish_course_for_instructor(
-                course_id=course_id, 
-                publish_data=type("PublishCmd", (), publish_command_data),
-                owner=request.user
-            )
+#             # Gọi service mới của Instructor
+#             course_domain = course_service.publish_course_for_instructor(
+#                 course_id=course_id, 
+#                 publish_data=type("PublishCmd", (), publish_command_data),
+#                 owner=request.user
+#             )
             
-            # Trả về DTO (thay vì Serializer)
-            return Response(course_domain, status=status.HTTP_200_OK)
+#             # Trả về DTO (thay vì Serializer)
+#             return Response(course_domain, status=status.HTTP_200_OK)
 
-        except (DomainError, InvalidOperation) as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+#         except (DomainError, InvalidOperation) as exc:
+#             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as exc:
+#             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InstructorCourseUnpublishView(APIView):
-    """
-    POST /api/v1/instructor/courses/{id}/unpublish/
-    """
-    permission_classes = [IsInstructor]
+# class InstructorCourseUnpublishView(APIView):
+#     """
+#     POST /api/v1/instructor/courses/{id}/unpublish/
+#     """
+#     permission_classes = [IsInstructor]
 
-    def post(self, request, course_id: str):
-        try:
-            # Kiểm tra quyền
-            self.check_course_permission(request, course_id=course_id)
-        except Http404 as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+#     def post(self, request, course_id: str):
+#         try:
+#             # Kiểm tra quyền
+#             self.check_course_permission(request, course_id=course_id)
+#         except Http404 as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+#         except PermissionDenied as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
-        try:
-            # Gọi service mới của Instructor
-            course_domain = course_service.unpublish_course_for_instructor(
-                course_id=course_id,
-                owner=request.user
-            )
+#         try:
+#             # Gọi service mới của Instructor
+#             course_domain = course_service.unpublish_course_for_instructor(
+#                 course_id=course_id,
+#                 owner=request.user
+#             )
             
-            if not course_domain:
-                 return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+#             if not course_domain:
+#                  return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            return Response(CourseAdminOutput.model_validate(course_domain).model_dump(), status=status.HTTP_200_OK)
+#             return Response(CourseAdminOutput.model_validate(course_domain).model_dump(), status=status.HTTP_200_OK)
             
-        except (DomainError, InvalidOperation) as ex:
-            return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as ex:
-            return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+#         except (DomainError, InvalidOperation) as ex:
+#             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as ex:
+#             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)

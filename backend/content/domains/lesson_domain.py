@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
+from content.domains.content_block_domain import ContentBlockDomain
 from content.services.exceptions import DomainValidationError, InvalidOperation
 
 
@@ -22,6 +23,7 @@ class LessonDomain:
         self.position = int(position)
         self.content_type = content_type
         self.published = published  # convenience flag; canonical source is versions
+        self.content_blocks: List[ContentBlockDomain] = []
         self.validate()
 
     def validate(self):
@@ -66,10 +68,26 @@ class LessonDomain:
             "position": self.position,
             "content_type": self.content_type,
             "published": self.published,
-            "versions": [v.to_dict() for v in self.versions]
+            "content_blocks": [cb.to_dict() for cb in self.content_blocks]
         }
 
     @classmethod
     def from_model(cls, model):
-        l = cls(module_id=str(getattr(model,'module_id',None) or ""), title=model.title, position=model.position, content_type=model.content_type, published=model.published, id=str(model.id))
-        return l
+        """Tạo domain từ model Lesson, lồng ContentBlock"""
+        lesson_domain = cls(
+            id=str(model.id),
+            module_id=str(getattr(model,'module_id',None) or ""),
+            title=model.title,
+            position=model.position,
+            content_type=model.content_type,
+            published=model.published
+        )
+        
+        # Service phải prefetch '...__content_blocks'
+        for cb_model in model.content_blocks.all():
+            lesson_domain.content_blocks.append(
+                ContentBlockDomain.from_model(cb_model)
+            )
+            
+        return lesson_domain
+    

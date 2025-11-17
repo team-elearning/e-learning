@@ -53,34 +53,23 @@ class ContentBlockDomain:
         
         # image
         elif self.type == "image":
-            if "image_url" not in self.payload:
-                raise DomainValidationError("Payload 'image' phải có 'image_url'.")
+            if "image_id" not in self.payload:
+                raise DomainValidationError("Payload 'image' phải có 'image_id'.")
 
         # video
         elif self.type == "video":
-            if "video_url" not in self.payload:
-                raise DomainValidationError("Payload 'video' phải có 'video_url'.")
+            if "video_id" not in self.payload:
+                raise DomainValidationError("Payload 'video' phải có 'video_id'.")
 
         # pdf / docx
         elif self.type in ("pdf", "docx"):
-            if "file_url" not in self.payload:
-                raise DomainValidationError(f"Payload '{self.type}' phải có 'file_url'.")
+            if "file_id" not in self.payload:
+                raise DomainValidationError(f"Payload '{self.type}' phải có 'file_id'.")
 
         # quiz
         elif self.type == "quiz":
-            questions = self.payload.get("questions")
-            if not isinstance(questions, list) or len(questions) == 0:
-                raise DomainValidationError("Quiz must contain at least one question.")
-            
-            # Kiểm tra các loại câu hỏi bạn đã định nghĩa trong JSON
-            valid_q_types = (
-                "multiple_choice_single", "multiple_choice_multi",
-                "true_false", "short_answer", "fill_in_the_blank",
-                "matching", "essay"
-            )
-            for idx, q in enumerate(questions):
-                if not isinstance(q, dict) or q.get("type") not in valid_q_types:
-                    raise DomainValidationError(f"Quiz question[{idx}] invalid or missing type.")
+            if "quiz_id" not in self.payload:
+                raise DomainValidationError("Payload 'quiz' phải có 'quiz_id'.")
         
         # exploration_ref
         elif self.type == "exploration_ref":
@@ -93,21 +82,66 @@ class ContentBlockDomain:
     def to_dict(self):
         return {"id": self.id, "lesson_id": self.lesson_id, "type": self.type, "position": self.position, "payload": self.payload}
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "type": self.type,
+            "position": self.position,
+            "payload": self.payload 
+        }
+
     @classmethod
     def from_model(cls, model):
         """
-        --- SỬA 3: Lấy 'lesson_id' trực tiếp ---
-        (Bỏ hoàn toàn logic 'lesson_version')
+        Khởi tạo Domain object từ Model.
+        Xử lý và "làm giàu" payload ngay tại thời điểm này.
         """
         if not model.lesson_id:
             raise ValueError("ContentBlock model is missing lesson_id.")
+        
+        # 1. Lấy payload thô từ CSDL
+        raw_payload = model.payload
+        
+        # 2. Tạo một bản sao để "làm giàu"
+        #    (Không làm thay đổi payload gốc của model)
+        processed_payload = raw_payload.copy()
+        
+        # 3. Xử lý payload DỰA TRÊN TYPE
+        try:
+            if model.type == 'image' and 'image_id' in raw_payload:
+                image_id = raw_payload['image_id']
+                if image_id:
+                    processed_payload['image_url'] = f"/api/media/files/{image_id}/"
             
+            elif model.type in ('pdf', 'docx') and 'file_id' in raw_payload:
+                file_id = raw_payload['file_id']
+                if file_id:
+                    processed_payload['file_url'] = f"/api/media/files/{file_id}/"
+    
+            elif model.type == 'video' and 'video_id' in raw_payload:
+                video_id = raw_payload['video_id']
+                if video_id:
+                    processed_payload['video_url'] = f"/api/media/files/{video_id}/"
+            
+            elif model.type == 'quiz':
+                # Lấy ID từ trường tham chiếu (ForeignKey)
+                if model.quiz_ref_id:
+                    processed_payload['quiz_id'] = str(model.quiz_ref_id)
+            
+        except KeyError:
+            # Bỏ qua nếu cấu trúc payload bị sai
+            pass 
+        except Exception:
+            # Bỏ qua nếu có lỗi, giữ payload gốc
+            processed_payload = raw_payload
+
+        # 4. Khởi tạo class với payload đã được xử lý
         return cls(
-            lesson_id=str(model.lesson_id), # Lấy thẳng ID
+            lesson_id=str(model.lesson_id),
             type=model.type, 
             position=model.position, 
-            payload=model.payload, 
-            id=str(model.id)
+            payload=processed_payload, # <-- Dùng payload đã xử lý
+            id=str(model.id),
         )
     
     def to_model(self):

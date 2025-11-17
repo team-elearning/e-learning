@@ -4,8 +4,9 @@ from django.db import transaction, models
 from django.db.models import F, Max
 
 from custom_account.models import UserModel
-from content.models import ContentBlock, Enrollment, Lesson, Course, Module
+from content.models import ContentBlock, Enrollment, Lesson, Course, Module, Quiz
 from content.domains.content_block_domain import ContentBlockDomain 
+from content.services import quiz_service
 from content.services.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 
 
@@ -49,46 +50,64 @@ def list_blocks_for_version(lesson_id: uuid.UUID) -> List[ContentBlockDomain]:
     return block_domains
 
 
-
 def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
     """
-    Tạo ContentBlock và thu thập file URLs từ payload.
-    Kết hợp logic từ file mới của bạn.
+    Tạo ContentBlock theo logic "Router":
+    - 'quiz' sẽ được ủy quyền.
+    - Các loại khác sẽ được xử lý tại chỗ.
     """
     files_to_commit = []
     payload = data.get('payload', {})
     block_type = data.get('type')
 
-    # 1. Xử lý logic Block (Lấy từ code mới của bạn)
+    # 1. Xử lý logic Block (Tính position)
     position = data.get('position')
     if position is None:
-        current_max = lesson.content_blocks.aggregate( # Giả sử related_name là 'content_blocks'
+        current_max = lesson.content_blocks.aggregate(
             max_pos=Max('position')
         )['max_pos']
         position = 0 if current_max is None else current_max + 1
     
-    # 2. Tạo ContentBlock
+    final_payload = {}       # Mặc định là rỗng
+    quiz_ref_model = None
+
+    # 2. Xử lý Payload (Logic Router)
+    if block_type == 'quiz':
+        # --- Hướng QUIZ ---
+        # 2a. Ủy quyền tạo Quiz Model
+        new_quiz_domain = quiz_service.create_quiz(data=payload)
+        
+        try:
+            quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
+        except Quiz.DoesNotExist:
+            # (Xử lý lỗi nếu cần, mặc dù trường hợp này gần như
+            # không thể xảy ra vì quiz vừa được tạo)
+            raise ValueError("Quiz không tồn tại ngay sau khi được tạo.")
+        
+    else:
+        # --- Hướng BLOCK THƯỜNG (text, image, v.v.) ---
+        final_payload = payload
+        
+        # 2c. Thu thập file từ payload
+        url_key = None
+        if block_type == 'image':
+            url_key = 'image_id'
+        elif block_type == 'video':
+            url_key = 'video_id' 
+        elif block_type in ['pdf', 'docx']:
+            url_key = 'file_id'
+        
+        if url_key and url_key in final_payload:
+            files_to_commit.append(final_payload[url_key])
+
+    # 3. Tạo ContentBlock (SAU KHI đã có final_payload)
     new_block = ContentBlock.objects.create(
         lesson=lesson,
         type=block_type,
-        payload=payload,
-        position=position
-        # Hoặc: lesson=lesson, position=position, **data
+        payload=final_payload, # Sử dụng payload đã được xử lý
+        position=position,
+        quiz_ref=quiz_ref_model
     )
-
-    # 3. Thu thập file (Logic này khớp với Serializer của bạn)
-    url_key = None
-    if block_type == 'image':
-        url_key = 'image_url'
-    elif block_type == 'video':
-        url_key = 'video_url'
-    elif block_type in ['pdf', 'docx']:
-        url_key = 'file_url'
-    
-    if url_key and url_key in payload:
-        files_to_commit.append(payload[url_key])
-
-    # (Lưu ý: Nếu 'quiz' có file, bạn cũng cần thêm logic đó ở đây)
 
     return ContentBlockDomain.from_model(new_block), files_to_commit
 
@@ -102,35 +121,67 @@ def get_block_by_id(block_id: uuid.UUID) -> ContentBlockDomain:
     return ContentBlockDomain.from_model(block_model)
 
 
-@transaction.atomic
-def update_block(block_id: uuid.UUID, updates: Dict[str, Any]) -> ContentBlockDomain:
+def patch_content_block(block_id: uuid.UUID, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
     """
-    Cập nhật một content block.
-    (Tương tự update_user)
+    Cập nhật (PATCH) một ContentBlock theo logic "Router".
     """
-    block_model = _get_block_model(block_id)
     
-    # --- Business Logic: Ngăn chặn thay đổi nhạy cảm ---
-    if 'position' in updates:
-        raise DomainError("Cannot change 'position' directly. Use the /reorder/ endpoint.")
-    if 'lesson_version' in updates or 'lesson_id' in updates:
-        raise DomainError("Cannot move a block to a different lesson version.")
+    # 1. Lấy đối tượng gốc
+    try:
+        block = ContentBlock.objects.get(id=block_id)
+    except ContentBlock.DoesNotExist:
+        raise ValueError(f"ContentBlock with id {block_id} not found.")
+
+    files_to_commit = []
+    payload_data = data.get('payload') # Dữ liệu payload MỚI gửi lên
     
-    # Chuyển Model -> Domain
-    domain = ContentBlockDomain.from_model(block_model)
-    
-    # Áp dụng updates và validate (nếu có)
-    # Giả định domain object có phương thức này
-    domain.apply_updates(updates) 
-    
-    # Lưu thay đổi vào database (giống hệt update_user)
-    for key, value in updates.items():
-        if hasattr(block_model, key):
-            setattr(block_model, key, value)
+    # 2. Xử lý Payload (Logic Router)
+    if block.type == 'quiz':
+        # --- Hướng QUIZ ---
+        if payload_data is not None:
+            # Lấy ID của quiz hiện tại từ payload CŨ (đang lưu trong DB)
+            current_quiz_id_str = block.payload.get('quiz_id')
+            if not current_quiz_id_str:
+                raise ValueError("ContentBlock 'quiz' bị lỗi, không có 'quiz_id' trong payload.")
             
-    block_model.save()
+            # Ủy quyền cho service CSDL
+            updated_quiz_model = quiz_service.patch_quiz(
+                quiz_id=uuid.UUID(current_quiz_id_str),
+                data=payload_data # Gửi DTO patch (title, questions: [...])
+            )
+            # (patch_quiz cũng nên trả về files_to_commit)
+
+    else:
+        # --- Hướng BLOCK THƯỜNG ---
+        if payload_data is not None:
+            # 2a. Ghi đè payload
+            block.payload = payload_data
+            
+            # 2b. Thu thập file MỚI (nếu 'payload' được cập nhật)
+            block_type = data.get('type', block.type) # Lấy type mới hoặc cũ
+            url_key = None
+            if block_type == 'image':
+                url_key = 'image_id'
+            elif block_type == 'video':
+                url_key = 'video_id' # Sửa theo JSON create của bạn
+            elif block_type in ['pdf', 'docx']:
+                url_key = 'file_id'
+            
+            if url_key and url_key in payload_data:
+                files_to_commit.append(payload_data[url_key])
+        
+    # 3. Cập nhật các trường chung (ngoài payload)
+    if 'position' in data:
+        block.position = data['position']
     
-    return domain # Trả về domain đã cập nhật
+    # Cẩn thận khi cho phép đổi 'type' của block đã tồn tại
+    if 'type' in data and block.type != 'quiz': 
+        block.type = data['type']
+        
+    block.save() # Lưu tất cả thay đổi
+            
+    # 4. Trả về
+    return ContentBlockDomain.from_model(block), files_to_commit
 
 
 @transaction.atomic
