@@ -2,7 +2,7 @@
 // NOTE: MOCK 100%. Khi nối API thật, chỉ cần đổi USE_MOCK=false và map endpoints.
 
 export type ID = string | number
-export type Level = 'Khối 1–2' | 'Khối 3–5'
+export type Level = 'Lớp 1' | 'Lớp 2' | 'Lớp 3' | 'Lớp 4' | 'Lớp 5'
 export type ExamStatus = 'draft' | 'published' | 'archived'
 
 export type QType = 'single' | 'multi' | 'boolean' | 'fill' | 'match' | 'order'
@@ -44,6 +44,18 @@ export interface ExamSummary {
 }
 
 export interface ExamDetail extends ExamSummary {
+  description?: string
+  shuffleQuestions?: boolean
+  shuffleChoices?: boolean
+  questions: Question[]
+}
+
+export interface CreateExamPayload {
+  title: string
+  level: Level
+  durationSec: number
+  passScore: number
+  status?: ExamStatus
   description?: string
   shuffleQuestions?: boolean
   shuffleChoices?: boolean
@@ -96,6 +108,15 @@ function randPick<T>(arr: T[], n: number): T[] {
 
 function makeId(prefix: string, i: number) {
   return `${prefix}_${i}_${Math.random().toString(36).slice(2, 7)}`
+}
+
+function nextExamId() {
+  return (
+    MOCK_EXAMS.reduce((max, e) => {
+      const n = Number(e.id)
+      return Number.isFinite(n) ? Math.max(max, n) : max
+    }, 0) + 1
+  )
 }
 
 function makeSingle(i: number): Question {
@@ -154,6 +175,12 @@ function makeOrder(i: number): Question {
   return { id: makeId('qO', i), type: 'order', text: `Sắp xếp #${i}`, score: 2, items, answer }
 }
 
+function deduceDuration(level: Level) {
+  const num = Number(String(level).replace(/\D/g, ''))
+  const minutes = 20 + Math.max(0, Math.min(5, num) - 1) * 3 // 20–32 phút tuỳ lớp 1-5
+  return minutes * 60
+}
+
 function buildMockExam(id: number, level: Level): ExamDetail {
   const bank: Question[] = [
     ...Array.from({ length: 10 }, (_, i) => makeSingle(i)),
@@ -164,7 +191,7 @@ function buildMockExam(id: number, level: Level): ExamDetail {
     ...Array.from({ length: 3 }, (_, i) => makeOrder(i)),
   ]
   const questions = randPick(bank, 18)
-  const durationSec = level === 'Khối 1–2' ? 20 * 60 : 30 * 60
+  const durationSec = deduceDuration(level)
 
   return {
     id,
@@ -184,17 +211,17 @@ function buildMockExam(id: number, level: Level): ExamDetail {
 
 const MOCK_EXAMS: ExamDetail[] = [
   // Đề ôn luyện (ID 1-10)
-  buildMockExam(1, 'Khối 1–2'),
-  buildMockExam(2, 'Khối 1–2'),
-  buildMockExam(3, 'Khối 3–5'),
-  buildMockExam(4, 'Khối 3–5'),
-  buildMockExam(5, 'Khối 1–2'),
-  buildMockExam(6, 'Khối 3–5'),
+  buildMockExam(1, 'Lớp 1'),
+  buildMockExam(2, 'Lớp 2'),
+  buildMockExam(3, 'Lớp 3'),
+  buildMockExam(4, 'Lớp 4'),
+  buildMockExam(5, 'Lớp 5'),
+  buildMockExam(6, 'Lớp 3'),
   // Đề thi chính thức (ID 101+)
-  buildMockExam(101, 'Khối 1–2'),
-  buildMockExam(102, 'Khối 1–2'),
-  buildMockExam(201, 'Khối 3–5'),
-  buildMockExam(202, 'Khối 3–5'),
+  buildMockExam(101, 'Lớp 1'),
+  buildMockExam(102, 'Lớp 2'),
+  buildMockExam(201, 'Lớp 4'),
+  buildMockExam(202, 'Lớp 5'),
 ]
 
 // ---- Mock submissions cho trang chấm bài ----
@@ -299,6 +326,21 @@ export const examService = {
     const found = MOCK_EXAMS.find((e) => String(e.id) === String(id))
     if (!found) throw new Error('Không tìm thấy đề thi')
     return JSON.parse(JSON.stringify(found))
+  },
+
+  async create(payload: CreateExamPayload): Promise<ExamDetail> {
+    if (!USE_MOCK) throw new Error('TODO: nối API tạo đề thi')
+    const id = nextExamId()
+    const now = new Date().toISOString()
+    const detail: ExamDetail = {
+      ...payload,
+      id,
+      status: payload.status || 'draft',
+      questionsCount: payload.questions?.length || 0,
+      updatedAt: now,
+    }
+    MOCK_EXAMS.unshift(detail)
+    return JSON.parse(JSON.stringify(detail))
   },
 
   // >>> API mock trả về danh sách bài nộp cho trang Xem điểm
