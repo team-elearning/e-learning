@@ -311,13 +311,19 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/student/courses/MyCourses.vue'),
         meta: { title: 'Khoá học của tôi' },
       },
+      {
+        path: 'courses/all',
+        name: 'student-courses-all',
+        component: () => import('@/pages/student/courses/AllCourses.vue'),
+        meta: { title: 'Tất cả khoá học' },
+      },
 
       // Catalog / Detail / Player / Learning Path
       {
         path: 'catalog',
         name: 'student-catalog',
-        component: () => import('@/pages/student/courses/Catalog.vue'),
-        meta: { title: 'Danh mục khoá học' },
+        component: () => import('@/pages/student/courses/Materials.vue'),
+        meta: { title: 'Tài liệu học tập' },
       },
       {
         path: 'courses/:id',
@@ -339,6 +345,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/student/courses/LearningPath.vue'),
         meta: { title: 'Lộ trình học' },
       },
+      {
+        path: 'learning-path/:grade',
+        name: 'student-learning-path-courses',
+        component: () => import('@/pages/student/courses/LearningPathList.vue'),
+        props: true,
+        meta: { title: (to: any) => `Lộ trình khối ${to.params.grade}` },
+      },
 
       // Practice Exams (Ôn luyện)
       {
@@ -359,7 +372,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'tests',
         name: 'student-tests',
-        component: () => import('@/pages/student/exams/ExamList.vue'),
+        component: () => import('@/pages/student/exams/Tests.vue'),
         meta: { title: 'Danh sách đề thi' },
       },
       {

@@ -72,9 +72,9 @@
               </div>
               <div class="rh">
                 <span class="trophy">🏆 {{ getAnimatedTrophy(baseKey) }}/{{ baseTrophies.total }}</span>
-                <router-link class="ghost sm" :to="{ name: 'student-catalog', query: { grade: 1 } }"
-                  >Xem tất cả ›</router-link
-                >
+                <button class="ghost sm" type="button" @click="viewAllCourses" :disabled="loadingAll">
+                  {{ loadingAll ? 'Đang tải...' : 'Xem tất cả ›' }}
+                </button>
               </div>
             </div>
 
@@ -120,9 +120,9 @@
               </div>
               <div class="rh">
                 <span class="trophy">🏆 {{ getAnimatedTrophy(midKey) }}/{{ midTrophies.total }}</span>
-                <router-link class="ghost sm" :to="{ name: 'student-catalog', query: { grade: 3 } }"
-                  >Xem tất cả ›</router-link
-                >
+                <button class="ghost sm" type="button" @click="viewAllCourses" :disabled="loadingAll">
+                  {{ loadingAll ? 'Đang tải...' : 'Xem tất cả ›' }}
+                </button>
               </div>
             </div>
 
@@ -358,7 +358,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { courseService, type CourseSummary, type CourseDetail } from '@/services/course.service'
+import {
+  courseService,
+  type CourseSummary,
+  type CourseDetail,
+  type CourseStatus,
+} from '@/services/course.service'
 
 const router = useRouter()
 
@@ -375,6 +380,9 @@ function setLevel(v: '' | 'Khối 1–2' | 'Khối 3–5') {
 }
 
 const err = ref('')
+const loading = ref(false)
+const loadingAll = ref(false)
+const PREFETCH_DETAIL_LIMIT = 80
 
 /* ====== LOAD COURSES FROM SERVICE ====== */
 type Item = CourseSummary & {
@@ -470,42 +478,85 @@ function calcProgressFromDetail(d: CourseDetail, id: number | string) {
   return Math.max(0, Math.min(100, pct))
 }
 
-async function load() {
+async function hydrateCourses(items: CourseSummary[]) {
+  const missingDetails = items
+    .filter((i) => !detailsMap.value.has(String(i.id)))
+    .slice(0, PREFETCH_DETAIL_LIMIT)
+
+  if (missingDetails.length) {
+    const details = await Promise.all(missingDetails.map((i) => courseService.detail(i.id)))
+    details.forEach((d) => detailsMap.value.set(String(d.id), d))
+  }
+
+  all.value = (items || []).map((i) => {
+    const d = detailsMap.value.get(String(i.id))
+    const progress = d ? calcProgressFromDetail(d, i.id) : (Number(i.id) * 13) % 100
+    const scoreInfo = calcScore(progress)
+
+    const isPurchased = i.grade <= 2
+
+    return {
+      ...i,
+      progress,
+      done: progress >= 100,
+      scoreEarned: scoreInfo.earned,
+      scoreTotal: scoreInfo.total,
+      tag: i.subject?.toUpperCase?.(),
+      isPurchased,
+    }
+  })
+}
+
+async function load(fetchAll = false) {
   try {
-    const { items } = await courseService.list({
+    err.value = ''
+    loading.value = true
+    loadingAll.value = fetchAll
+
+    const pageSize = fetchAll ? 200 : 20
+    const baseParams = {
       page: 1,
-      pageSize: 20,
-      status: 'published',
-      sortBy: 'updatedAt',
-      sortDir: 'descending',
-    })
+      pageSize,
+      status: 'published' as CourseStatus,
+      sortBy: 'updatedAt' as const,
+      sortDir: 'descending' as const,
+    }
 
-    const limited = (items || []).slice(0, 24)
-    const details = await Promise.all(limited.map((i) => courseService.detail(i.id)))
-    const map = new Map<string, CourseDetail>()
-    details.forEach((d) => map.set(String(d.id), d))
-    detailsMap.value = map
+    const first = await courseService.list(baseParams)
+    let items = first.items || []
+    const total = first.total || items.length
 
-    all.value = (items || []).map((i) => {
-      const d = map.get(String(i.id))
-      const progress = d ? calcProgressFromDetail(d, i.id) : (Number(i.id) * 13) % 100
-      const scoreInfo = calcScore(progress)
+    if (fetchAll && total > items.length) {
+      const totalPages = Math.ceil(total / pageSize)
+      const others = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, idx) =>
+          courseService.list({ ...baseParams, page: idx + 2 }),
+        ),
+      )
+      others.forEach((res) => {
+        if (res?.items?.length) items = items.concat(res.items)
+      })
+    }
 
-      const isPurchased = i.grade <= 2
-
-      return {
-        ...i,
-        progress,
-        done: progress >= 100,
-        scoreEarned: scoreInfo.earned,
-        scoreTotal: scoreInfo.total,
-        tag: i.subject?.toUpperCase?.(),
-        isPurchased,
-      }
-    })
+    await hydrateCourses(items)
   } catch (e: any) {
     err.value = e?.message || String(e)
+  } finally {
+    loading.value = false
+    loadingAll.value = false
   }
+}
+
+async function viewAllCourses() {
+  if (loadingAll.value) return
+  if (router.hasRoute('student-courses-all')) {
+    router.push({ name: 'student-courses-all' })
+    return
+  }
+  // Fallback: hiển thị toàn bộ tại chỗ nếu route chưa khai báo
+  level.value = ''
+  q.value = ''
+  await load(true)
 }
 
 watch(
@@ -649,9 +700,9 @@ async function playFirst(id: number | string) {
 }
 
 function enroll(id: number | string) {
-  if (router.hasRoute('student-payments-cart'))
-    router.push({ name: 'student-payments-cart', query: { add: String(id) } })
-  else router.push({ path: '/student/payments/cart', query: { add: String(id) } })
+  if (router.hasRoute('student-course-detail'))
+    router.push({ name: 'student-course-detail', params: { id } })
+  else router.push(`/student/courses/${id}`)
 }
 
 onMounted(load)
@@ -764,6 +815,10 @@ h1 {
   padding: 8px 10px;
   font-weight: 700;
   cursor: pointer;
+}
+.ghost:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 .ghost.sm {
   padding: 6px 10px;
