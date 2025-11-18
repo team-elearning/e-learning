@@ -71,11 +71,7 @@ class UploadedFile(models.Model):
         null=True, # Cho phép file staging (chưa commit)
         blank=True
     )
-    object_id = models.PositiveIntegerField(
-        null=True, 
-        blank=True, 
-        db_index=True
-    )
+    object_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     content_object = GenericForeignKey('content_type', 'object_id')
 
     def __str__(self):
@@ -86,5 +82,25 @@ class UploadedFile(models.Model):
         if self.file:
             return self.file.url
         return None
+    
+    @property
+    def url(self):
+        """
+        Trả về URL "gác cổng" an toàn để truy cập file này.
+        """
+        if not self.id:
+            return None
+        # Luôn trả về URL của API, không bao giờ trả về file.url trực tiếp
+        return f"/api/media/files/{self.id}/"
+
+    @property
+    def admin_url(self):
+        """
+        Property riêng cho Admin/Frontend preview 
+        khi cần link /media/ trực tiếp.
+        """
+        if not self.file:
+            return None
+        return self.file.url
     
 

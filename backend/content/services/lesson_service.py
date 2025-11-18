@@ -37,7 +37,7 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
     Kết hợp logic từ file mới của bạn.
     """
     # 1. Tách dữ liệu con
-    content_blocks_data = data.pop('content_blocks', [])
+    content_blocks_data = data.get('content_blocks', [])
     files_to_commit = []
 
     # 2. Xử lý logic Lesson (Lấy từ code mới của bạn)
@@ -78,35 +78,91 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
     return LessonDomain.from_model(new_lesson), files_to_commit
 
 
-def update_lesson(lesson_id: UUID, updates: Dict[str, Any]) -> LessonDomain:
+def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, List[str]]:
     """
-    Cập nhật một bài học (Lesson) từ dữ liệu được cung cấp.
+    Cập nhật (PATCH) một Lesson và xử lý lồng nhau 
+    cho ContentBlocks theo logic "Moodle" (Create, Update, Delete).
     """
-    # 1. Tìm bài học (giống như update_user)
-    try:
-        lesson = Lesson.objects.get(pk=lesson_id)
-    except Lesson.DoesNotExist:
-        raise LessonNotFoundError("Lesson not found.")
-
-    # 2. Xử lý logic nghiệp vụ (Business Invariants)
-    # Nếu tiêu đề được cập nhật, kiểm tra trùng lặp
-    if 'title' in updates:
-        if Lesson.objects.filter(
-            module=lesson.module, 
-            title=updates['title']
-        ).exclude(pk=lesson_id).exists():
-            raise DomainError(f"Bài học với tiêu đề '{updates['title']}' đã tồn tại trong module này.")
-
-    # 3. Áp dụng các cập nhật vào model
-    # (Giả sử Pydantic DTO (LessonUpdateInput) đã lọc các trường)
-    for key, value in updates.items():
-        if hasattr(lesson, key):
-            setattr(lesson, key, value)
     
-    lesson.save()
+    # 1. Lấy đối tượng gốc
+    try:
+        lesson = Lesson.objects.get(id=lesson_id)
+    except Lesson.DoesNotExist:
+        raise ValueError(f"Lesson with id {lesson_id} not found.")
 
-    # 4. Trả về domain object đã cập nhật
-    return LessonDomain.from_model(lesson)
+    # 2. Tách dữ liệu con
+    content_blocks_data = data.pop('content_blocks', None) # None = "không thay đổi"
+    files_to_commit = []
+
+    # 3. Cập nhật các trường đơn giản của Lesson
+    simple_fields = ['title', 'position', 'content_type', 'published']
+    update_fields_for_save = []
+
+    for field in simple_fields:
+        if field in data:
+            setattr(lesson, field, data[field])
+            update_fields_for_save.append(field)
+    
+    if update_fields_for_save:
+        # Kiểm tra logic nghiệp vụ (giống hàm create)
+        if 'title' in update_fields_for_save:
+            if Lesson.objects.filter(
+                module=lesson.module, title=data['title']
+            ).exclude(id=lesson.id).exists():
+                raise DomainError(f"Bài học với tiêu đề '{data['title']}' đã tồn tại.")
+        
+        lesson.save(update_fields=update_fields_for_save)
+
+    # 4. Xử lý ContentBlocks lồng nhau (LOGIC MOODLE)
+    if content_blocks_data is not None: # Chỉ chạy nếu key 'content_blocks' tồn tại
+        
+        # Lấy ID các block hiện tại trong DB
+        existing_block_ids = set(
+            lesson.content_blocks.values_list('id', flat=True)
+        )
+        incoming_block_ids = set()
+
+        # 1. Xử lý Cập nhật (Update) và Tạo mới (Create)
+        for position, block_data in enumerate(content_blocks_data):
+            block_data['position'] = position # Gán lại vị trí mới
+            block_id_str = block_data.get('id')
+
+            if block_id_str:
+                # --- UPDATE (PATCH) ---
+                try:
+                    block_id = UUID(str(block_id_str))
+                except ValueError:
+                    raise ValueError(f"Invalid ContentBlock ID format: {block_id_str}")
+
+                if block_id not in existing_block_ids:
+                    raise ValueError(f"Block {block_id} does not belong to this lesson.")
+                
+                # Ủy quyền cho hàm patch_content_block (Hàm 2)
+                updated_block_domain, block_files = content_block_service.patch_content_block(
+                    block_id=block_id,
+                    data=block_data
+                )
+                files_to_commit.extend(block_files)
+                incoming_block_ids.add(block_id)
+
+            else:
+                # --- CREATE ---
+                # Ủy quyền cho hàm create_content_block bạn đã cung cấp
+                new_block_domain, block_files = content_block_service.create_content_block(
+                    lesson=lesson,
+                    data=block_data
+                )
+                files_to_commit.extend(block_files)
+                incoming_block_ids.add(new_block_domain.id) # Lấy ID từ domain
+
+        # 2. Xử lý Xóa (Delete)
+        ids_to_delete = existing_block_ids - incoming_block_ids
+        if ids_to_delete:
+            ContentBlock.objects.filter(id__in=ids_to_delete).delete()
+
+    # 5. Trả về
+    # from_model sẽ tự động query lại content_blocks.all() mới nhất
+    return LessonDomain.from_model(lesson), files_to_commit
 
 
 @transaction.atomic

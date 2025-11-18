@@ -8,6 +8,8 @@ from django.utils import timezone
 from django.core.files.storage import default_storage
 
 from custom_account.services.exceptions import DomainError, UserNotFoundError
+from custom_account.models import UserModel
+from content.models import Course, Lesson, Enrollment
 from media.models import UploadedFile, FileStatus
 from media.domains.file_domain import FileDomain
 
@@ -112,6 +114,52 @@ def commit_files_for_object(file_paths: list[str], related_object) -> int:
         content_type=content_type,
         object_id=object_id,
         expires_at=None  # Xóa ngày hết hạn (nếu có)
+    )
+    
+    logger.info(f"Đã commit thành công {count} file cho {content_type}:{object_id}.")
+    
+    return count
+
+
+@transaction.atomic
+def commit_files_by_ids_for_object(file_ids: list[str], related_object) -> int:
+    """
+    Tìm các file 'staging' bằng ID (UUID) và "commit" chúng,
+    gán chúng vào một đối tượng (Course, Lesson, v.v.).
+    """
+    logger.info(f"Bắt đầu commit file (bằng ID) cho đối tượng {related_object}...")
+    
+    if not file_ids:
+        logger.warning("Không có ID file nào được cung cấp để commit.")
+        return 0
+
+    # 1. Tìm ContentType (Giữ nguyên)
+    try:
+        content_type = ContentType.objects.get_for_model(related_object)
+        object_id = str(related_object.pk)
+    except Exception as e:
+        logger.error(f"Lỗi khi lấy ContentType cho {related_object}: {e}", exc_info=True)
+        raise DomainError(f"Không thể lấy ContentType cho {related_object}")
+
+    # 2. Tìm các bản ghi UploadedFile bằng ID (UUID)
+    # --- THAY ĐỔI CHÍNH ---
+    files_to_commit = UploadedFile.objects.filter(
+        id__in=file_ids,  
+    )
+    # --- KẾT THÚC THAY ĐỔI ---
+    
+    count = files_to_commit.count()
+    if count == 0:
+        # --- THAY ĐỔI LOG ---
+        logger.warning(f"Không tìm thấy file STAGING nào (bằng ID) khớp với: {file_ids}")
+        # --- KẾT THÚC THAY ĐỔI ---
+        return 0
+
+    # 3. Cập nhật (commit) tất cả các file tìm thấy (Giữ nguyên)
+    files_to_commit.update(
+        status=FileStatus.COMMITTED,
+        content_type=content_type,
+        object_id=object_id,
     )
     
     logger.info(f"Đã commit thành công {count} file cho {content_type}:{object_id}.")
@@ -290,3 +338,71 @@ def delete_file(file_id: uuid.UUID) -> None:
     
     logger.info(f"Service: Đã xóa thành công file ID {file_id}.")
     return None
+
+
+def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
+    """
+    Kiểm tra xem user có quyền truy cập file này không (phiên bản đầy đủ).
+    Bao gồm: Admin, Owner (Giảng viên), Enrolled User (Học viên),
+    và các khóa học Public.
+    """
+    
+    # 0. Admin/Staff luôn có quyền
+    # (Bỏ qua nếu bạn không muốn staff có toàn quyền)
+    if user.is_superuser or user.is_staff:
+        return True
+        
+    try:
+        # 1. Lấy đối tượng mà file này được đính kèm (Course, Lesson, v.v.)
+        related_object = file_object.content_object 
+        
+        if related_object is None:
+            # File 'staging' hoặc bị lỗi (chưa commit), không ai được xem
+            return False
+
+        # 2. Xác định khóa học (Course) liên quan
+        #    Chúng ta cần tìm ra khóa học "cha" chứa file này
+        course_to_check = None
+
+        if isinstance(related_object, Course):
+            # File này là ảnh bìa của chính khóa học
+            course_to_check = related_object
+
+        elif isinstance(related_object, Lesson):
+            # File này là tài liệu của một bài giảng
+            # Phải truy ngược lên để tìm Course
+            course_to_check = related_object.module.course 
+        
+        # (Bạn có thể thêm 'elif' cho ContentBlock nếu file đính kèm vào đó)
+        # elif isinstance(related_object, ContentBlock):
+        #    course_to_check = related_object.lesson.module.course
+
+        # 3. Bắt đầu kiểm tra quyền trên khóa học (course_to_check)
+        if course_to_check:
+            
+            # LOGIC 1: Khóa học có công khai (public) không?
+            # (Giả sử bạn có trường 'published' hoặc 'is_public' trên Course)
+            if course_to_check.published: # Hoặc .is_public
+                # Nếu khóa học đã public, ai cũng được xem file (kể cả user vãng lai)
+                # Bạn có thể bỏ qua check này nếu muốn khóa học public
+                # nhưng tài liệu vẫn phải đăng nhập
+                return True 
+
+            # LOGIC 2: User có phải là chủ khóa học (Giảng viên) không?
+            if course_to_check.owner == user:
+                return True
+
+            # LOGIC 3: User có phải là học viên đã ghi danh (Enrolled) không?
+            # ĐÂY CHÍNH LÀ PHẦN BẠN CẦN!
+            # (Giả sử bạn có model Enrollment liên kết User và Course)
+            if Enrollment.objects.filter(course=course_to_check, user=user, is_active=True).exists():
+                return True
+
+        # 4. Mặc định là KHÔNG
+        # Nếu không rơi vào 3 logic trên, user không có quyền
+        return False
+        
+    except Exception as e:
+        # Ghi log lỗi nếu cần
+        # logger.error(f"Lỗi nghiêm trọng khi kiểm tra quyền file {file_object.id} cho user {user.id}: {e}")
+        return False

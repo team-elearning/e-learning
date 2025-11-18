@@ -2,6 +2,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Dict, Any, Optional
 from pydantic import field_validator
+from datetime import datetime, timedelta
 
 
 from custom_account.api.dtos.user_dto import UserPublicOutput
@@ -29,26 +30,6 @@ from content.api.dtos.tag_dto import TagOutput
 
 #     def to_dict(self, exclude_none: bool = True) -> dict:
 #         return self.model_dump(exclude_none=exclude_none)
-
-
-class CourseUpdateInput(BaseModel):
-    """
-    DTO để CẬP NHẬT (PATCH) một course (Giống UpdateUserInput).
-    Tất cả các trường đều là Optional.
-    """
-    title: str | None = Field(None, min_length=3, max_length=255)
-    description: str | None = None
-    grade: str | None = None
-    published: bool | None = None
-    
-    # None = không thay đổi
-    # [] = xoá hết
-    subject_id: uuid.UUID | None = None
-    category_ids: List[uuid.UUID] | None = None
-    tag_ids: List[uuid.UUID] | None = None
-
-    def to_dict(self, exclude_none: bool = True) -> dict:
-        return self.model_dump(exclude_none=exclude_none)
 
 
 # class CoursePublicOutput(BaseModel):
@@ -91,6 +72,33 @@ class CourseUpdateInput(BaseModel):
 #     # Không cần `to_dict` vì đã được kế thừa
 
 ####################################################################################################################################################
+class QuestionCreateInput(BaseModel):
+    """DTO cho một câu hỏi (lồng trong Quiz)"""
+    id: Optional[uuid.UUID] = None # Dùng cho patch
+    type: str
+    position: int
+    prompt: Dict[str, Any] = {}
+    answer_payload: Dict[str, Any] = {}
+    hint: Optional[Dict[str, Any]] = None
+
+
+class QuizCreateInput(BaseModel):
+    """
+    DTO cho payload của 'quiz'.
+    ĐÂY LÀ NƠI CẦN SỬA.
+    """
+    title: str
+    
+    # === SỬA DÒNG NÀY ===
+    # Chuyển từ 'int' hoặc 'str' sang 'timedelta'
+    time_limit: Optional[timedelta] = None
+    # === KẾT THÚC SỬA ===
+    
+    time_open: Optional[datetime] = None
+    time_close: Optional[datetime] = None
+    questions: List[QuestionCreateInput] = []
+
+
 class ContentBlockCreateInput(BaseModel):
     """
     DTO cho một Content Block bên trong JSON.
@@ -140,7 +148,7 @@ class CourseCreateInput(BaseModel):
     # === CÁC THAY ĐỔI QUAN TRỌNG ===
     
     # 1. Thêm image_url (từ JSON mẫu)
-    image_url: Optional[str] = None
+    image_id: Optional[str] = None
 
     # 2. Sửa categories (từ List[UUID] thành List[str])
     # JSON của bạn gửi ["Toán"], là list[str], không phải list[uuid]
@@ -256,6 +264,7 @@ class CoursePublicOutput(BaseModel):
     grade: Optional[str]
     
     # Giả sử bạn muốn public các trường này
+    image_url: Optional[str] = None
     subject: Optional[SubjectPublicOutput] = None
     slug: str
     categories: List[str] = Field(default=[], alias="category_names")
@@ -267,6 +276,7 @@ class CoursePublicOutput(BaseModel):
     def to_dict(self, exclude_none: bool = True) -> dict:
         return self.model_dump(exclude_none=exclude_none)
     
+
     @field_validator('categories', 'tags', 'modules', mode='before')
     @classmethod
     def convert_manager_to_list(cls, v: Any) -> list:
@@ -278,16 +288,107 @@ class CoursePublicOutput(BaseModel):
     
 
 class CourseAdminOutput(BaseModel):
-    # --- THÊM DÒNG NÀY ---
-    model_config = ConfigDict(from_attributes=True) 
+    """
+    DTO Output cho Admin/Instructor.
+    Bao gồm TOÀN BỘ cấu trúc khóa học và các metadata quản trị.
+    """
+    model_config = ConfigDict(from_attributes=True)
 
-    # (Các trường của Admin DTO...)
+    # --- Các trường Metadata (giống Public) ---
     id: uuid.UUID
     title: str
-    published: bool
-    owner: UserPublicOutput # Giả sử
+    description: Optional[str]
+    grade: Optional[str]
+    slug: str
+    image_url: Optional[str] = None
     
-    # Các trường này chính là 3 trường gây lỗi
-    categories: List[CategoryOutput]
-    tags: List[TagOutput]
-    modules: List[ModulePublicOutput]
+    # --- Các trường quản trị (Admin-only) ---
+    published: bool
+    published_at: Optional[datetime] = None # Thêm trường này từ domain
+    
+    # Thông tin chi tiết về chủ sở hữu
+    owner: UserPublicOutput 
+    
+    # --- Các quan hệ (Sử dụng DTO đầy đủ) ---
+    subject: Optional[SubjectPublicOutput] = None
+    
+    # Admin cần DTO đầy đủ (CategoryOutput) chứ không phải List[str]
+    categories: List[CategoryOutput] = [] 
+    tags: List[TagOutput] = []
+    
+    # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
+    # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
+    modules: List[ModulePublicOutput] = []
+
+    # --- Validator (Rất quan trọng) ---
+    @field_validator('categories', 'tags', 'modules', mode='before')
+    @classmethod
+    def convert_manager_to_list(cls, v: Any) -> list:
+        """
+        Chuyển đổi Django RelatedManager (ví dụ: model.tags) 
+        thành một list trước khi Pydantic validate.
+        Điều này rất quan trọng khi dùng from_attributes=True
+        """
+        if hasattr(v, 'all'):
+            # Đây là một Manager (ví dụ: course.modules.all())
+            return list(v.all())
+        if isinstance(v, list):
+            # Đây đã là một list (ví dụ: từ CourseDomain)
+            return v
+        # Trả về list rỗng nếu không có gì
+        return []
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """Helper để chuyển đổi DTO sang dict, bỏ qua các giá trị None."""
+        return self.model_dump(exclude_none=exclude_none)
+    
+
+class ContentBlockUpdateInput(BaseModel):
+    """DTO Input cho ContentBlock (PATCH)."""
+    id: Optional[uuid.UUID] = None
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    position: Optional[int] = None
+
+class LessonUpdateInput(BaseModel):
+    """DTO Input cho Lesson (PATCH)."""
+    id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+    content_type: Optional[str] = None
+    published: Optional[bool] = None
+    position: Optional[int] = None
+    
+    # Lồng nhau
+    content_blocks: Optional[List[ContentBlockUpdateInput]] = None
+
+class ModuleUpdateInput(BaseModel):
+    """DTO Input cho Module (PATCH)."""
+    id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    position: Optional[int] = None
+    
+    # Lồng nhau
+    lessons: Optional[List[LessonUpdateInput]] = None
+
+
+class CourseUpdateInput(BaseModel):
+    """
+    DTO Input chính cho PATCH.
+    MỌI TRƯỜNG đều là 'Optional'.
+    """
+    title: Optional[str] = None
+    image_id: Optional[str] = None
+    description: Optional[str] = None
+    
+    # Thêm trường 'subject'
+    subject: Optional[uuid.UUID] = None
+
+    categories: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    
+    grade: Optional[str] = None
+    published: Optional[bool] = None
+    
+    # Lồng nhau
+    modules: Optional[List[ModuleUpdateInput]] = None

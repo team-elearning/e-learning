@@ -1,9 +1,10 @@
 from django.urls import path
-from media.api.views.file_view import FileUploadView, CleanupStagingFilesView, ListAllFilesView, FileDetailView
+from media.api.views.file_view import FileUploadView, CleanupStagingFilesView, ListAllFilesView, FileDetailView, PublicDownloadFileView
 
 urlpatterns = [
     # Public
     path('upload/', FileUploadView.as_view(), name='file-upload'),
+    path('files/<uuid:file_id>/', PublicDownloadFileView.as_view(), name='file-download'),
 
 
     # Admin

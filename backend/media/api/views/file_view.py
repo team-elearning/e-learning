@@ -1,5 +1,6 @@
 import logging
 import uuid
+import magic
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -9,8 +10,12 @@ from django.utils import timezone
 from datetime import timedelta
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponseForbidden, FileResponse, Http404
 
-from media.models import UploadedFile
+from content.models import Course
+from media.models import UploadedFile, FileStatus
 from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
 from custom_account.api.mixins import RoleBasedOutputMixin
 from custom_account.services.exceptions import DomainError, UserNotFoundError
@@ -75,6 +80,66 @@ class FileUploadView(RoleBasedOutputMixin, APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+class PublicDownloadFileView(APIView):
+    """
+    View này "gác cổng" tất cả các file đã commit.
+    """
+    permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
+
+    def get(self, request, file_id):
+        # 1. Lấy bản ghi UploadedFile bằng ID
+        # Chỉ lấy file đã commit, chưa bao giờ trả về file 'staging'
+        file_obj = get_object_or_404(
+            UploadedFile, 
+            id=file_id, 
+            status=FileStatus.COMMITTED
+        )
+
+        # 2. KIỂM TRA QUYỀN (Bước quan trọng nhất)
+        if not file_service.user_has_access_to_file(request.user, file_obj):
+            # Nếu không có quyền, trả về lỗi 403 Forbidden
+            return HttpResponseForbidden("Bạn không có quyền truy cập file này.")
+
+        # 3. TRẢ FILE VỀ (Nếu đã có quyền)
+        try:
+            # Dòng này OK
+            file_handle = file_obj.file.open('rb')
+
+            # --- SỬA LỖI BẰNG PYTHON-MAGIC ---
+            
+            # 1. Đọc một vài byte đầu tiên của file
+            #    (đủ để "nếm" file mà không cần đọc hết file lớn)
+            file_buffer = file_handle.read(2048) # Đọc 2KB đầu tiên
+            
+            # 2. Rất quan trọng: Quay lại đầu file
+            #    để FileResponse có thể đọc lại từ đầu để gửi đi
+            file_handle.seek(0) 
+
+            # 3. Dùng magic để "sniff" (nếm) buffer
+            #    mime=True sẽ trả về chuỗi MIME (ví dụ: 'image/jpeg')
+            content_type = magic.from_buffer(file_buffer, mime=True)
+            
+            # --- HẾT PHẦN SỬA ---
+
+            # Dùng content_type vừa "nếm" được
+            response = FileResponse(
+                file_handle, 
+                content_type=content_type # (Ví dụ: 'image/jpeg')
+            )
+            
+            # (Tùy chọn) Thêm tên file gốc để trình duyệt hiển thị
+            # response['Content-Disposition'] = f'inline; filename="{file_obj.original_filename}"'
+            
+            return response
+            
+        except FileNotFoundError:
+            raise Http404("Không tìm thấy file trên server.")
+        except Exception as e:
+            # In lỗi ra để debug
+            print(f"LỖI THỰC TẾ KHI MỞ FILE {file_obj.id}: {repr(e)}")
+            return Response({"detail": "Lỗi khi đọc file."}, status=500)
+        
 
 # --------------------------------------- ADMIN ----------------------------------------
 logger = logging.getLogger(__name__)

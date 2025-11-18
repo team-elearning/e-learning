@@ -2,6 +2,9 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.contrib.contenttypes.fields import GenericRelation
+
+
 
 # Create your models here.
 class Category(models.Model):
@@ -57,6 +60,7 @@ class Course(models.Model):
                                         help_text="Timestamp when the course was last published.")
     slug = models.SlugField(max_length=255, unique=True, null=True, blank=True, 
                             help_text="URL-friendly version of the title, auto-generated if blank.")
+    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Course')
@@ -71,6 +75,7 @@ class Module(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     title = models.CharField(max_length=255)
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Module')
@@ -90,7 +95,8 @@ class Lesson(models.Model):
         default='lesson',
         choices=[('lesson', ('Lesson')), ('exploration', ('Exploration')), ('exercise', ('Exercise')), ('video', ('video'))]
     )
-    published = models.BooleanField(default=False)
+    published = models.BooleanField(default=True)
+    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Lesson')
@@ -143,6 +149,100 @@ class Enrollment(models.Model):
         return f"{self.user.username} enrolled in {self.course.title}"
     
 
+class Quiz(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255, verbose_name="Tiêu đề")
+
+    # === 1. THỜI LƯỢNG LÀM BÀI (Time Limit) ===
+    # Dùng DurationField là tốt nhất, nó lưu một khoảng thời gian
+    time_limit = models.DurationField(
+        null=True, 
+        blank=True,  # Cho phép không có giới hạn thời gian
+        verbose_name="Thời lượng làm bài",
+        help_text="Thời gian tối đa cho phép (ví dụ: '00:30:00' cho 30 phút, '01:00:00' cho 1 tiếng)"
+    )
+
+    # === 2. THỜI GIAN MỞ ===
+    time_open = models.DateTimeField(
+        null=True, 
+        blank=True,  # Cho phép quiz luôn luôn mở
+        verbose_name="Thời gian mở"
+    )
+
+    # === 3. THỜI GIAN ĐÓNG (HẠN CHÓT) ===
+    time_close = models.DateTimeField(
+        null=True, 
+        blank=True,  # Cho phép quiz không bao giờ đóng
+        verbose_name="Thời gian đóng (hạn chót)"
+    )
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        verbose_name = "Bài trắc nghiệm"
+        verbose_name_plural = "Các bài trắc nghiệm"
+
+class Question(models.Model):
+    QUESTION_TYPES = [
+        ('multiple_choice_single', 'Trắc nghiệm - Chọn 1'),
+        ('multiple_choice_multi', 'Trắc nghiệm - Chọn nhiều'),
+        ('true_false', 'Đúng / Sai'),
+        ('short_answer', 'Trả lời ngắn'),
+        ('fill_in_the_blank', 'Điền vào chỗ trống'),
+        ('matching', 'Nối cặp'),
+        ('essay', 'Tự luận'),
+        # Thêm bất cứ loại nào bạn muốn trong tương lai
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+
+    # === 1. LOẠI CÂU HỎI ===
+    # Trường này quyết định cách render và chấm điểm
+    type = models.CharField(
+        max_length=50,
+        choices=QUESTION_TYPES,
+        default='multiple_choice_single'
+    )
+
+    # === 2. NỘI DUNG CÂU HỎI (Prompt) ===
+    # Thay vì 1 trường text, dùng JSONField để chứa text, ảnh, video, audio...
+    # Đây chính là nơi bạn giải quyết vấn đề "câu hỏi có ảnh"
+    prompt = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Nội dung câu hỏi (e.g., {'text': '...', 'image_url': '...'})"
+    )
+
+    # === 3. CẤU HÌNH ĐÁP ÁN (Answer Configuration) ===
+    # Payload này sẽ lưu các lựa chọn (choices) cho câu trắc nghiệm,
+    # hoặc lưu câu trả lời đúng cho câu hỏi trả lời ngắn.
+    answer_payload = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Cấu hình đáp án, tùy thuộc vào 'type'"
+    )
+    
+    # === 4. HƯỚNG DẪN / GIẢI THÍCH ===
+    hint = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Gợi ý hoặc giải thích đáp án"
+    )
+
+    class Meta:
+        verbose_name = "Câu hỏi"
+        verbose_name_plural = "Các câu hỏi"
+        ordering = ['position']
+
+    def __str__(self):
+        # Lấy text từ prompt để hiển thị
+        prompt_text = self.prompt.get('text', 'Câu hỏi không có tiêu đề')
+        return f"[{self.get_type_display()}] {prompt_text[:50]}..."
+    
+
 class ContentBlock(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks', default=1)
@@ -158,6 +258,15 @@ class ContentBlock(models.Model):
     )
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     payload = models.JSONField(default=dict)  # e.g., {'text': '...', 'audio_url': '...', 'tts_text': '...', 'captions_url': '...'}
+    quiz_ref = models.ForeignKey(
+        Quiz,
+        on_delete=models.CASCADE, # Hoặc CASCADE nếu bạn muốn
+        null=True,
+        blank=True,
+        related_name='content_blocks',
+        help_text="Tham chiếu đến một Quiz nếu type='quiz'"
+    )
+    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Content Block')
@@ -346,95 +455,3 @@ class ExplorationTransition(models.Model):
     
 
 ###################################################################################################################################
-class Quiz(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    title = models.CharField(max_length=255, verbose_name="Tiêu đề")
-
-    # === 1. THỜI LƯỢNG LÀM BÀI (Time Limit) ===
-    # Dùng DurationField là tốt nhất, nó lưu một khoảng thời gian
-    time_limit = models.DurationField(
-        null=True, 
-        blank=True,  # Cho phép không có giới hạn thời gian
-        verbose_name="Thời lượng làm bài",
-        help_text="Thời gian tối đa cho phép (ví dụ: '00:30:00' cho 30 phút, '01:00:00' cho 1 tiếng)"
-    )
-
-    # === 2. THỜI GIAN MỞ ===
-    time_open = models.DateTimeField(
-        null=True, 
-        blank=True,  # Cho phép quiz luôn luôn mở
-        verbose_name="Thời gian mở"
-    )
-
-    # === 3. THỜI GIAN ĐÓNG (HẠN CHÓT) ===
-    time_close = models.DateTimeField(
-        null=True, 
-        blank=True,  # Cho phép quiz không bao giờ đóng
-        verbose_name="Thời gian đóng (hạn chót)"
-    )
-
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        verbose_name = "Bài trắc nghiệm"
-        verbose_name_plural = "Các bài trắc nghiệm"
-
-class Question(models.Model):
-    QUESTION_TYPES = [
-        ('multiple_choice_single', 'Trắc nghiệm - Chọn 1'),
-        ('multiple_choice_multi', 'Trắc nghiệm - Chọn nhiều'),
-        ('true_false', 'Đúng / Sai'),
-        ('short_answer', 'Trả lời ngắn'),
-        ('fill_in_the_blank', 'Điền vào chỗ trống'),
-        ('matching', 'Nối cặp'),
-        ('essay', 'Tự luận'),
-        # Thêm bất cứ loại nào bạn muốn trong tương lai
-    ]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
-    position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-
-    # === 1. LOẠI CÂU HỎI ===
-    # Trường này quyết định cách render và chấm điểm
-    type = models.CharField(
-        max_length=50,
-        choices=QUESTION_TYPES,
-        default='multiple_choice_single'
-    )
-
-    # === 2. NỘI DUNG CÂU HỎI (Prompt) ===
-    # Thay vì 1 trường text, dùng JSONField để chứa text, ảnh, video, audio...
-    # Đây chính là nơi bạn giải quyết vấn đề "câu hỏi có ảnh"
-    prompt = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Nội dung câu hỏi (e.g., {'text': '...', 'image_url': '...'})"
-    )
-
-    # === 3. CẤU HÌNH ĐÁP ÁN (Answer Configuration) ===
-    # Payload này sẽ lưu các lựa chọn (choices) cho câu trắc nghiệm,
-    # hoặc lưu câu trả lời đúng cho câu hỏi trả lời ngắn.
-    answer_payload = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Cấu hình đáp án, tùy thuộc vào 'type'"
-    )
-    
-    # === 4. HƯỚNG DẪN / GIẢI THÍCH ===
-    hint = models.JSONField(
-        default=dict, 
-        blank=True,
-        help_text="Gợi ý hoặc giải thích đáp án"
-    )
-
-    class Meta:
-        verbose_name = "Câu hỏi"
-        verbose_name_plural = "Các câu hỏi"
-        ordering = ['position']
-
-    def __str__(self):
-        # Lấy text từ prompt để hiển thị
-        prompt_text = self.prompt.get('text', 'Câu hỏi không có tiêu đề')
-        return f"[{self.get_type_display()}] {prompt_text[:50]}..."

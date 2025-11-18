@@ -7,7 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from content.services.exceptions import DomainError, ModuleNotFoundError, CourseNotFoundError
 from content.services import lesson_service
 from content.domains.module_domain import ModuleDomain
-from content.models import Module, Course
+from content.models import Module, Course, Lesson
 
 
 
@@ -17,7 +17,7 @@ def create_module(course: Course, data: Dict[str, Any]) -> Tuple[ModuleDomain, L
     Hàm này được gọi BÊN TRONG một transaction (của create_course).
     """
     # 1. Tách dữ liệu con (lessons) ra khỏi dữ liệu (module)
-    lessons_data = data.pop('lessons', [])
+    lessons_data = data.get('lessons', [])
     files_to_commit = [] # Danh sách file của riêng module này
 
     # 2. Xử lý logic nghiệp vụ của Module (lấy từ code cũ của bạn)
@@ -81,39 +81,66 @@ def get_module_by_id(module_id: uuid.UUID) -> ModuleDomain:
         raise ModuleNotFoundError("Module không tìm thấy.")
 
 
-def update_module(module_id: uuid.UUID, updates: Dict[str, Any]) -> ModuleDomain:
+def patch_module(module_id: uuid.UUID, data: dict) -> Tuple[Module, List[uuid.UUID]]:
     """
-    Cập nhật một module.
-    (Tương tự update_user)
+    Hàm này tự nó cũng phải làm logic PATCH lồng nhau cho Lessons.
+    """
     
-    Logic nghiệp vụ:
-    1. Kiểm tra title (nếu có update) không trùng với module khác trong course.
-    """
+    # 1. Lấy module
     try:
         module = Module.objects.get(id=module_id)
-    except ObjectDoesNotExist:
-        raise ModuleNotFoundError("Module không tìm thấy.")
+    except Module.DoesNotExist:
+        raise ValueError("Module not found.")
 
-    # 1. Logic kiểm tra nghiệp vụ (ví dụ: title)
-    if 'title' in updates:
-        new_title = updates['title']
-        if Module.objects.filter(
-            course=module.course, 
-            title=new_title
-        ).exclude(id=module_id).exists():
-            raise DomainError(f"Module với title '{new_title}' đã tồn tại trong khóa học này.")
+    # 2. Tách data
+    lessons_data = data.pop('lessons', None)
+    files_to_commit = [] # Tương lai có thể dùng cho file của module
 
-    # (Giả định ModuleDomain có hàm .apply_updates tương tự UserDomain)
-    domain = ModuleDomain.from_model(module)
-    domain.apply_updates(updates) 
-
-    # Lưu vào database
-    for key, value in updates.items():
-        if hasattr(module, key):
-            setattr(module, key, value)
+    # 3. Cập nhật trường đơn giản của Module
+    simple_fields = ['title', 'position', 'description'] # v.v.
+    for field in simple_fields:
+        if field in data:
+            setattr(module, field, data[field])
     
-    module.save()
-    return ModuleDomain.from_model(module) # Trả về domain đã cập nhật
+    module.save() # Lưu thay đổi của Module
+
+    # 4. Xử lý Lessons (Logic "Moodle" y hệt như course/module)
+    if lessons_data is not None:
+        existing_lesson_ids = set(module.lessons.values_list('id', flat=True))
+        incoming_lesson_ids = set()
+        
+        for position, lesson_data in enumerate(lessons_data):
+            lesson_data['position'] = position
+            lesson_id_str = lesson_data.get('id')
+            
+            if lesson_id_str:
+                # --- UPDATE LESSON ---
+                lesson_id = uuid.UUID(str(lesson_id_str))
+                if lesson_id not in existing_lesson_ids:
+                    raise ValueError(f"Lesson {lesson_id} does not belong to this module.")
+                
+                # Ủy quyền cho lesson_service.patch_lesson
+                updated_lesson, lesson_files = lesson_service.patch_lesson(
+                    lesson_id=lesson_id, 
+                    data=lesson_data
+                )
+                files_to_commit.extend(lesson_files)
+                incoming_lesson_ids.add(lesson_id)
+            else:
+                # --- CREATE LESSON ---
+                new_lesson, lesson_files = lesson_service.create_lesson(
+                    module=module, 
+                    data=lesson_data
+                )
+                files_to_commit.extend(lesson_files)
+                incoming_lesson_ids.add(new_lesson.id)
+
+        # --- DELETE LESSONS ---
+        ids_to_delete = existing_lesson_ids - incoming_lesson_ids
+        if ids_to_delete:
+            Lesson.objects.filter(id__in=ids_to_delete).delete()
+
+    return ModuleDomain.from_model(module), files_to_commit
 
 
 @transaction.atomic
