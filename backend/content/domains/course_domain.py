@@ -2,8 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
+from custom_account.domains.user_domain import UserDomain
 from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
 from content.domains.module_domain import ModuleDomain
+from content.domains.subject_domain import SubjectDomain
+from content.domains.category_domain import CategoryDomain
+from content.domains.tag_domain import TagDomain
 
 
 
@@ -31,8 +35,18 @@ class CourseDomain:
                  published_at: Optional[datetime] = None, 
                  category_names: List[str] = None,
                  tag_names: List[str] = None,
-                 image_url: Optional[str] = None):
+                 image_url: Optional[str] = None,
+                 owner_obj: Optional[Any] = None,
+                 subject_obj: Optional[Any] = None,
+                 category_objs: Optional[List[Any]] = None,
+                 tag_objs: Optional[List[Any]] = None):
         self.id = id or str(uuid.uuid4())
+
+        self.owner = owner_obj 
+        self.subject = subject_obj
+        self.categories = category_objs if category_objs is not None else (category_names or [])
+        self.tags = tag_objs if tag_objs is not None else (tag_names or [])
+
         self.title = title
         self.subject_id = subject_id
         self.description = description
@@ -210,4 +224,62 @@ class CourseDomain:
         if first_file:
             c.image_url = first_file.url
         
+        return c
+    
+
+    @classmethod
+    def from_model_overview_admin(cls, model):
+        """
+        Factory Method DÀNH RIÊNG CHO ADMIN.
+        Nó map dữ liệu 'giàu' (Full Objects) vào Domain.
+        """
+        # 1. Convert các quan hệ sang Domain con (hoặc Dict)
+        #    Điều này thỏa mãn yêu cầu của Pydantic Admin DTO
+        
+        # Owner (User)
+        owner_domain = None
+        if model.owner:
+            # Giả sử UserDomain có from_model
+            owner_domain = UserDomain.from_model(model.owner) 
+
+        # Subject
+        subject_domain = None
+        if model.subject:
+            # Giả sử SubjectDomain có from_model
+            subject_domain = SubjectDomain.from_model(model.subject)
+
+        # Categories & Tags (List of Domains)
+        category_domains = [
+            CategoryDomain.from_model(cat) for cat in model.categories.all()
+        ]
+        tag_domains = [
+            TagDomain.from_model(tag) for tag in model.tags.all()
+        ]
+
+        # 2. Khởi tạo CourseDomain với các object vừa tạo
+        c = cls(
+            id=str(model.id),
+            title=model.title,
+            description=model.description,
+            grade=model.grade,
+            slug=model.slug,
+            published=model.published,
+            published_at=model.published_at,
+            
+            # Các ID vẫn giữ để tương thích ngược
+            owner_id=model.owner_id,
+            subject_id=str(model.subject_id) if model.subject_id else None,
+            
+            # --- TRUYỀN FULL OBJECTS VÀO ĐÂY ---
+            owner_obj=owner_domain,
+            subject_obj=subject_domain,
+            category_objs=category_domains,
+            tag_objs=tag_domains,
+        )
+        
+        # Xử lý File ảnh
+        first_file = model.files.first()
+        if first_file:
+            c.image_url = first_file.url
+            
         return c
