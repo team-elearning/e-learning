@@ -18,8 +18,11 @@ def register_user(data: dict) -> UserDomain:
         raise DomainError("Username already taken")
     if UserModel.objects.filter(email=data['email']).exists():
         raise DomainError("Email already taken")
-    if UserModel.objects.filter(phone=data['phone']).exists():
-        raise DomainError("Phone already taken")
+    
+    phone = data.get('phone')
+    if phone: 
+        if UserModel.objects.filter(phone=phone).exists():
+            raise DomainError("Số điện thoại đã tồn tại.")
 
     user_domain = UserDomain(username=data['username'],
                              email=data['email'],
