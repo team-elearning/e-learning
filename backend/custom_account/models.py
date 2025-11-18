@@ -76,6 +76,7 @@ class Profile(models.Model):
         return f'Profile for {self.user.email}'
     
 
+#
 # class ParentalConsent(models.Model):
 #     # Bổ sung: Quản lý sự đồng ý của phụ huynh cho tài khoản trẻ em (COPPA-like).
 #     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
