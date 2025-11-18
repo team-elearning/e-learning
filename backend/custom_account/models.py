@@ -24,6 +24,7 @@ class UserManager(BaseUserManager):
     
 
 class UserModel(AbstractBaseUser, PermissionsMixin):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(unique=True)
     created_on = models.DateTimeField(auto_now_add=True)
@@ -75,24 +76,25 @@ class Profile(models.Model):
         return f'Profile for {self.user.email}'
     
 
-class ParentalConsent(models.Model):
-    # Bổ sung: Quản lý sự đồng ý của phụ huynh cho tài khoản trẻ em (COPPA-like).
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    parent = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_given')
-    child = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_received')
-    consented_at = models.DateTimeField(auto_now_add=True)
-    scopes = models.JSONField(default=list, blank=True)  # e.g., ['data_sharing', 'progress_view']
-    revoked_at = models.DateTimeField(null=True, blank=True)
-    metadata = models.JSONField(default=dict, blank=True)  # e.g., {'verification_method': 'email'}
+#
+# class ParentalConsent(models.Model):
+#     # Bổ sung: Quản lý sự đồng ý của phụ huynh cho tài khoản trẻ em (COPPA-like).
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     parent = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_given')
+#     child = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_received')
+#     consented_at = models.DateTimeField(auto_now_add=True)
+#     scopes = models.JSONField(default=list, blank=True)  # e.g., ['data_sharing', 'progress_view']
+#     revoked_at = models.DateTimeField(null=True, blank=True)
+#     metadata = models.JSONField(default=dict, blank=True)  # e.g., {'verification_method': 'email'}
 
-    class Meta:
-        unique_together = ('parent', 'child')
-        verbose_name = ('Parental Consent')
-        verbose_name_plural = ('Parental Consents')
-        indexes = [models.Index(fields=['parent', 'child'])]
+#     class Meta:
+#         unique_together = ('parent', 'child')
+#         verbose_name = ('Parental Consent')
+#         verbose_name_plural = ('Parental Consents')
+#         indexes = [models.Index(fields=['parent', 'child'])]
 
-    def __str__(self):
-        return f'Consent from {self.parent} for {self.child}'
+#     def __str__(self):
+#         return f'Consent from {self.parent} for {self.child}'
 
 
 

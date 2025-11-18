@@ -34,6 +34,56 @@ def list_courses() -> List[CourseDomain]:
     return course_domains
 
 
+def list_enrolled_courses_for_user(user: UserModel) -> List[CourseDomain]: 
+        """
+        Lấy tất cả các Course mà một user đã ghi danh.
+        """
+        try:
+            # Lọc Course, đi ngược qua 'enrollments' (related_name)
+            # để tìm các bản ghi có 'user' là user hiện tại.
+            enrolled_courses = Course.objects.filter(
+                enrollments__user=user
+            ).select_related(
+                'owner', 'subject' # Tối ưu hóa query
+            ).prefetch_related(
+                'categories', 'tags'
+            ).distinct().order_by('title')
+            
+            # Convert các model Django sang DTO (Domain)
+            return [CourseDomain.from_model(course) for course in enrolled_courses]
+            
+        except Exception as e:
+            logger.error(f"Lỗi service list_enrolled_courses: {e}", exc_info=True)
+            raise DomainError("Không thể lấy danh sách khóa học đã ghi danh.")
+
+
+def get_enrolled_course_detail_for_user(course_id: uuid.UUID, user: UserModel) -> CourseDomain: 
+        """
+        Lấy chi tiết một course, NHƯNG chỉ khi user đã ghi danh.
+        """
+        try:
+            # Query này sẽ chỉ thành công nếu CẢ 2 điều kiện đều đúng:
+            # 1. Course ID tồn tại.
+            # 2. Có một bản ghi "enrollments" nối tới user này.
+            course = Course.objects.select_related(
+                'owner', 'subject'
+            ).prefetch_related(
+                'categories', 'tags', 'modules__lessons' # (Tối ưu nếu cần)
+            ).get(
+                pk=course_id,
+                enrollments__user=user
+            )
+            
+            return CourseDomain.from_model(course)
+            
+        except ObjectDoesNotExist:
+            # Lỗi này có nghĩa là "Không tìm thấy" HOẶC "Chưa ghi danh"
+            raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn chưa ghi danh vào khóa học này.")
+        except Exception as e:
+            logger.error(f"Lỗi service get_enrolled_course_detail: {e}", exc_info=True)
+            raise DomainError(f"Lỗi khi lấy khóa học: {e}")
+        
+
 def get_course_by_id(course_id: uuid.UUID) -> CourseDomain:
     """Lấy một course theo ID."""
     try:
