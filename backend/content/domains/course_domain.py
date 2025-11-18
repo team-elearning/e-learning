@@ -55,8 +55,8 @@ class CourseDomain:
         self.slug = slug
         self.published = published
         self.published_at = published_at 
-        self.categories = category_names or []
-        self.tags = tag_names or []
+        self.category_names = category_names or []
+        self.tag_names = tag_names or []
         self.modules: List[ModuleDomain] = []
         self.image_url = image_url
         self.validate()
@@ -171,7 +171,6 @@ class CourseDomain:
             "slug": self.slug,
             "published": self.published,
             "published_at": self.published_at,
-            "modules": [m.to_dict() for m in self.modules],
             "categories": self.categories,
             "tags": self.tags,
             "image_url": self.image_url,
@@ -185,23 +184,53 @@ class CourseDomain:
         Nó sẽ gọi hàm 'nhẹ' trước.
         """
         # Dùng lại hàm overview để lấy tất cả metadata cơ bản
-        c = cls.from_model_overview(model)
+        course_domain = cls.from_model_overview(model)
         
         # Giờ mới load 'children' (phần nặng)
         # Service nào gọi hàm này PHẢI prefetch 'modules__lessons'
         modules_sorted = sorted(model.modules.all(), key=lambda m: m.position)
         for module_model in modules_sorted:
             module_domain = ModuleDomain.from_model(module_model)
-            c.modules.append(module_domain)
+            course_domain.modules.append(module_domain)
         
-        return c
+        return course_domain
     
+    @classmethod
+    def from_model_admin(cls, model):
+        """
+        [MỚI] Hàm 'Full Detail' dành cho Admin View (GET /admin/courses/<pk>/).
+        
+        Bao gồm:
+        1. Metadata đầy đủ & Relations dạng Object (Tái sử dụng from_model_overview_admin).
+        2. Cấu trúc cây nội dung (Modules -> Lessons -> ...).
+        """
+        # 1. Bước nền: Lấy Metadata + Full Relations (Owner, Subject, Tags...)
+        # Chúng ta gọi lại hàm overview vừa viết để không phải copy-paste code
+        course_domain = cls.from_model_overview_admin(model)
+        
+        # 2. Bước nạp nội dung con (Modules)
+        # Lưu ý quan trọng: Service gọi hàm này PHẢI prefetch_related('modules__lessons')
+        # để đảm bảo hiệu năng.
+        
+        if hasattr(model, 'modules'):
+            # Sắp xếp module theo vị trí (position) để hiển thị đúng thứ tự
+            modules_sorted = sorted(model.modules.all(), key=lambda m: m.position)
+            
+            for module_model in modules_sorted:
+                # Convert Module Model -> Module Domain
+                # (Giả sử ModuleDomain.from_model đã xử lý việc load lessons bên trong)
+                module_domain = ModuleDomain.from_model(module_model)
+                course_domain.modules.append(module_domain)
+        
+        return course_domain
+    
+
     @classmethod
     def from_model_overview(cls, model):
         """
         [MỚI] Hàm "nhẹ" - Chỉ map metadata, KHÔNG load 'children' (modules).
         """
-        c = cls(
+        course_domain = cls(
             id=str(model.id),
             title=model.title,
             
@@ -222,9 +251,9 @@ class CourseDomain:
         # Dòng này giờ sẽ rất nhanh VÌ chúng ta sẽ prefetch 'files' ở Bước 3
         first_file = model.files.first() 
         if first_file:
-            c.image_url = first_file.url
+            course_domain.image_url = first_file.url
         
-        return c
+        return course_domain
     
 
     @classmethod
@@ -257,7 +286,7 @@ class CourseDomain:
         ]
 
         # 2. Khởi tạo CourseDomain với các object vừa tạo
-        c = cls(
+        course_domain = cls(
             id=str(model.id),
             title=model.title,
             description=model.description,
@@ -280,6 +309,6 @@ class CourseDomain:
         # Xử lý File ảnh
         first_file = model.files.first()
         if first_file:
-            c.image_url = first_file.url
+            course_domain.image_url = first_file.url
             
-        return c
+        return course_domain

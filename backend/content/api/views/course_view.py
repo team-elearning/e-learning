@@ -275,7 +275,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         try:
             # 1. Gọi thẳng service
             #    Hàm này đã bao gồm cả check quyền owner
-            course = self.course_service.get_course_by_id(course_id=pk)
+            course = self.course_service.get_course_detail_admin(course_id=pk)
             
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
@@ -331,7 +331,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             # Nếu không có gì để cập nhật, chúng ta chỉ cần
             # lấy và trả về instance hiện tại.
             try:
-                instance = self.course_service.get_course_by_id(course_id=pk)
+                instance = self.course_service.get_course_detail_admin(course_id=pk)
 
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
             except (DomainError, ValueError) as e:
@@ -344,7 +344,6 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             updated_course = self.course_service.patch_course_admin(
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
-                owner=request.user
             )
             # 'updated_course' là một CourseDomain đã được cập nhật
             return Response({"instance": updated_course}, status=status.HTTP_200_OK)
@@ -369,9 +368,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            self.course_service.delete_course_by_id(
-                course_id=pk, owner=request.user
-            )
+            self.course_service.delete_course_by_id(course_id=pk)
             return Response(
                 {"detail": f"Đã xóa thành công khóa học (ID: {pk})."}, 
                 status=status.HTTP_200_OK
