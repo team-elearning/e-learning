@@ -126,7 +126,7 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
         for position, block_data in enumerate(content_blocks_data):
             block_data['position'] = position # Gán lại vị trí mới
             block_id_str = block_data.get('id')
-            block_payload = block_data.get('payload')
+            block_position = block_data.get('position')
 
             if block_id_str:
                 # --- UPDATE (PATCH) ---
@@ -136,7 +136,7 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
                     raise ValueError(f"Invalid ContentBlock ID format: {block_id_str}")
 
                 if block_id not in existing_block_ids:
-                    raise ValueError(f"Block {block_payload} does not belong to this lesson.")
+                    raise ValueError(f"Block {block_id_str} with position {block_position} does not belong to this lesson.")
                 
                 # Ủy quyền cho hàm patch_content_block (Hàm 2)
                 updated_block_domain, block_files = content_block_service.patch_content_block(
