@@ -6,6 +6,7 @@ from django.dispatch import receiver
 
 
 
+#
 # Create your models here.
 class UserManager(BaseUserManager):
     def create_user(self, username, email, password=None, **extra_fields):
