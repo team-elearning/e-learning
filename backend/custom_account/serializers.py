@@ -4,10 +4,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
-from custom_account.models import UserModel, Profile, ParentalConsent
+from custom_account.models import UserModel, Profile
 from custom_account.domains.user_domain import UserDomain
 from custom_account.domains.profile_domain import ProfileDomain
-from custom_account.domains.parental_consent_domain import ParentalConsentDomain
+# from custom_account.domains.parental_consent_domain import ParentalConsentDomain
 from custom_account.domains.change_password_domain import ChangePasswordDomain
 from custom_account.domains.reset_password_domain import ResetPasswordDomain
 from custom_account.services import auth_service, profile_service
@@ -97,23 +97,23 @@ class ProfileSerializer(serializers.ModelSerializer):
         return domain.to_dict()
 
 
-class ParentalConsentSerializer(serializers.ModelSerializer):
-    """Serializer for ParentalConsent <-> ParentalConsentDomain mapping."""
+# class ParentalConsentSerializer(serializers.ModelSerializer):
+#     """Serializer for ParentalConsent <-> ParentalConsentDomain mapping."""
 
-    class Meta:
-        model = ParentalConsent
-        fields = [
-            "id", "parent", "child", "consented_at",
-            "scopes", "revoked_at", "metadata"
-        ]
-        read_only_fields = ["id", "consented_at"]
+#     class Meta:
+#         model = ParentalConsent
+#         fields = [
+#             "id", "parent", "child", "consented_at",
+#             "scopes", "revoked_at", "metadata"
+#         ]
+#         read_only_fields = ["id", "consented_at"]
 
-    def to_domain(self) -> ParentalConsentDomain:
-        return ParentalConsentDomain.from_dict(self.validated_data)
+#     def to_domain(self) -> ParentalConsentDomain:
+#         return ParentalConsentDomain.from_dict(self.validated_data)
 
-    @staticmethod
-    def from_domain(domain: ParentalConsentDomain) -> dict:
-        return domain.to_dict()
+#     @staticmethod
+#     def from_domain(domain: ParentalConsentDomain) -> dict:
+#         return domain.to_dict()
 
 
 

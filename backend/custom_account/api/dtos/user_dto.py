@@ -1,3 +1,4 @@
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
@@ -43,7 +44,7 @@ class UserPublicOutput(BaseModel):
 class UserAdminOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: UUID
     username: str
     email: str
     created_on: Optional[datetime] = None

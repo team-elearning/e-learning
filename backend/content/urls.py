@@ -2,7 +2,7 @@
 from django.urls import path
 
 from content.api.views.category_view import PublicCategoryListView, PublicCategoryDetailView, AdminCategoryListView, AdminCategoryDetailView
-from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, AdminCoursePublishView, AdminCourseUnpublishView, InstructorCourseListCreateView, InstructorCourseDetailView
+from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView
 from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDetailView
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
