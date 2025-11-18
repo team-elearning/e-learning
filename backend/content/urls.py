@@ -2,20 +2,16 @@
 from django.urls import path
 
 from content.api.views.category_view import PublicCategoryListView, PublicCategoryDetailView, AdminCategoryListView, AdminCategoryDetailView
-from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView
+from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView, MyEnrolledCourseListView
 from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDetailView
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
 from content.api.views.content_block_view import PublicLessonBlockListView, AdminContentBlockDetailView, AdminContentBlockReorderView, AdminLessonVersionContentBlockListView, InstructorContentBlockDetailView, InstructorContentBlockReorderView, InstructorLessonVersionContentBlockListView
-from content.api.views.quiz_view import AdminQuizListView, IntructorQuizDetailView
+from content.api.views.quiz_view import AdminQuizListView, IntructorQuizDetailView, AdminQuizDetailView
 
 
 
 urlpatterns = [
-    path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
-    path('courses/<uuid:pk>/enroll/', CourseEnrollView.as_view(), name='public-course-enroll'),
-    path('courses/<uuid:pk>/unenroll/', CourseEnrollView.as_view(), name='public-course-unenroll'),
-
     # # Category
     # path("categories/", PublicCategoryListView.as_view(), name="public-category-list"),
     # path("categories/<uuid:id>/", PublicCategoryDetailView.as_view(), name="public-category-detail"),
@@ -38,6 +34,13 @@ urlpatterns = [
 
     # # Content - block
     # path('lesson-versions/<uuid:lesson_version_id>/blocks/', PublicLessonBlockListView.as_view(), name='public-block-list'),
+
+    path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
+    path('courses/<uuid:pk>/enroll/', CourseEnrollView.as_view(), name='public-course-enroll'),
+    path('courses/<uuid:pk>/unenroll/', CourseEnrollView.as_view(), name='public-course-unenroll'),
+    path('my-courses/', MyEnrolledCourseListView.as_view(), name='public-course-list'),
+    path('courses/<uuid:pk>', PublicCourseDetailView.as_view(), name='public-course-detail'),
+
 
     # # ---------------------------- ADMIN ---------------------------------------
     # path("admin/categories/", AdminCategoryListView.as_view(), name="admin-category-list"),
@@ -65,13 +68,17 @@ urlpatterns = [
     # path('admin/lesson-versions/<uuid:lesson_version_id>/blocks/reorder/', AdminContentBlockReorderView.as_view(), name='admin-block-reorder'),
     # path('admin/content-blocks/<uuid:pk>/', AdminContentBlockDetailView.as_view(), name='admin-block-detail'),
 
+    path('admin/courses/', AdminCourseListCreateView.as_view(), name='admin-course-list-create'),
+    path('admin/courses/<uuid:pk>/', AdminCourseDetailView.as_view(), name='admin-course-detail'),
+
     path('admin/quizzes/', AdminQuizListView.as_view(), name='admin-quiz-list'),
+    path('admin/quizzes/<uuid:pk>/', AdminQuizDetailView.as_view(), name='admin-quiz-detail'),
 
 
     # # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
-
+    
     path('instructor/quizzes/<uuid:pk>/', IntructorQuizDetailView.as_view(), name='instructor-quiz-detail'),
 
 

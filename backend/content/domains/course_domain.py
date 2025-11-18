@@ -202,7 +202,7 @@ class CourseDomain:
             
             # M2M này OK vì đã prefetch ở service
             category_names=[cat.name for cat in model.categories.all()],
-            tag_names=[tag.name for tag in model.tags.all()] # Sửa: cat.name -> tag.name
+            tag_names=[tag.name for tag in model.tags.all()] 
         )
         
         # Dòng này giờ sẽ rất nhanh VÌ chúng ta sẽ prefetch 'files' ở Bước 3

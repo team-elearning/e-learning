@@ -30,7 +30,7 @@ class PublicCourseListView(RoleBasedOutputMixin, APIView):
 
     # Cấu hình DTO output
     output_dto_public = CoursePublicOutput
-    output_dto_admin  = CourseAdminOutput # Luôn là public
+    output_dto_admin  = CourseAdminOutput 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,7 +61,7 @@ class MyEnrolledCourseListView(RoleBasedOutputMixin, APIView):
     # 2. Dùng chung DTO với public list (hoặc một DTO khác nếu muốn)
     #    User xem các khóa học của mình cũng chỉ cần thông tin public.
     output_dto_public = CoursePublicOutput
-    output_dto_admin  = CoursePublicOutput 
+    output_dto_admin  = CourseAdminOutput 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -198,15 +198,15 @@ class CourseEnrollView(APIView):
             return Response({"detail": "Lỗi máy chủ khi hủy ghi danh."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
 # ------------------ ADMIN -------------------------------
 class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
     """
-    GET /admin/courses/ - List các course CỦA TÔI.
-    POST /admin/courses/ - Tạo course mới (owner là TÔI).
+    GET /admin/courses/ - List các course.
+    POST /admin/courses/ - Tạo course mới.
     """
-    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser] # Chỉ Instructor mới được vào
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser] 
 
-    # Instructor cũng thấy DTO admin cho course của mình
     output_dto_public = CoursePublicOutput
     output_dto_admin  = CourseAdminOutput
 
@@ -217,7 +217,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
     def get(self, request, *args, **kwargs):
         """ Lấy list course CỦA TÔI """
         try:
-            courses_list = self.course_service.list_course_overviews_for_instructor(owner=request.user)
+            courses_list = self.course_service.list_all_course_overviews()
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -275,10 +275,8 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         try:
             # 1. Gọi thẳng service
             #    Hàm này đã bao gồm cả check quyền owner
-            course = self.course_service.get_course(
-                course_id=pk, 
-                owner=request.user
-            )
+            course = self.course_service.get_course_by_id(course_id=pk)
+            
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
         
@@ -333,9 +331,8 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             # Nếu không có gì để cập nhật, chúng ta chỉ cần
             # lấy và trả về instance hiện tại.
             try:
-                instance = self.course_service.get_course(
-                    course_id=pk, owner=request.user
-                )
+                instance = self.course_service.get_course_by_id(course_id=pk)
+
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
             except (DomainError, ValueError) as e:
                 # (Hoặc Http404 tùy bạn định nghĩa)
@@ -344,7 +341,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         # 4. Gọi Service (Giống hệt POST)
         # GỌI HÀM 'patch_course' MÀ CHÚNG TA VỪA TẠO
         try:
-            updated_course = self.course_service.patch_course(
+            updated_course = self.course_service.patch_course_admin(
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
                 owner=request.user
@@ -372,7 +369,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            self.course_service.delete_course_for_instructor(
+            self.course_service.delete_course_by_id(
                 course_id=pk, owner=request.user
             )
             return Response(
@@ -441,7 +438,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     def get(self, request, *args, **kwargs):
         """ Lấy list course CỦA TÔI """
         try:
-            courses_list = self.course_service.list_course_overviews_for_instructor(owner=request.user)
+            courses_list = self.course_service.list_course_overviews_instructor(owner=request.user)
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -498,7 +495,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         try:
             # 1. Gọi thẳng service
             #    Hàm này đã bao gồm cả check quyền owner
-            course = self.course_service.get_course(
+            course = self.course_service.get_course_instructor(
                 course_id=pk, 
                 owner=request.user
             )
@@ -556,7 +553,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             # Nếu không có gì để cập nhật, chúng ta chỉ cần
             # lấy và trả về instance hiện tại.
             try:
-                instance = self.course_service.get_course(
+                instance = self.course_service.get_course_instructor(
                     course_id=pk, owner=request.user
                 )
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
@@ -567,7 +564,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         # 4. Gọi Service (Giống hệt POST)
         # GỌI HÀM 'patch_course' MÀ CHÚNG TA VỪA TẠO
         try:
-            updated_course = self.course_service.patch_course(
+            updated_course = self.course_service.patch_course_instructor(
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
                 owner=request.user
@@ -596,9 +593,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            self.course_service.delete_course_for_instructor(
-                course_id=pk, owner=request.user
-            )
+            self.course_service.delete_course_for_instructor(course_id=pk, owner=request.user)
             return Response(
                 {"detail": f"Đã xóa thành công khóa học (ID: {pk})."}, 
                 status=status.HTTP_200_OK

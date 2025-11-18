@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 
 
-#
 # Create your models here.
 class UserManager(BaseUserManager):
     def create_user(self, username, email, password=None, **extra_fields):
@@ -77,7 +76,6 @@ class Profile(models.Model):
         return f'Profile for {self.user.email}'
     
 
-#
 # class ParentalConsent(models.Model):
 #     # Bổ sung: Quản lý sự đồng ý của phụ huynh cho tài khoản trẻ em (COPPA-like).
 #     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

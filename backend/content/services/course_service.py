@@ -256,7 +256,7 @@ def create_course(data: dict, owner) -> CourseDomain:
 
 
 @transaction.atomic
-def patch_course(course_id: uuid.UUID, data: dict, owner) -> CourseDomain:
+def patch_course_instructor(course_id: uuid.UUID, data: dict, owner) -> CourseDomain:
     """
     Hàm ĐIỀU PHỐI (Theo logic Moodle - Granular PATCH).
     Quản lý transaction cho toàn bộ quá trình.
@@ -415,7 +415,7 @@ def patch_course(course_id: uuid.UUID, data: dict, owner) -> CourseDomain:
     # 10. Trả về Domain
     # Tải lại toàn bộ để đảm bảo data là mới nhất
     # (Vì chúng ta đã prefetch 'owner' và 'subject' ở Bước 1)
-    course_domain = get_course(owner=owner, course_id=course_id)
+    course_domain = get_course_instructor(owner=owner, course_id=course_id)
     
     return course_domain
 
@@ -431,6 +431,213 @@ def delete_course_for_instructor(course_id: uuid.UUID, owner) -> None:
     # 1. Tìm và xác thực course (giống hàm delete của bạn)
     try:
         course = Course.objects.get(pk=course_id, owner=owner)
+    except Course.DoesNotExist:
+        raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn không có quyền xóa.")
+
+    # 2. (QUAN TRỌNG) Dọn dẹp file vật lý
+    #    Hàm create_course đã dùng ContentType để gán file,
+    #    giờ chúng ta dùng nó để tìm lại file.
+    
+    try:
+        # Tìm ContentType của model 'Course'
+        course_content_type = ContentType.objects.get_for_model(course)
+        
+        # Tìm tất cả các bản ghi 'UploadedFile' đã được "commit"
+        # cho chính đối tượng Course này (ảnh bìa, file pdf, v.v.)
+        linked_files = UploadedFile.objects.filter(
+            content_type=course_content_type, 
+            object_id=course.pk
+        )
+
+        # Gọi 'file_service.delete_file' cho từng file
+        # (Hàm 'delete_file' của bạn đã tự xử lý việc xóa file vật lý)
+        for file_record in linked_files:
+            file_service.delete_file(file_record.pk)
+            
+    except Exception as e:
+        # Nếu xóa file lỗi, chúng ta rollback toàn bộ
+        logger.error(f"Lỗi khi dọn dẹp file cho Course {course_id}: {e}", exc_info=True)
+        raise DomainError(f"Lỗi khi dọn dẹp file: {e}")
+
+    # 3. Xóa bản ghi CSDL (và để CASCADE lo phần còn lại)
+    #    Phải làm sau cùng, sau khi đã xóa file thành công.
+    course.delete()
+    return None
+
+
+@transaction.atomic
+def patch_course_admin(course_id: uuid.UUID, data: dict) -> CourseDomain:
+    """
+    Hàm ĐIỀU PHỐI (Theo logic Moodle - Granular PATCH).
+    Quản lý transaction cho toàn bộ quá trình.
+    """
+    
+    # 1. Lấy đối tượng gốc 
+    try:
+        course = Course.objects.select_related('owner', 'subject').get(id=course_id)
+    except Course.DoesNotExist:
+        raise ValueError(f"Course with id {course_id} not found.")
+
+    # 2. Tách dữ liệu lồng nhau và M2M
+    modules_data = data.pop('modules', None)
+    categories_names = data.pop('categories', None)
+    tag_names = data.pop('tags', None)
+    image_id = data.pop('image_id', None)
+    
+    files_to_commit = []
+    
+    # 3. Xử lý các trường đơn giản (Simple fields)
+    # (Logic này giống hệt phiên bản trước)
+    
+    if 'title' in data and 'slug' not in data:
+        data['slug'] = slugify(data['title'])
+
+    simple_fields = [
+        'title', 'slug', 'description', 
+        'grade', 'published', 'published_at'
+    ]
+    update_fields_for_save = []
+    has_simple_changes = False
+
+    for field in simple_fields:
+        if field in data:
+            setattr(course, field, data[field])
+            update_fields_for_save.append(field)
+            has_simple_changes = True
+
+    # 4. Xử lý Foreign Keys (ví dụ: Subject)
+    # (Logic này giống hệt phiên bản trước)
+    if 'subject' in data:
+        subject_id = data.get('subject') # Dùng get() để cho phép gán None
+        if subject_id is None:
+            course.subject = None
+        else:
+            try:
+                # API có thể gửi ID (dạng string/UUID) hoặc object (nếu dùng DTO)
+                # Giả sử API gửi ID (giống hàm create)
+                subject_id_uuid = uuid.UUID(str(subject_id))
+                course.subject = Subject.objects.get(id=subject_id_uuid)
+            except (Subject.DoesNotExist, TypeError, ValueError):
+                raise ValueError(f"Subject with id '{subject_id}' not found.")
+        
+        update_fields_for_save.append('subject')
+        has_simple_changes = True
+
+    # 5. Lưu các thay đổi (trường đơn giản & FK)
+    if has_simple_changes:
+        try:
+            course.save(update_fields=update_fields_for_save)
+        except IntegrityError as e:
+            raise ValueError(f"Slug '{data['slug']}' đã tồn tại.")
+    
+    # 6. Xử lý M2M (Category & Tag) - Logic "Thay thế" (Replace)
+    # (Logic này giống hệt phiên bản trước)
+    
+    if categories_names is not None:
+        course.categories.clear()
+        for cat_name in categories_names:
+            category, _ = Category.objects.get_or_create(
+                name=cat_name, 
+                defaults={'slug': slugify(cat_name)}
+            )
+            course.categories.add(category)
+
+    if tag_names is not None:
+        course.tags.clear()
+        for tag_name in tag_names:
+            tag, _ = Tag.objects.get_or_create(
+                name=tag_name, 
+                defaults={'slug': slugify(tag_name)}
+            )
+            course.tags.add(tag)
+            
+    # 7. Xử lý Ảnh bìa (File) - Logic "Thay thế"
+    # (Logic này giống hệt phiên bản trước)
+    if image_id is not None:
+        course.files.clear() 
+        files_to_commit.append(image_id)
+
+    # 8. Xử lý Modules lồng nhau (LOGIC MOODLE)
+    if modules_data is not None:
+        
+        # Lấy ID các module hiện tại trong DB
+        existing_module_ids = set(
+            course.modules.values_list('id', flat=True)
+        )
+        
+        # ID các module từ request gửi lên
+        incoming_module_ids = set()
+        
+        # 1. Xử lý Cập nhật (Update) và Tạo mới (Create)
+        for position, module_data in enumerate(modules_data):
+            module_id_str = module_data.get('id')
+            
+            # Gán vị trí mới
+            module_data['position'] = position 
+
+            if module_id_str:
+                # --- UPDATE (PATCH) ---
+                try:
+                    module_id = uuid.UUID(str(module_id_str))
+                except ValueError:
+                    raise ValueError(f"Invalid Module ID format: {module_id_str}")
+
+                if module_id not in existing_module_ids:
+                    raise ValueError(f"Module {module_id} does not belong to this course.")
+                
+                # Ủy quyền cho module_service.patch_module
+                # (Hàm này bạn sẽ cần tạo, nó cũng phải xử lý lessons bên trong)
+                updated_module, module_files = module_service.patch_module(
+                    module_id=module_id,
+                    data=module_data
+                )
+                files_to_commit.extend(module_files)
+                incoming_module_ids.add(module_id)
+                
+            else:
+                # --- CREATE ---
+                # Ủy quyền cho module_service.create_module
+                new_module, module_files = module_service.create_module(
+                    course=course, 
+                    data=module_data
+                )
+                files_to_commit.extend(module_files)
+                # new_module ở đây là Model, nên chúng ta lấy .id
+                incoming_module_ids.add(new_module.id)
+
+        # 2. Xử lý Xóa (Delete)
+        # Module nào có trong DB mà không có trong request thì XÓA
+        ids_to_delete = existing_module_ids - incoming_module_ids
+        if ids_to_delete:
+            # .delete() sẽ tự động kích hoạt cascade, xóa lessons, v.v.
+            Module.objects.filter(id__in=ids_to_delete).delete()
+
+    # 9. (Rất quan trọng) Commit file MỚI
+    if files_to_commit:
+        try:
+            file_service.commit_files_by_ids_for_object(files_to_commit, course)
+        except Exception as e:
+            raise ValueError(f"Lỗi khi commit file: {str(e)}")
+
+    # 10. Trả về Domain
+    # Tải lại toàn bộ để đảm bảo data là mới nhất
+    # (Vì chúng ta đã prefetch 'owner' và 'subject' ở Bước 1)
+    course_domain = get_course_by_id(course_id=course_id)
+    
+    return course_domain
+
+
+logger = logging.getLogger(__name__)
+@transaction.atomic
+def delete_course_by_id(course_id: uuid.UUID) -> None:
+    """
+    Xóa một khóa học và dọn dẹp TẤT CẢ các file liên quan.
+    Chỉ owner (Instructor) mới được xóa.
+    """
+    
+    # 1. Tìm và xác thực course (giống hàm delete của bạn)
+    try:
+        course = Course.objects.get(pk=course_id)
     except Course.DoesNotExist:
         raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn không có quyền xóa.")
 
@@ -534,7 +741,7 @@ def delete_course_for_instructor(course_id: uuid.UUID, owner) -> None:
 #         raise DomainError(f"Lỗi khi lưu trạng thái unpublish: {e}")
 
 
-def list_course_overviews_for_instructor(owner: UserModel) -> List[CourseDomain]:
+def list_course_overviews_instructor(owner: UserModel) -> List[CourseDomain]:
     """
     CHỈ lấy metadata của course (và các quan hệ nhẹ).
     KHÔNG lấy modules/lessons.
@@ -550,7 +757,23 @@ def list_course_overviews_for_instructor(owner: UserModel) -> List[CourseDomain]
     return course_domains
 
 
-def get_course(owner: UserModel, course_id: uuid) -> CourseDomain:
+def list_all_course_overviews() -> List[CourseDomain]:
+    """
+    CHỈ lấy metadata của course (và các quan hệ nhẹ).
+    KHÔNG lấy modules/lessons.
+    """
+    # prefetch_related chỉ lấy categories và tags
+    course_models = Course.objects.filter().prefetch_related(
+        'categories', 'tags', 'files'
+    ).order_by('title')
+    
+    # Hàm from_model này KHÔNG NÊN load modules/lessons
+    # Nếu nó đang load, bạn cần tạo một hàm from_model_overview() khác
+    course_domains = [CourseDomain.from_model_overview(course) for course in course_models]
+    return course_domains
+
+
+def get_course_instructor(owner: UserModel, course_id: uuid) -> CourseDomain:
     """
     Lấy CẤU TRÚC (modules, lessons) của MỘT course.
     Hàm này đồng thời kiểm tra quyền sở hữu (owner).
@@ -574,81 +797,57 @@ def get_course(owner: UserModel, course_id: uuid) -> CourseDomain:
 
 # --- CÁC HÀM AGGREGATE (PUBLISH/UNPUBLISH) CHO INSTRUCTOR ---
 
-def get_course_for_instructor(course_id: str, owner: UserModel) -> CourseDomain:
-    """
-    """
-    try:
-        # Bắt đầu query từ hàm get_course (đã prefetch)
-        # và thêm bộ lọc 'owner'
-        course_model = (Course.objects
-            .select_related('owner', 'subject')
-            .prefetch_related(
-                'categories', 'tags',
-                Prefetch('modules', queryset=Module.objects.all().order_by('position').prefetch_related(
-                    Prefetch('lessons', queryset=Lesson.objects.all().order_by('position'))
-                ))
-            )
-            .get(id=course_id, owner=owner) # <
-        )
-        
-        course_model.modules_prefetched = course_model.modules.all()
-        return CourseDomain.from_model(course_model)
-
-    except Course.DoesNotExist:
-        raise NotFoundError("Không tìm thấy khóa học.")
-    except Exception as e:
-        raise DomainError(f"Lỗi khi tải course aggregate: {e}")
 
 
-@transaction.atomic
-def publish_course_for_instructor(course_id: str, publish_data: Any, owner: UserModel) -> CourseDomain:
-    """
-    Publish một course
-    """
-    # Lấy Aggregate Root (đã check quyền sở hữu)
-    course_domain = get_course_for_instructor(course_id, owner)
+# @transaction.atomic
+# def publish_course_for_instructor(course_id: str, publish_data: Any, owner: UserModel) -> CourseDomain:
+#     """
+#     Publish một course
+#     """
+#     # Lấy Aggregate Root (đã check quyền sở hữu)
+#     course_domain = get_course_for_instructor(course_id, owner)
     
-    # Gọi hàm publish 
-    require_all = getattr(publish_data, 'require_all_lessons_published', False)
-    try:
-        course_domain.publish(require_all_lessons_published=require_all)
-    except InvalidOperation as e:
-        raise e
+#     # Gọi hàm publish 
+#     require_all = getattr(publish_data, 'require_all_lessons_published', False)
+#     try:
+#         course_domain.publish(require_all_lessons_published=require_all)
+#     except InvalidOperation as e:
+#         raise e
     
-    # Lưu trạng thái 
-    try:
-        course_model = Course.objects.get(id=course_id, owner=owner) 
-        course_model.published = course_domain.published
-        course_model.published_at = course_domain.published_at
-        course_model.save(update_fields=['published', 'published_at'])
-        return course_domain
-    except Course.DoesNotExist:
-        raise NotFoundError("Không tìm thấy khóa học để lưu.")
-    except Exception as e:
-        raise DomainError(f"Lỗi khi lưu trạng thái publish: {e}")
+#     # Lưu trạng thái 
+#     try:
+#         course_model = Course.objects.get(id=course_id, owner=owner) 
+#         course_model.published = course_domain.published
+#         course_model.published_at = course_domain.published_at
+#         course_model.save(update_fields=['published', 'published_at'])
+#         return course_domain
+#     except Course.DoesNotExist:
+#         raise NotFoundError("Không tìm thấy khóa học để lưu.")
+#     except Exception as e:
+#         raise DomainError(f"Lỗi khi lưu trạng thái publish: {e}")
 
 
-@transaction.atomic
-def unpublish_course_for_instructor(course_id: str, owner: UserModel) -> CourseDomain:
-    """
-    Unpublish một course
-    """
-    # Lấy Aggregate Root (đã check quyền sở hữu)
-    course_domain = get_course_for_instructor(course_id, owner)
+# @transaction.atomic
+# def unpublish_course_for_instructor(course_id: str, owner: UserModel) -> CourseDomain:
+#     """
+#     Unpublish một course
+#     """
+#     # Lấy Aggregate Root (đã check quyền sở hữu)
+#     course_domain = get_course_for_instructor(course_id, owner)
     
-    # Gọi logic unpublish
-    course_domain.unpublish()
+#     # Gọi logic unpublish
+#     course_domain.unpublish()
     
-    # Lưu trạng thái
-    try:
-        course_model = Course.objects.get(id=course_id, owner=owner) 
-        course_model.published = course_domain.published
-        course_model.published_at = course_domain.published_at
-        course_model.save(update_fields=['published', 'published_at'])
-        return course_domain
-    except Course.DoesNotExist:
-        raise NotFoundError("Không tìm thấy khóa học để lưu.")
-    except Exception as e:
-        raise DomainError(f"Lỗi khi lưu trạng thái unpublish: {e}")
+#     # Lưu trạng thái
+#     try:
+#         course_model = Course.objects.get(id=course_id, owner=owner) 
+#         course_model.published = course_domain.published
+#         course_model.published_at = course_domain.published_at
+#         course_model.save(update_fields=['published', 'published_at'])
+#         return course_domain
+#     except Course.DoesNotExist:
+#         raise NotFoundError("Không tìm thấy khóa học để lưu.")
+#     except Exception as e:
+#         raise DomainError(f"Lỗi khi lưu trạng thái unpublish: {e}")
 
 
