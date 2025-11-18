@@ -57,7 +57,7 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
     """
     # (Giả sử) Cần là Instructor (hoặc Admin) và service sẽ
     # kiểm tra quyền sở hữu (owner)
-    permission_classes = [permissions.IsAuthenticated, IsInstructor] 
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser] 
 
     # (Giả sử) DTO cho Output
     output_dto_admin = QuizAdminOutput
