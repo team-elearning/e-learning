@@ -759,18 +759,17 @@ def list_course_overviews_instructor(owner: UserModel) -> List[CourseDomain]:
 
 def list_all_course_overviews() -> List[CourseDomain]:
     """
-    CHỈ lấy metadata của course (và các quan hệ nhẹ).
-    KHÔNG lấy modules/lessons.
+    Lấy danh sách cho Admin, trả về Domain chứa full info.
     """
-    # prefetch_related chỉ lấy categories và tags
-    course_models = Course.objects.filter().prefetch_related(
+    # Query tối ưu (Vẫn cần prefetch/select_related)
+    course_models = Course.objects.select_related(
+        'owner', 'subject'
+    ).prefetch_related(
         'categories', 'tags', 'files'
-    ).order_by('title')
+    ).order_by('-created_at')
     
-    # Hàm from_model này KHÔNG NÊN load modules/lessons
-    # Nếu nó đang load, bạn cần tạo một hàm from_model_overview() khác
-    course_domains = [CourseDomain.from_model_overview(course) for course in course_models]
-    return course_domains
+    # Gọi Factory Method mới
+    return [CourseDomain.from_model_overview_admin(course_domain) for course_domain in course_models]
 
 
 def get_course_instructor(owner: UserModel, course_id: uuid) -> CourseDomain:

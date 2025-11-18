@@ -60,6 +60,8 @@ class Course(models.Model):
                                         help_text="Timestamp when the course was last published.")
     slug = models.SlugField(max_length=255, unique=True, null=True, blank=True, 
                             help_text="URL-friendly version of the title, auto-generated if blank.")
+    created_at = models.DateTimeField(auto_now_add=True) # Tự động lưu lúc tạo
+    updated_at = models.DateTimeField(auto_now=True)     # Tự động lưu lúc sửa
     files = GenericRelation('media.UploadedFile')
 
     class Meta:

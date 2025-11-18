@@ -5,8 +5,8 @@ from pydantic import field_validator
 from datetime import datetime, timedelta
 
 
-from custom_account.api.dtos.user_dto import UserPublicOutput
-from content.api.dtos.subject_dto import SubjectPublicOutput
+from custom_account.api.dtos.user_dto import UserAdminOutput
+from content.api.dtos.subject_dto import SubjectPublicOutput, SubjectAdminOutput
 from content.api.dtos.category_dto import CategoryOutput
 from content.api.dtos.tag_dto import TagOutput
 
@@ -225,7 +225,31 @@ class LessonPublicOutput(BaseModel):
             return v
         return []
 
+
 class ModulePublicOutput(BaseModel):
+    """
+    DTO Output cho Module (lồng trong Course).
+    """
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: uuid.UUID
+    title: str
+    position: int
+    lessons: List[LessonPublicOutput] = []
+
+    @field_validator('lessons', mode='before')
+    @classmethod
+    def convert_lessons_manager_to_list(cls, v: Any) -> list:
+        if hasattr(v, 'all'):
+            # Có thể bạn muốn sắp xếp ở đây
+            # return list(v.all().order_by('position'))
+            return list(v.all()) 
+        if isinstance(v, list):
+            return v
+        return []
+    
+
+class ModuleAdminOutput(BaseModel):
     """
     DTO Output cho Module (lồng trong Course).
     """
@@ -307,10 +331,10 @@ class CourseAdminOutput(BaseModel):
     published_at: Optional[datetime] = None # Thêm trường này từ domain
     
     # Thông tin chi tiết về chủ sở hữu
-    owner: UserPublicOutput 
+    owner: UserAdminOutput 
     
     # --- Các quan hệ (Sử dụng DTO đầy đủ) ---
-    subject: Optional[SubjectPublicOutput] = None
+    subject: Optional[SubjectAdminOutput] = None
     
     # Admin cần DTO đầy đủ (CategoryOutput) chứ không phải List[str]
     categories: List[CategoryOutput] = [] 
@@ -318,7 +342,7 @@ class CourseAdminOutput(BaseModel):
     
     # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
     # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
-    modules: List[ModulePublicOutput] = []
+    modules: List[ModuleAdminOutput] = []
 
     # --- Validator (Rất quan trọng) ---
     @field_validator('categories', 'tags', 'modules', mode='before')
