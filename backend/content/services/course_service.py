@@ -58,30 +58,30 @@ def list_enrolled_courses_for_user(user: UserModel) -> List[CourseDomain]:
 
 
 def get_enrolled_course_detail_for_user(course_id: uuid.UUID, user: UserModel) -> CourseDomain: 
-        """
-        Lấy chi tiết một course, NHƯNG chỉ khi user đã ghi danh.
-        """
-        try:
-            # Query này sẽ chỉ thành công nếu CẢ 2 điều kiện đều đúng:
-            # 1. Course ID tồn tại.
-            # 2. Có một bản ghi "enrollments" nối tới user này.
-            course = Course.objects.select_related(
-                'owner', 'subject'
-            ).prefetch_related(
-                'categories', 'tags', 'modules__lessons' # (Tối ưu nếu cần)
-            ).get(
-                pk=course_id,
-                enrollments__user=user
-            )
-            
-            return CourseDomain.from_model(course)
-            
-        except ObjectDoesNotExist:
-            # Lỗi này có nghĩa là "Không tìm thấy" HOẶC "Chưa ghi danh"
-            raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn chưa ghi danh vào khóa học này.")
-        except Exception as e:
-            logger.error(f"Lỗi service get_enrolled_course_detail: {e}", exc_info=True)
-            raise DomainError(f"Lỗi khi lấy khóa học: {e}")
+    """
+    Lấy chi tiết một course, NHƯNG chỉ khi user đã ghi danh.
+    """
+    try:
+        # Query này sẽ chỉ thành công nếu CẢ 2 điều kiện đều đúng:
+        # 1. Course ID tồn tại.
+        # 2. Có một bản ghi "enrollments" nối tới user này.
+        course = Course.objects.select_related(
+            'owner', 'subject'
+        ).prefetch_related(
+            'categories', 'tags', 'modules__lessons' # (Tối ưu nếu cần)
+        ).get(
+            pk=course_id,
+            enrollments__user=user
+        )
+        
+        return CourseDomain.from_model(course)
+        
+    except ObjectDoesNotExist:
+        # Lỗi này có nghĩa là "Không tìm thấy" HOẶC "Chưa ghi danh"
+        raise CourseNotFoundError("Không tìm thấy khóa học hoặc bạn chưa ghi danh vào khóa học này.")
+    except Exception as e:
+        logger.error(f"Lỗi service get_enrolled_course_detail: {e}", exc_info=True)
+        raise DomainError(f"Lỗi khi lấy khóa học: {e}")
         
 
 def get_course_by_id(course_id: uuid.UUID) -> CourseDomain:
@@ -91,10 +91,28 @@ def get_course_by_id(course_id: uuid.UUID) -> CourseDomain:
         course = Course.objects.select_related(
             'owner', 'subject'
         ).prefetch_related(
-            'categories', 'tags'
+            'categories', 'tags', 'files', 'modules__lessons'
         ).get(pk=course_id)
         
         return CourseDomain.from_model(course)
+        
+    except ObjectDoesNotExist:
+        raise CourseNotFoundError("Không tìm thấy khóa học.")
+    except Exception as e:
+        raise DomainError(f"Lỗi khi lấy khóa học: {e}")
+
+
+def get_course_detail_admin(course_id: uuid.UUID) -> CourseDomain:
+    """Lấy một course theo ID."""
+    try:
+        # Tối ưu query bằng select_related và prefetch_related
+        course = Course.objects.select_related(
+            'owner', 'subject'
+        ).prefetch_related(
+            'categories', 'tags', 'files', 'modules__lessons'
+        ).get(pk=course_id)
+        
+        return CourseDomain.from_model_admin(course)
         
     except ObjectDoesNotExist:
         raise CourseNotFoundError("Không tìm thấy khóa học.")
@@ -252,7 +270,7 @@ def create_course(data: dict, owner) -> CourseDomain:
         # Bằng cách raise một Exception để @transaction.atomic bắt được
         raise ValueError(f"Lỗi khi commit file: {str(e)}")
 
-    return CourseDomain.from_model_overview(course)
+    return CourseDomain.from_model_overview_admin(course)
 
 
 @transaction.atomic
@@ -579,11 +597,12 @@ def patch_course_admin(course_id: uuid.UUID, data: dict) -> CourseDomain:
                 # --- UPDATE (PATCH) ---
                 try:
                     module_id = uuid.UUID(str(module_id_str))
+                    module_title = module_data.get('title')
                 except ValueError:
                     raise ValueError(f"Invalid Module ID format: {module_id_str}")
 
                 if module_id not in existing_module_ids:
-                    raise ValueError(f"Module {module_id} does not belong to this course.")
+                    raise ValueError(f"Module {module_title} does not belong to this course.")
                 
                 # Ủy quyền cho module_service.patch_module
                 # (Hàm này bạn sẽ cần tạo, nó cũng phải xử lý lessons bên trong)
@@ -622,7 +641,7 @@ def patch_course_admin(course_id: uuid.UUID, data: dict) -> CourseDomain:
     # 10. Trả về Domain
     # Tải lại toàn bộ để đảm bảo data là mới nhất
     # (Vì chúng ta đã prefetch 'owner' và 'subject' ở Bước 1)
-    course_domain = get_course_by_id(course_id=course_id)
+    course_domain = get_course_detail_admin(course_id=course_id)
     
     return course_domain
 
