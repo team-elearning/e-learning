@@ -39,8 +39,8 @@ def create_quiz(data: Dict[str, Any]) -> QuizDomain:
     )
     
     # 2. Tạo Questions (con)
-    for q_data in questions_data:
-        question_service.create_question(quiz=new_quiz, data=q_data)
+    for question_data in questions_data:
+        question_service.create_question(quiz=new_quiz, data=question_data)
 
     quiz_with_questions = Quiz.objects.prefetch_related('questions').get(id=new_quiz.id)
     return QuizDomain.from_model(quiz_with_questions)
@@ -85,34 +85,34 @@ def patch_quiz(quiz_id: uuid.UUID, data: Dict[str, Any], user: UserModel) -> Qui
     # 3. Xử lý 'questions' (LOGIC MOODLE ĐÃ REFACTOR)
     if questions_data is not None:
         
-        existing_q_ids = set(quiz.questions.values_list('id', flat=True))
-        incoming_q_ids = set()
+        existing_question_ids = set(quiz.questions.values_list('id', flat=True))
+        incoming_question_ids = set()
 
-        for position, q_data in enumerate(questions_data):
-            q_data['position'] = position # Gán lại vị trí
-            q_id_str = q_data.get('id')
+        for position, question_data in enumerate(questions_data):
+            question_data['position'] = position # Gán lại vị trí
+            question_id_str = question_data.get('id')
             
-            if q_id_str:
+            if question_id_str:
                 # --- UPDATE (U) ---
-                q_id = uuid.UUID(str(q_id_str))
-                if q_id not in existing_q_ids:
-                    raise DomainError(f"Question {q_id} không thuộc quiz này.")
+                question_id = uuid.UUID(str(question_id_str))
+                if question_id not in existing_question_ids:
+                    raise DomainError(f"Question {question_data.get('prompt')} không thuộc quiz này.")
                 
                 # Ủy quyền cho question_service
-                question_service.patch_question(question_id=q_id, data=q_data)
+                question_service.patch_question(question_id=question_id, data=question_data)
                 
-                incoming_q_ids.add(q_id)
+                incoming_question_ids.add(question_id)
             else:
                 # --- CREATE (C) ---
                 # Ủy quyền cho question_service
-                new_q_domain = question_service.create_question(quiz=quiz, data=q_data)
-                incoming_q_ids.add(uuid.UUID(new_q_domain.id))
+                new_question_domain = question_service.create_question(quiz=quiz, data=question_data)
+                incoming_question_ids.add(uuid.UUID(new_question_domain.id))
 
         # --- DELETE (D) ---
-        ids_to_delete = existing_q_ids - incoming_q_ids
-        for q_id in ids_to_delete:
+        ids_to_delete = existing_question_ids - incoming_question_ids
+        for question_id in ids_to_delete:
             # Ủy quyền cho question_service
-            question_service.delete_question(question_id=q_id)
+            question_service.delete_question(question_id=question_id)
             
     # 4. Lấy lại Quiz đã cập nhật (bao gồm questions) để trả về
     quiz_updated = Quiz.objects.prefetch_related('questions').get(id=quiz_id)
@@ -181,6 +181,7 @@ def delete_quiz(quiz_id: uuid.UUID, user: UserModel):
             f"Không thể xóa. Quiz đang được sử dụng trong bài học: "
             f"'{block.lesson.title}'. "
             f"Hãy xóa 'content block' khỏi bài học trước."
+            f"'content block id': {block.lesson.id}"
         )
 
     # Nếu không vướng check ở trên, tức là quiz này là "mồ côi"

@@ -3,6 +3,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from dj_rest_auth.serializers import LoginSerializer
+from allauth.account.models import EmailAddress
 
 from custom_account.models import UserModel, Profile
 from custom_account.domains.user_domain import UserDomain
@@ -128,6 +130,60 @@ class RegisterSerializer(serializers.Serializer):
     def to_domain(self):
         """Convert validated data into a UserDomain object"""
         return UserDomain(**self.validated_data)
+    
+
+class CustomLoginSerializer(LoginSerializer):
+    def validate(self, attrs):
+        username = attrs.get('username')
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        user = None
+
+        # 1. Tìm user dựa trên username hoặc email gửi lên
+        if username:
+            user = UserModel.objects.filter(username=username).first()
+        elif email:
+            user = UserModel.objects.filter(email=email).first()
+
+        # 2. Kiểm tra logic thủ công để báo lỗi chi tiết
+        if not user:
+            # Lỗi A: User không tồn tại
+            raise serializers.ValidationError(
+                {"detail": "Tài khoản không tồn tại trong hệ thống."}
+            )
+
+        if not user.check_password(password):
+            # Lỗi B: Sai mật khẩu
+            raise serializers.ValidationError(
+                {"detail": "Mật khẩu không chính xác."}
+            )
+
+        if not user.is_active:
+            # Lỗi C: Tài khoản bị khóa (is_active=False)
+            raise serializers.ValidationError(
+                {"detail": "Tài khoản này đã bị vô hiệu hóa."}
+            )
+
+        # 3. Kiểm tra Email Verification (Optional - cho trường hợp bạn gặp lúc nãy)
+        # Nếu bạn dùng allauth và bắt buộc verify email
+        if email: 
+             email_record = EmailAddress.objects.filter(user=user, email=email).first()
+             if email_record and not email_record.verified:
+                  raise serializers.ValidationError(
+                    {"detail": "Email chưa được xác thực. Vui lòng kiểm tra hộp thư."}
+                )
+
+        # 4. Nếu qua hết các bước trên, để dj-rest-auth chạy logic gốc (tạo token, v.v.)
+        # Chúng ta dùng try/catch vì authenticate() của Django có thể fail vì lý do khác
+        try:
+            return super().validate(attrs)
+        except serializers.ValidationError as e:
+            # Nếu logic gốc vẫn báo lỗi (ví dụ lỗi hệ thống khác), ta trả về lỗi đó
+            # Hoặc custom lại thông báo nếu muốn
+            raise serializers.ValidationError(
+                {"detail": "Đăng nhập thất bại. (Lỗi xác thực hệ thống)"}
+            )
     
 
 class ChangePasswordSerializer(serializers.Serializer):

@@ -269,6 +269,7 @@ REST_AUTH = {
 
     'JWT_AUTH_REFRESH_COOKIE': 'refresh_token_cookie',
     'USER_DETAILS_SERIALIZER': 'custom_account.serializers.UserPublicOutputSerializer',
+    'LOGIN_SERIALIZER': 'custom_account.serializers.CustomLoginSerializer',
 }
 
 ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
