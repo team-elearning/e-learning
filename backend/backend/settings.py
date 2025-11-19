@@ -138,7 +138,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",
     'USE_TZ': True,
-    'EXCEPTION_HANDLER': 'core.exception_handlers'
+    'EXCEPTION_HANDLER': 'core.exception_handlers.custom_exception_handler'
 }
 
 SIMPLE_JWT = {
