@@ -1,421 +1,325 @@
-<!-- src/pages/student/learn/LessonPlayer.vue -->
 <template>
-  <div class="lesson-player" v-if="course">
-    <div class="container">
-      <!-- TOP BAR -->
-      <div class="topbar">
-        <button class="link" @click="goBack">Rời khỏi đây</button>
-        <div class="spacer" />
-      </div>
-
-      <div class="content">
-        <!-- LEFT: VIDEO -->
-        <div class="left">
-          <div class="video-shell">
-            <video
-              ref="videoRef"
-              class="video"
-              :src="currentSrc"
-              controls
-              playsinline
-              @ended="markDone(currentLesson?.id)"
-            ></video>
-
-            <div class="video-title">
-              <h2>{{ course.title }}</h2>
-              <p class="subtitle">
-                {{ (currentFlatIndex + 1) }}. {{ currentLesson?.title }}
-              </p>
-            </div>
-          </div>
-
-          <!-- BOTTOM NAV -->
-          <div class="bottom-nav">
-            <button class="btn outline" :disabled="!prevLesson" @click="goPrev">‹ BÀI TRƯỚC</button>
-            <div class="actions"></div>
-            <button class="btn accent" :disabled="!nextLesson" @click="goNext">BÀI TIẾP THEO ›</button>
-          </div>
+  <div class="detail-page" v-if="course">
+    <div class="hero">
+      <div class="hero-text">
+        <p class="crumb">Khóa học · Khối {{ course.grade }} · {{ subjectLabel(course.subject) }}</p>
+        <h1>{{ course.title }}</h1>
+        <p class="lead">{{ course.description || 'Khoá học giúp bạn nắm vững kiến thức theo lộ trình.' }}</p>
+        <div class="tags">
+          <span class="pill">Khối {{ course.grade }}</span>
+          <span class="pill muted">{{ course.lessonsCount }} bài học</span>
+          <span class="pill muted">GV {{ course.teacherName }}</span>
         </div>
-
-        <!-- RIGHT: OUTLINE -->
-        <aside class="right">
-          <div class="panel">
-            <!-- Progress header -->
-            <div class="progress-head">
-              <div class="circle">
-                <svg viewBox="0 0 36 36" class="c">
-                  <path class="bg" d="M18 2a16 16 0 1 1 0 32a16 16 0 1 1 0-32"/>
-                  <path class="fg" :style="{ strokeDasharray: dash + ', 100' }"
-                        d="M18 2a16 16 0 1 1 0 32a16 16 0 1 1 0-32"/>
-                </svg>
-                <div class="pct">{{ progressPct }}%</div>
-              </div>
-              <div class="meta">
-                <h4>Nội dung khóa học</h4>
-                <div class="sub">{{ doneCount }}/{{ totalCount }} bài học</div>
-              </div>
-            </div>
-
-            <!-- Outline -->
-            <div class="outline" ref="outlineRef">
-              <div v-for="(sec, si) in uiSections" :key="sec.id" class="sec">
-                <button class="sec-head" @click="toggle(si)">
-                  <span class="name">{{ si + 1 }}. {{ sec.title }}</span>
-                  <span class="len">{{ sec.items.length }}</span>
-                  <svg class="chev" viewBox="0 0 24 24" :class="{open: openIndex === si}">
-                    <path d="M6 9l6 6 6-6"/>
-                  </svg>
-                </button>
-
-                <transition name="acc">
-                  <ul v-show="openIndex === si">
-                    <li v-for="(it, li) in sec.items"
-                        :key="it.id"
-                        :class="['row', {active: String(it.id)===String(currentLesson?.id), done: it.done}]"
-                        @click="goToLesson(si, li)">
-                      <div class="leftcell">
-                        <span class="idx">{{ li + 1 }}</span>
-                        <span class="title">{{ it.title }}</span>
-                      </div>
-                      <div class="rightcell">
-                        <span class="time">{{ formatDuration(it.durationMinutes) }}</span>
-                        <span class="state">
-                          <svg v-if="it.done" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-                        </span>
-                      </div>
-                    </li>
-                  </ul>
-                </transition>
-              </div>
-            </div>
-          </div>
-        </aside>
+        <div class="cta">
+          <button class="primary" @click="enroll">Đăng ký ngay</button>
+        </div>
       </div>
+      <img :src="course.thumbnail" :alt="course.title" class="hero-thumb" />
+    </div>
+
+    <div class="layout">
+      <section class="card">
+        <h3>Nội dung khóa học</h3>
+        <div class="sections">
+          <article v-for="(sec, idx) in course.sections" :key="sec.id" class="section">
+            <div class="sec-head">
+              <div class="sec-title">{{ idx + 1 }}. {{ sec.title }}</div>
+              <div class="sec-meta">{{ sec.lessons?.length || 0 }} bài</div>
+            </div>
+            <ul class="lessons">
+              <li v-for="(l, li) in sec.lessons" :key="l.id">
+                <span class="l-idx">{{ li + 1 }}</span>
+                <span class="l-title">{{ l.title }}</span>
+                <span class="l-type">{{ typeLabel(l.type) }}</span>
+                <span class="l-time">{{ formatDuration(l.durationMinutes) }}</span>
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <aside class="side card">
+        <h4>Thông tin</h4>
+        <ul class="info">
+          <li><span>Khối:</span> <b>{{ course.grade }}</b></li>
+          <li><span>Môn:</span> <b>{{ subjectLabel(course.subject) }}</b></li>
+          <li><span>Bài học:</span> <b>{{ course.lessonsCount }}</b></li>
+          <li><span>Giáo viên:</span> <b>{{ course.teacherName }}</b></li>
+        </ul>
+        <button class="primary block" @click="enroll">Đăng ký ngay</button>
+        <button class="ghost block" @click="goBack">Quay lại</button>
+      </aside>
     </div>
   </div>
 
-  <div v-else class="grid min-h-screen place-items-center text-slate-200">Đang tải…</div>
+  <div v-else-if="loading" class="center">Đang tải khoá học...</div>
+  <div v-else class="center err">{{ err || 'Không tìm thấy khoá học' }}</div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { courseService, type CourseDetail, type Lesson as ApiLesson } from '@/services/course.service'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { courseService, type CourseDetail, type Lesson } from '@/services/course.service'
 
-const router = useRouter()
 const route = useRoute()
+const router = useRouter()
 
-/* ====== STATE ====== */
 const course = ref<CourseDetail | null>(null)
-const videoRef = ref<HTMLVideoElement|null>(null)
-const doneSet = reactive(new Set<string>())               // local progress
-const showNonVideoInOutline = true                       // ẩn/hiện PDF/Quiz
-const openIndex = ref<number>(0)
-const cur = ref<{ si: number; li: number }>({ si: 0, li: 0 })
+const loading = ref(false)
+const err = ref('')
 
-/* ====== LOAD ====== */
+function subjectLabel(s: CourseDetail['subject']) {
+  const map: Record<CourseDetail['subject'], string> = {
+    math: 'Toán',
+    vietnamese: 'Tiếng Việt',
+    english: 'Tiếng Anh',
+    science: 'Khoa học',
+    history: 'Lịch sử',
+  }
+  return map[s] || s
+}
+
+function typeLabel(t: Lesson['type']) {
+  return t === 'video' ? 'Video' : t === 'pdf' ? 'Tài liệu' : 'Quiz'
+}
+
+function formatDuration(min?: number) {
+  if (!min) return '—'
+  return `${min}’`
+}
+
 async function load() {
-  const id = route.params.id as any
-  const lessonParam = route.params.lessonId as any
-
-  const d = await courseService.detail(id)
-  course.value = d
-
-  // build và trỏ đúng bài
-  rebuildAndKeepCursor(lessonParam ?? null)
-  if (lessonParam) openIndex.value = findById(lessonParam)?.si ?? 0
-}
-
-/* ====== UI sections ====== */
-type UiLesson = { id: string|number; title: string; durationMinutes?: number; type: ApiLesson['type']; done?: boolean }
-type UiSection = { id: string|number; title: string; items: UiLesson[] }
-const uiSections = ref<UiSection[]>([])
-
-function buildUiSections() {
-  if (!course.value) { uiSections.value = []; return }
-  uiSections.value = (course.value.sections || []).map(s => ({
-    id: s.id,
-    title: s.title,
-    items: (s.lessons || [])
-      .filter(l => showNonVideoInOutline ? true : l.type === 'video')
-      .map(l => ({
-        id: l.id,
-        title: l.title,
-        durationMinutes: l.durationMinutes,
-        type: l.type,
-        done: doneSet.has(String(l.id))
-      }))
-  }))
-}
-
-/** Rebuild nhưng vẫn giữ nguyên con trỏ theo id cũ (nếu còn). */
-function rebuildAndKeepCursor(preferredId: any) {
-  const oldId = preferredId ?? currentLesson.value?.id ?? null
-  buildUiSections()
-  if (!uiSections.value.length) { cur.value = { si: 0, li: 0 }; return }
-
-  // nếu còn id cũ thì trỏ lại, không thì snap về 0
-  const found = oldId != null ? findById(oldId) : null
-  cur.value = found ?? { si: 0, li: 0 }
-}
-
-/* ====== DERIVED (dựa theo chỉ số phẳng) ====== */
-const flat = computed<UiLesson[]>(() => uiSections.value.flatMap(s => s.items))
-const totalCount = computed(() => flat.value.length)
-const doneCount = computed(() => flat.value.filter(l => l.done).length)
-const progressPct = computed(() => Math.round((doneCount.value / Math.max(1, totalCount.value)) * 100))
-const dash = computed(() => (progressPct.value/100)*100)
-
-const currentLesson = computed<UiLesson | null>(() => {
-  const sec = uiSections.value[cur.value.si]; if (!sec) return null
-  return sec.items[cur.value.li] || null
-})
-
-/** Trả về index trong mảng phẳng ứng với cur; an toàn khi rebuild */
-const currentFlatIndex = computed<number>(() => {
-  const id = currentLesson.value?.id
-  if (id == null) return -1
-  return flat.value.findIndex(l => String(l.id) === String(id))
-})
-
-const prevLesson = computed<UiLesson | null>(() => {
-  const idx = currentFlatIndex.value
-  return idx > 0 ? flat.value[idx - 1] : null
-})
-
-const nextLesson = computed<UiLesson | null>(() => {
-  const idx = currentFlatIndex.value
-  return (idx >= 0 && idx < flat.value.length - 1) ? flat.value[idx + 1] : null
-})
-
-/* Demo src: thay bằng URL thật của bạn */
-const currentSrc = computed(() =>
-  'https://pub-52a4bc53687a4601ac29f7d454bef601.r2.dev/test2.mp4'
-)
-
-/* ====== METHODS ====== */
-function formatDuration(min?: number){
-  if (!min || min <= 0) return '—'
-  const total = Math.round(min * 60)
-  const mm = Math.floor(total / 60).toString().padStart(2,'0')
-  const ss = (total % 60).toString().padStart(2,'0')
-  return `${mm}:${ss}`
-}
-
-function goBack(){ window.history.length > 1 ? window.history.back() : router.push('/student/courses') }
-
-function goToLesson(si: number, li: number){
-  cur.value = { si, li }
-  openIndex.value = si
-  const id = uiSections.value[si]?.items[li]?.id
-  if (id != null) router.replace({ params: { ...route.params, lessonId: String(id) } })
-  videoRef.value?.play?.()
-}
-
-function goPrev(){
-  if (!prevLesson.value) return
-  const found = findById(prevLesson.value.id)
-  if (found) goToLesson(found.si, found.li)
-}
-
-function goNext(){
-  if (!nextLesson.value) return
-  const found = findById(nextLesson.value.id)
-  if (found) goToLesson(found.si, found.li)
-}
-
-function toggle(i: number){ openIndex.value = openIndex.value===i ? -1 : i }
-
-function findById(id: any){
-  if (id == null) return null
-  for (let si=0; si<uiSections.value.length; si++){
-    const li = uiSections.value[si].items.findIndex(x => String(x.id) === String(id))
-    if (li >= 0) return { si, li }
+  try {
+    loading.value = true
+    err.value = ''
+    const id = route.params.id as any
+    course.value = await courseService.detail(id)
+  } catch (e: any) {
+    err.value = e?.message || 'Không thể tải khoá học'
+    course.value = null
+  } finally {
+    loading.value = false
   }
-  return null
 }
 
-function markDone(id?: string|number|null){
-  if (id == null) return
-  doneSet.add(String(id))
-  // rebuild nhưng vẫn giữ bài hiện tại => không bị -1 làm mất nút "tiếp theo"
-  rebuildAndKeepCursor(id)
+function enroll() {
+  const id = route.params.id
+  if (router.hasRoute('student-payments-cart'))
+    router.push({ name: 'student-payments-cart', query: { add: String(id) } })
+  else router.push({ path: '/student/payments/cart', query: { add: String(id) } })
 }
 
-/* Nếu dữ liệu/sections đổi bất chợt (reset), vẫn đảm bảo con trỏ hợp lệ */
-watchEffect(() => {
-  if (!uiSections.value.length) return
-  const id = currentLesson.value?.id
-  const found = id != null ? findById(id) : null
-  if (!found) {
-    // snap về 0 an toàn
-    cur.value = { si: 0, li: 0 }
-  }
-})
+function goBack() {
+  if (window.history.length > 1) window.history.back()
+  else router.push({ name: 'MyCourses' })
+}
 
-/* ====== MOUNT ====== */
 onMounted(load)
 </script>
 
 <style scoped>
-:root{
-  --page-bg:#f6f7fb;
-  --panel:#ffffff;
-  --text:#0f172a;
-  --muted:#6b7280;
-  --line:#e5e7eb;
-  --accent:#16a34a;
-  --accent-dark:#15803d;
+.detail-page {
+  background: #f6f7fb;
+  min-height: 100vh;
+  color: #0f172a;
 }
-
-.lesson-player{ background:var(--page-bg); min-height:100vh; color:var(--text); }
-.container{ max-width:1440px; margin:0 auto; padding:20px 14px 36px; }
-
-.topbar{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.link{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; color:var(--text); }
-.spacer{ flex:1; }
-
-.content{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:14px; }
-
-/* LEFT */
-.left{ background:var(--panel); border-radius:16px; overflow:hidden; border:1px solid var(--line); box-shadow:0 18px 40px rgba(15,23,42,.08); }
-.video-shell{ background:#000; position:relative; }
-.video{ width:100%; aspect-ratio:16/9; display:block; background:#000; }
-
-.video-title{
-  display:flex; justify-content:space-between; align-items:flex-end;
-  gap:12px; padding:16px 18px; background:var(--panel);
-  border-top:1px solid var(--line);
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 18px 10px;
 }
-.video-title h2{ font-size:20px; font-weight:800; margin:0; color:var(--text); }
-.video-title .subtitle{ color:var(--muted); font-size:14px; margin:0; }
-
-/* RIGHT */
-.right{ position:relative; }
-.panel{
-  position:sticky; top:10px;
-  background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden;
-  box-shadow:0 18px 40px rgba(15,23,42,.08);
+.hero-text h1 {
+  margin: 6px 0 4px;
+  font-size: 30px;
+  font-weight: 800;
 }
-
-/* Progress head */
-.progress-head{ display:flex; gap:12px; padding:12px; border-bottom:1px solid var(--line); align-items:center; }
-.circle{ position:relative; width:56px; height:56px; }
-.c{ transform:rotate(-90deg); }
-.bg{ fill:none; stroke:#e5e7eb; stroke-width:4; opacity:.9 }
-.fg{ fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; stroke-dasharray:0 100; transition:stroke-dasharray .4s ease; }
-
-/* >>> SỬA MÀU CHỮ Ở ĐÂY <<< */
-.pct{ position:absolute; inset:0; display:grid; place-items:center; font-weight:800; font-size:12px; color:var(--text); }
-.meta h4{ margin:0; font-size:16px; font-weight:800; color:var(--text); }
-.meta .sub{ color:var(--muted); font-size:13px; }
-/* <<< HẾT PHẦN SỬA >>> */
-
-/* Outline */
-.outline{ max-height:calc(100vh - 200px); overflow:auto; padding:12px; }
-.sec{ border-radius:12px; overflow:hidden; margin-bottom:12px; border:1px solid var(--line); background:#fff; }
-.sec-head{
-  width:100%; text-align:left; display:flex; align-items:center; gap:8px;
-  padding:10px 12px; background:#fff; border:0; cursor:pointer;
+.crumb {
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0;
 }
-.sec-head .name{ font-weight:800; flex:1; }
-.sec-head .len{
-  font-size:12px; font-weight:800; color:#475569;
-  background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:2px 8px;
+.lead {
+  color: #6b7280;
+  margin: 0 0 8px;
 }
-.chev{ width:18px; height:18px; fill:#475569 }
-.chev.open{ transform:rotate(180deg) }
-
-.row{
-  display:flex; justify-content:space-between; align-items:center; gap:8px;
-  padding:12px 14px; border-top:1px solid var(--line); cursor:pointer; background:#fff;
+.hero-thumb {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
 }
-.row:hover{ background:#f8fafc; }
-.row.active{ background:var(--accent) !important; color:#fff !important; }
-.row.active:hover{ background:var(--accent) !important; }
-.row.active .title,
-.row.active .time,
-.row.active .idx{ color:#fff !important; }
-.row.done .title{ color:var(--accent); }
-.leftcell{ display:flex; align-items:center; gap:10px; min-width:0 }
-.idx{
-  width:22px; height:22px; display:grid; place-items:center;
-  border:1px solid #e5e7eb; border-radius:6px; font-size:12px; font-weight:800; color:#64748b;
-  background:#f8fafc;
+.tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 10px;
 }
-.title{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
-.rightcell{ display:flex; align-items:center; gap:10px; }
-.time{ color:#64748b; font-size:12px; }
-.state svg{ width:18px; height:18px; stroke:var(--accent); stroke-width:2; fill:none }
-.row.active .state svg{ stroke:#fff; }
-
-/* Accordion anim */
-.acc-enter-from, .acc-leave-to{ max-height:0; opacity:.2 }
-.acc-enter-to, .acc-leave-from{ max-height:500px; opacity:1 }
-.acc-enter-active, .acc-leave-active{ transition:all .18s ease-in-out }
-
-/* ==== BUTTONS: đen/trắng, KHÔNG đổi màu khi reset/disabled ==== */
-.btn{
-  padding:12px 20px;
-  border-radius:12px;
-  font-weight:800;
-  border:1.5px solid var(--line);
-  background:#fff;
-  color:var(--text);
-  transition:all .15s ease;
-  cursor:pointer;
-  box-shadow:0 1px 0 rgba(15,23,42,.05);
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 700;
+  font-size: 12px;
 }
-.btn:hover:not(:disabled){
-  transform:translateY(-1px);
+.pill.muted {
+  background: #f3f4f6;
+  color: #4b5563;
 }
-.btn.outline:hover:not(:disabled){
-  background:#f8fafc;
-  border-color:#cbd5e1;
+.cta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.btn.accent{
-  background:var(--accent);
-  border-color:var(--accent);
-  color:#fff !important;
-  box-shadow:0 6px 16px rgba(22,163,74,.35);
+.layout {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 18px 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 360px;
+  gap: 14px;
 }
-.btn.accent:hover:not(:disabled),
-.btn.accent:focus-visible:not(:disabled){
-  background:var(--accent-dark);
-  border-color:var(--accent-dark);
-  color:#fff !important;
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px 16px;
 }
-.btn:disabled{
-  opacity:.55;
-  cursor:not-allowed;
-  background:#f8fafc;
-  color:var(--muted);
-  border-color:var(--line);
-  transform:none;
-  box-shadow:none;
+.card h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 800;
 }
-.btn.accent:disabled{
-  background:var(--accent) !important;
-  border-color:var(--accent) !important;
-  color:#fff !important;
-  opacity:.45;
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-
-.bottom-nav{
-  display:flex; justify-content:space-between; align-items:center;
-  gap:12px; padding:16px; background:var(--panel); border-top:1px solid var(--line);
+.section {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 10px;
 }
-.actions{ display:flex; align-items:center; gap:8px; }
-
-/* Responsive */
-@media (max-width: 1200px){
-  .content{ grid-template-columns:1fr 340px; }
+.sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
-@media (max-width: 980px){
-  .content{ grid-template-columns:1fr; }
-  .right{ order:2 }
-  .left{ order:1 }
-  .panel{ position:static }
-  .outline{ max-height:none }
+.sec-title {
+  font-weight: 800;
+}
+.sec-meta {
+  color: #6b7280;
+  font-size: 13px;
+}
+.lessons {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lessons li {
+  display: grid;
+  grid-template-columns: 32px 1fr 90px 60px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.l-idx {
+  font-weight: 800;
+  color: #475569;
+}
+.l-title {
+  font-weight: 700;
+}
+.l-type {
+  font-size: 12px;
+  color: #4b5563;
+}
+.l-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+.side h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.info {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info li {
+  display: flex;
+  justify-content: space-between;
+  color: #4b5563;
+}
+.info b {
+  color: #0f172a;
+}
+.ghost,
+.primary {
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 800;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+}
+.ghost {
+  color: #16a34a;
+  border-color: #16a34a;
+}
+.ghost:hover {
+  background: #f3f4f6;
+}
+.primary {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+  box-shadow: 0 3px 0 #15803d;
+}
+.primary:hover {
+  background: #15803d;
+  box-shadow: 0 2px 0 #166534;
+}
+.block {
+  width: 100%;
+  text-align: center;
+  margin-top: 8px;
+}
+.center {
+  padding: 40px 20px;
+  text-align: center;
+  color: #6b7280;
+}
+.err {
+  color: #b91c1c;
+}
+@media (max-width: 1024px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .hero-thumb {
+    height: 180px;
+  }
 }
 </style>

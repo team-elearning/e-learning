@@ -7,24 +7,6 @@
           <h1 class="exam-title">{{ examTitle }}</h1>
           <p class="exam-meta">{{ totalQuestions }} câu hỏi</p>
         </div>
-        <div class="header-right">
-          <div class="timer" :class="{ warning: timeLeft < 300 }">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>{{ timeDisplay }}</span>
-          </div>
-        </div>
       </div>
 
       <!-- Progress Bar -->
@@ -215,7 +197,6 @@ const examTitle = ref('Đề thi')
 const questions = ref<any[]>([])
 const currentIndex = ref(0)
 const answers = ref<Record<string, any>>({})
-const timeLeft = ref(1800) // 30 minutes in seconds
 const attemptId = ref('')
 
 // Fill answers
@@ -230,40 +211,22 @@ const progress = computed(() => {
   return totalQuestions.value > 0 ? (answered / totalQuestions.value) * 100 : 0
 })
 
-const timeDisplay = computed(() => {
-  const minutes = Math.floor(timeLeft.value / 60)
-  const seconds = timeLeft.value % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-})
-
-let timerInterval: any = null
-
 const loadExam = async () => {
   try {
     const attempt = await examService.startAttempt(examId.value)
     attemptId.value = attempt.id
     examTitle.value = `Đề luyện tập #${examId.value}`
     questions.value = attempt.questions
-
-    // Calculate time left
-    const deadline = new Date(attempt.deadlineAt).getTime()
-    const now = Date.now()
-    timeLeft.value = Math.max(0, Math.floor((deadline - now) / 1000))
-
-    // Initialize answers
     answers.value = attempt.answers || {}
-
-    // Start timer
-    timerInterval = setInterval(() => {
-      if (timeLeft.value > 0) {
-        timeLeft.value--
-      } else {
-        submitExam()
-      }
-    }, 1000)
+    loadQuestionData()
   } catch (error) {
-    console.error('Failed to load exam:', error)
-    alert('Không thể tải đề thi')
+    console.error('Failed to load exam, fallback to mock:', error)
+    const mock = buildMockAttempt()
+    attemptId.value = mock.id
+    examTitle.value = mock.title
+    questions.value = mock.questions
+    answers.value = {}
+    loadQuestionData()
   }
 }
 
@@ -365,11 +328,12 @@ const goToQuestion = (idx: number) => {
 const loadQuestionData = () => {
   const q = currentQuestion.value
   if (q.type === 'fill') {
-    fillAnswers.value = answers.value[q.id] || Array(q.blanks).fill('')
+    fillAnswers.value = answers.value[q.id] || Array(q.blanks || 0).fill('')
   } else if (q.type === 'match') {
-    matchAnswers.value = answers.value[q.id] || Array(q.pairs.length).fill('')
+    const len = q.pairs?.length || 0
+    matchAnswers.value = answers.value[q.id] || Array(len).fill('')
   } else if (q.type === 'order') {
-    orderItems.value = answers.value[q.id] || q.items.slice()
+    orderItems.value = answers.value[q.id] || (q.items ? q.items.slice() : [])
   }
 }
 
@@ -377,7 +341,6 @@ const submitExam = async () => {
   if (!confirm('Bạn có chắc muốn nộp bài?')) return
 
   try {
-    clearInterval(timerInterval)
     const result = await examService.submit(examId.value, attemptId.value, answers.value)
 
     alert(
@@ -395,11 +358,61 @@ onMounted(() => {
   loadExam()
 })
 
-onUnmounted(() => {
-  if (timerInterval) {
-    clearInterval(timerInterval)
+function buildMockAttempt() {
+  const baseChoices = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `c${i + 1}`, text: `Phương án ${i + 1}` }))
+  const qs = [
+    {
+      id: 'm1',
+      type: 'boolean',
+      text: 'Trái đất quay quanh Mặt trời?',
+      score: 1,
+    },
+    {
+      id: 'm2',
+      type: 'single',
+      text: 'Chọn đáp án đúng',
+      score: 1,
+      choices: baseChoices(4),
+    },
+    {
+      id: 'm3',
+      type: 'multi',
+      text: 'Chọn tất cả đáp án đúng',
+      score: 2,
+      choices: baseChoices(5),
+    },
+    {
+      id: 'm4',
+      type: 'fill',
+      text: 'Điền hai từ còn thiếu',
+      score: 2,
+      blanks: 2,
+    },
+    {
+      id: 'm5',
+      type: 'match',
+      text: 'Ghép cặp quốc gia - thủ đô',
+      score: 2,
+      pairs: [
+        { left: 'Việt Nam', right: 'Hà Nội' },
+        { left: 'Nhật Bản', right: 'Tokyo' },
+      ],
+    },
+    {
+      id: 'm6',
+      type: 'order',
+      text: 'Sắp xếp các bước',
+      score: 2,
+      items: ['Bước 1', 'Bước 2', 'Bước 3', 'Bước 4'],
+    },
+  ]
+  return {
+    id: 'mock_' + Math.random().toString(36).slice(2, 7),
+    title: 'Đề luyện tập (mock)',
+    questions: qs,
   }
-})
+}
 </script>
 
 <style scoped>
@@ -440,46 +453,6 @@ onUnmounted(() => {
   font-size: 0.875rem;
   color: #6b7280;
   margin: 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-.timer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  background: #f0fdf4;
-  border: 2px solid #10b981;
-  border-radius: 0.5rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #10b981;
-}
-
-.timer svg {
-  width: 24px;
-  height: 24px;
-}
-
-.timer.warning {
-  background: #fef2f2;
-  border-color: #ef4444;
-  color: #ef4444;
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
 }
 
 /* Progress Bar */

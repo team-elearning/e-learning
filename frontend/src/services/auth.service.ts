@@ -139,10 +139,39 @@ export const authService = {
     return { user }
   },
 
+  async getProfile(): Promise<AuthUser> {
+    const { data } = await http.get('/account/profile/')
+    const returnedUser = data.user ?? data
+    return {
+      id: Number(returnedUser.id ?? 0),
+      name: returnedUser.username ?? returnedUser.name ?? 'User',
+      email: returnedUser.email ?? '',
+      role: (returnedUser.role as Role) || 'student',
+      phone: returnedUser.phone,
+      title: returnedUser.title,
+      bio: returnedUser.bio,
+      avatar: returnedUser.avatar,
+    }
+  },
+
   async changePassword(oldPassword: string, newPassword: string): Promise<{ ok: boolean }> {
     if (!oldPassword || !newPassword) throw new Error('Thiếu mật khẩu')
-    await http.post('/account/change-password/', {
+    await http.post('/account/password/change/', {
       old_password: oldPassword,
+      new_password: newPassword,
+    })
+    return { ok: true }
+  },
+
+  async forgotPassword(email: string): Promise<{ ok: boolean }> {
+    if (!email) throw new Error('Thiếu email')
+    await http.post('/account/password/reset/', { email })
+    return { ok: true }
+  },
+
+  async resetPassword(uid: string, token: string, newPassword: string): Promise<{ ok: boolean }> {
+    if (!uid || !token || !newPassword) throw new Error('Thiếu thông tin đặt lại mật khẩu')
+    await http.post(`/account/password/reset/confirm/${uid}/${token}/`, {
       new_password: newPassword,
     })
     return { ok: true }

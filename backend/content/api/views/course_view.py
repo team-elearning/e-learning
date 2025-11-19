@@ -12,7 +12,7 @@ from django.http import Http404
 from content.serializers import CourseCreateSerializer, CoursePatchInputSerializer
 from content.services import course_service     
 from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput
-from core.exceptions import DomainError
+from core.exceptions import DomainError, CourseNotFoundError
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
 
@@ -113,9 +113,17 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
         except DomainError as e: # Lỗi "Not Found"
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
+        except CourseNotFoundError as e:
+            # Trường hợp chưa ghi danh hoặc không có quyền truy cập khóa học
+            return Response(
+                {"detail": "Bạn chưa ghi danh vào khóa học này."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         except Exception as e:
             logger.error(f"Lỗi trong PublicCourseDetailView (GET): {e}", exc_info=True)
-            return Response({"detail": "Lỗi máy chủ."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"Lỗi máy chủ: {e}"},
+                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 class CourseEnrollView(APIView):

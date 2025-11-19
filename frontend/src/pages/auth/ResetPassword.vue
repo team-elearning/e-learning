@@ -156,14 +156,16 @@ const touchedConfirm = ref(false)
 const loading = ref(false)
 const status = ref<'idle' | 'success' | 'error'>('idle')
 const errMessage = ref('')
+const uid = ref('')
 const token = ref('')
 
 const validPassword = computed(() => password.value.length >= 6)
 const validConfirm = computed(() => confirm.value === password.value && confirm.value.length >= 6)
 
 onMounted(() => {
-  token.value = route.query.token as string
-  if (!token.value) {
+  uid.value = (route.query.uid as string) || (route.params.uid as string) || ''
+  token.value = (route.query.token as string) || (route.params.token as string) || ''
+  if (!uid.value || !token.value) {
     errMessage.value = 'Link không hợp lệ hoặc đã hết hạn.'
     status.value = 'error'
   }
@@ -181,7 +183,7 @@ async function submit() {
   errMessage.value = ''
 
   try {
-    await auth.resetPassword(token.value, password.value)
+    await auth.resetPassword(uid.value, token.value, password.value)
     alert('Đặt lại mật khẩu thành công!')
     router.push('/auth/login')
   } catch (e: any) {
