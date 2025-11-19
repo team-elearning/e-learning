@@ -7,8 +7,8 @@ from rest_framework.response import Response
 from content.services import subject_service 
 from content.serializers import SubjectSerializer 
 from content.api.dtos.subject_dto import SubjectInput, UpdateSubjectInput, SubjectAdminOutput, SubjectPublicOutput
-from content.api.mixins import RoleBasedOutputMixin 
-from content.services.exceptions import DomainError      
+from core.api.mixins import RoleBasedOutputMixin 
+from core.exceptions import DomainError      
 
 
 

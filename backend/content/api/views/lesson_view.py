@@ -9,13 +9,13 @@ from rest_framework.exceptions import ValidationError
 
 from content.models import Lesson, Module
 from content.services import lesson_service 
-from content.services import exceptions as lesson_exceptions 
-from content.api.permissions import IsInstructor
+from core import exceptions 
+from core.api.permissions import IsInstructor
 from content.api.dtos.lesson_dto import LessonInput, LessonUpdateInput, LessonReorderInput, LessonPublicOutput, LessonAdminOutput
 from content.serializers import LessonSerializer
 from content.domains.lesson_domain import LessonDomain
-from content.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, LessonPermissionMixin
-from content.services.exceptions import DomainError
+from core.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, LessonPermissionMixin
+from core.exceptions import DomainError
 
 
 
@@ -52,7 +52,7 @@ class PublicLessonListView(RoleBasedOutputMixin, APIView):
             )
             return Response({"instance": lesson_domains}, status=status.HTTP_200_OK)
         
-        except lesson_exceptions.ModuleNotFoundError:
+        except exceptions.ModuleNotFoundError:
             return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error listing lessons: {e}", exc_info=True)
@@ -127,7 +127,7 @@ class InstructorLessonListView(RoleBasedOutputMixin, ModulePermissionMixin, APIV
             )
             return Response({"instance": lesson_domains}, status=status.HTTP_200_OK)
         
-        except lesson_exceptions.ModuleNotFoundError:
+        except exceptions.ModuleNotFoundError:
             return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error listing lessons for instructor: {e}", exc_info=True)
@@ -172,7 +172,7 @@ class InstructorLessonListView(RoleBasedOutputMixin, ModulePermissionMixin, APIV
                 status=status.HTTP_201_CREATED
             )
         
-        except lesson_exceptions.ModuleNotFoundError:
+        except exceptions.ModuleNotFoundError:
             return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -300,7 +300,7 @@ class InstructorLessonReorderView(ModulePermissionMixin, APIView):
                 lesson_ids=reorder_dto.lesson_ids
             )
             return Response({"detail": "Lessons reordered successfully."}, status=status.HTTP_200_OK)
-        except lesson_exceptions.ModuleNotFoundError:
+        except exceptions.ModuleNotFoundError:
             return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -387,7 +387,7 @@ class AdminModuleLessonView(RoleBasedOutputMixin, APIView):
                 status=status.HTTP_201_CREATED
             )
         
-        except lesson_exceptions.ModuleNotFoundError: # Mặc dù đã check, service có thể check lại
+        except exceptions.ModuleNotFoundError: # Mặc dù đã check, service có thể check lại
             return Response({"detail": "Module not found."}, status=status.HTTP_404_NOT_FOUND)
         except DomainError as e: 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -555,19 +555,19 @@ class LessonContentView(RoleBasedOutputMixin, APIView):
             # 2. Trả về domain object, RoleBasedOutputMixin sẽ lo phần serialization
             return Response({"instance": published_version_domain}, status=status.HTTP_200_OK)
 
-        except lesson_exceptions.LessonNotFoundError:
+        except exceptions.LessonNotFoundError:
             return Response(
                 {"detail": "Không tìm thấy bài học."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
             
-        except lesson_exceptions.NotEnrolledError:
+        except exceptions.NotEnrolledError:
             return Response(
                 {"detail": "Bạn phải ghi danh vào khóa học để xem nội dung này."}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        except lesson_exceptions.NoPublishedContentError:
+        except exceptions.NoPublishedContentError:
             return Response(
                 {"detail": "Bài học này chưa có nội dung được xuất bản."}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -614,13 +614,13 @@ class AdminLessonPreviewView(RoleBasedOutputMixin, APIView):
             # 2. Trả về domain object
             return Response({"instance": latest_version_domain}, status=status.HTTP_200_OK)
 
-        except lesson_exceptions.LessonNotFoundError:
+        except exceptions.LessonNotFoundError:
             return Response(
                 {"detail": "Không tìm thấy bài học."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        except lesson_exceptions.VersionNotFoundError:
+        except exceptions.VersionNotFoundError:
             return Response(
                 {"detail": "Bài học này chưa có bất kỳ phiên bản nội dung nào."}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -675,14 +675,14 @@ class InstructorLessonPreviewView(RoleBasedOutputMixin, LessonPermissionMixin, A
             # Bắt lỗi 404, 403 từ mixin
             return Response({"detail": str(e)}, status=e.status_code)
 
-        except lesson_exceptions.LessonNotFoundError:
+        except exceptions.LessonNotFoundError:
             # Lỗi 404 từ service (dự phòng)
             return Response(
                 {"detail": "Không tìm thấy bài học."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        except lesson_exceptions.VersionNotFoundError:
+        except exceptions.VersionNotFoundError:
             return Response(
                 {"detail": "Bài học này chưa có bất kỳ phiên bản nội dung nào."}, 
                 status=status.HTTP_404_NOT_FOUND

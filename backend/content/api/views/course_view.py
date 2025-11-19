@@ -6,16 +6,15 @@ from rest_framework import status, permissions
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 from pydantic import ValidationError as PydanticValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.http import Http404
 
-from content import models
-from content.serializers import CourseSerializer, CourseCreateSerializer, CoursePatchInputSerializer
+from content.serializers import CourseCreateSerializer, CoursePatchInputSerializer
 from content.services import course_service     
 from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput
-from content.services.exceptions import DomainError, ValidationError as DRFValidationError    
-from content.api.permissions import IsInstructor
-from content.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
-from content.services.exceptions import InvalidOperation
+from core.exceptions import DomainError
+from core.api.permissions import IsInstructor
+from core.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
 
 
 

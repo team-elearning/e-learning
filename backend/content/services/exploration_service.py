@@ -3,10 +3,10 @@ from typing import Optional, Any, Dict, List
 from django.db import transaction
 
 from custom_account.models import UserModel 
-from custom_account.services.exceptions import DomainError
+from core.exceptions import DomainError
 from content.models import Exploration, ExplorationState, Category, Tag
 from content.domains.exploration_domain import ExplorationDomain 
-from content.services.exceptions import ExplorationNotFoundError
+from core.exceptions import ExplorationNotFoundError
 
 
 

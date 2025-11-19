@@ -15,7 +15,7 @@ from content.domains.course_domain import CourseDomain
 from content.domains.enrollment_domain import EnrollmentDomain
 from content.models import Course, Module, Lesson, Enrollment, Category, Tag, Subject
 from content.services import module_service
-from content.services.exceptions import DomainError, CourseNotFoundError, NotFoundError, InvalidOperation
+from core.exceptions import DomainError, CourseNotFoundError
 
 
 

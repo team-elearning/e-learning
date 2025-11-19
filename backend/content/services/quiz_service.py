@@ -18,7 +18,7 @@ UserModel = settings.AUTH_USER_MODEL
 
 from content.models import Quiz, Question
 from content.domains.quiz_domain import QuizDomain
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 from content.services import question_service
 
 

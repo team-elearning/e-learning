@@ -1,0 +1,297 @@
+import logging
+from typing import Type, Any
+from pydantic import BaseModel
+from rest_framework.exceptions import APIException
+from rest_framework.views import APIView
+from rest_framework.exceptions import AuthenticationFailed
+from django.http import Http404
+from django.core.exceptions import PermissionDenied
+from django.db.models.query import QuerySet
+
+from content.models import Module, Course, Lesson, ContentBlock, Exploration
+
+
+
+logger = logging.getLogger(__name__)
+
+class DtoMappingError(APIException):
+    status_code = 500
+    default_detail = 'DTO mapping failed.'
+    default_code = 'dto_mapping_error'
+    
+class RoleBasedOutputMixin:
+    """
+    Choose the correct *output* DTO based on the requesting user.
+
+    Expected on the view:
+        - `output_dto_public`   → DTO class for normal users
+        - `output_dto_admin`    → DTO class for staff / superuser
+        - `output_dto_self`     → (optional) DTO for the owner of the object
+    """
+
+    output_dto_public: Type[BaseModel]
+    output_dto_admin:  Type[BaseModel] | None = None
+    output_dto_self:   Type[BaseModel] | None = None
+
+    def _select_dto_class(self, instance: Any, request) -> Type[BaseModel]:
+        """Return the DTO class that should be used for the current request."""
+        user = request.user
+
+        # 1. Admin / staff → full admin DTO
+        if user.is_authenticated and user.is_staff and self.output_dto_admin:
+            return self.output_dto_admin
+
+        # 2. Owner of the object → self-DTO (if defined)
+        if (hasattr(self, "output_dto_self")
+                and self.output_dto_self
+                and getattr(instance, "id", None) == getattr(user, "id", None)):
+            return self.output_dto_self
+
+        # 3. Fallback → public DTO
+        return self.output_dto_public
+
+    def _to_dto(self, instance: Any, request) -> BaseModel:
+        """Convert a domain object → selected DTO."""
+        dto_cls = self._select_dto_class(instance, request)
+        # `from_orm` works with Django models, SQLAlchemy, etc.
+        return dto_cls.model_validate(instance) # Pydantic v2
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        """
+        DRF calls this *after* the view returns a Response.
+        We intercept and replace the payload if it contains {"instance": ...}
+        """
+        if isinstance(response.data, dict) and "instance" in response.data:
+            instance_data = response.data["instance"]
+            is_list = isinstance(instance_data, (list, QuerySet))
+
+            try:
+                if is_list:
+                    # --- XỬ LÝ LIST ---
+                    # Gọi _to_dto cho TỪNG item
+                    # (Điều này cũng sửa một bug: cho phép 
+                    #  trả về output_dto_self và output_dto_public
+                    #  trong cùng 1 list)
+                    response.data = [
+                        self._to_dto(item, request).model_dump()
+                        for item in instance_data
+                    ]
+                
+                else:
+                    # --- XỬ LÝ OBJECT ĐƠN LẺ ---
+                    # Gọi _to_dto và chuyển thành dict
+                    response.data = self._to_dto(instance_data, request).model_dump()
+            
+            except Exception as e:
+                # (Thêm exc_info=True để debug dễ hơn)
+                logger.error(f"DTO mapping/serialization failed: {e}", exc_info=True) 
+                raise DtoMappingError(f"DTO mapping/serialization failed: {e}")
+
+        # Gọi hàm finalize_response gốc của APIView
+        return APIView.finalize_response(self, request, response, *args, **kwargs)
+    
+
+class ModulePermissionMixin:
+    """
+    Mixin này cung cấp một hàm helper để kiểm tra xem
+    request.user có phải là admin hoặc owner của module
+    được chỉ định trong URL (module_id) hay không.
+    
+    Nó được thiết kế để gọi TỪ BÊN TRONG một phương thức view (như post).
+    """
+    
+    def check_module_permission(self, request, module_id):
+        """
+        Kiểm tra quyền (Admin hoặc Module Owner) bằng tay.
+        Raises Http404 nếu không tìm thấy Module.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            # Dùng select_related để tối ưu
+            module = Module.objects.select_related('course__owner').get(pk=module_id)
+        except Module.DoesNotExist:
+            raise Http404("Module không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        is_owner = (hasattr(module, 'course') and 
+                    hasattr(module.course, 'owner') and 
+                    module.course.owner == request.user)
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không phải là chủ sở hữu của module này.")
+        
+        # Trả về module để view có thể tái sử dụng
+        return module
+    
+
+class CoursePermissionMixin:
+    """
+    Mixin này kiểm tra xem user có phải là admin hoặc 
+    owner của Course được chỉ định (course_id) hay không.
+    """
+    
+    def check_course_permission(self, request, course_id):
+        """
+        Kiểm tra quyền (Admin hoặc Course Owner) bằng tay.
+        Raises Http404 nếu không tìm thấy Course.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            course = Course.objects.select_related('owner').get(pk=course_id)
+        except Course.DoesNotExist:
+            raise Http404("Course không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        is_owner = (hasattr(course, 'owner') and 
+                    course.owner == request.user)
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không phải là chủ sở hữu của khóa học này.")
+        
+        # Trả về course để view có thể tái sử dụng
+        return course
+    
+
+class LessonPermissionMixin:
+    """
+    Mixin này cung cấp hàm helper để kiểm tra xem request.user
+    có phải là Admin hoặc Owner (Instructor) của Lesson hay không.
+    
+    Quyền được xác định bằng cách kiểm tra owner của Course chứa Lesson.
+    """
+    
+    def check_lesson_permission(self, request, lesson_id):
+        """
+        Kiểm tra quyền (Admin hoặc Course Owner) cho một Lesson.
+        Raises Http404 nếu không tìm thấy Lesson.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        try:
+            # Tối ưu query bằng cách join thẳng đến course owner
+            lesson = Lesson.objects.select_related(
+                'module__course__owner'
+            ).get(pk=lesson_id)
+            
+        except Lesson.DoesNotExist:
+            raise Http404("Bài học không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        
+        # Kiểm tra chain: lesson -> module -> course -> owner
+        is_owner = (
+            hasattr(lesson, 'module') and
+            hasattr(lesson.module, 'course') and
+            hasattr(lesson.module.course, 'owner') and
+            lesson.module.course.owner == request.user
+        )
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không có quyền truy cập tài nguyên bài học này.")
+            
+        # Trả về lesson để view có thể tái sử dụng nếu cần
+        return lesson
+    
+
+# class LessonVersionPermissionMixin:
+#     """
+#     Kiểm tra quyền (Admin hoặc Owner) cho một LessonVersion.
+#     Quyền được suy ra từ Lesson -> Module -> Course -> Owner.
+#     """
+#     def check_lesson_version_permission(self, request, lesson_version_id):
+#         if not request.user.is_authenticated:
+#             raise AuthenticationFailed()
+            
+#         try:
+#             # Join sâu để lấy owner chỉ bằng 1 query
+#             version = LessonVersion.objects.select_related(
+#                 'lesson__module__course__owner'
+#             ).get(pk=lesson_version_id)
+#         except LessonVersion.DoesNotExist:
+#             raise Http404("Lesson Version không tìm thấy.")
+
+#         is_admin = request.user.is_staff
+        
+#         # Chain: version -> lesson -> module -> course -> owner
+#         try:
+#             # Dùng .id để tránh lỗi so sánh object (nếu request.user là SimpleLazyObject)
+#             is_owner = (
+#                 version.lesson.module.course.owner.id == request.user.id
+#             )
+#         except AttributeError:
+#             # Handle chain breaks (e.g., lesson.module is None)
+#             is_owner = False
+
+#         if not (is_admin or is_owner):
+#             raise PermissionDenied("Bạn không có quyền truy cập lesson version này.")
+        
+#         return version # Trả về để tái sử dụng
+
+class ContentBlockPermissionMixin:
+    """
+    Kiểm tra quyền (Admin hoặc Owner) cho một ContentBlock.
+    Quyền được suy ra từ Block -> Version -> Lesson -> ...
+    """
+    def check_content_block_permission(self, request, pk):
+        if not request.user.is_authenticated:
+            raise AuthenticationFailed()
+            
+        try:
+            block = ContentBlock.objects.select_related(
+                'lesson_version__lesson__module__course__owner'
+            ).get(pk=pk)
+        except ContentBlock.DoesNotExist:
+            raise Http404("Content Block không tìm thấy.")
+
+        is_admin = request.user.is_staff
+        
+        # Chain: block -> version -> lesson -> module -> course -> owner
+        try:
+            is_owner = (
+                block.lesson_version.lesson.module.course.owner.id == request.user.id
+            )
+        except AttributeError:
+            is_owner = False
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không có quyền truy cập content block này.")
+        
+        return block # Trả về để tái sử dụng
+    
+
+class ExplorationPermissionMixin:
+    """
+    Mixin này cung cấp hàm helper để kiểm tra xem request.user
+    có phải là Admin hoặc Owner (Instructor) của Exploration hay không.
+    
+    Quyền được xác định bằng cách kiểm tra 'owner' của Exploration.
+    """
+    
+    def check_exploration_permission(self, request, pk):
+        """
+        Kiểm tra quyền (Admin hoặc Exploration Owner) cho một Exploration.
+        Raises Http404 nếu không tìm thấy.
+        Raises PermissionDenied nếu không có quyền.
+        """
+        if not request.user.is_authenticated:
+            raise AuthenticationFailed("Yêu cầu xác thực.")
+            
+        try:
+            # Tối ưu query bằng cách join thẳng đến owner
+            exploration = Exploration.objects.select_related('owner').get(pk=pk)
+            
+        except Exploration.DoesNotExist:
+            raise Http404("Exploration không tìm thấy.")
+            
+        is_admin = request.user.is_staff
+        
+        # Kiểm tra owner
+        is_owner = (
+            hasattr(exploration, 'owner') and
+            exploration.owner == request.user
+        )
+
+        if not (is_admin or is_owner):
+            raise PermissionDenied("Bạn không có quyền chỉnh sửa exploration này.")
+            
+        # Trả về exploration để view có thể tái sử dụng
+        return exploration

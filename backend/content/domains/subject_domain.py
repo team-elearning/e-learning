@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, TypedDict, Union
 
-from content.services.exceptions import DomainValidationError
+from core.exceptions import DomainValidationError
 
 
 class SubjectDict(TypedDict):

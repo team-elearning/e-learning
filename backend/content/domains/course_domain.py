@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
 from custom_account.domains.user_domain import UserDomain
-from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
+from core.exceptions import DomainValidationError, InvalidOperation, ModuleNotFoundError
 from content.domains.module_domain import ModuleDomain
 from content.domains.subject_domain import SubjectDomain
 from content.domains.category_domain import CategoryDomain
@@ -94,7 +94,7 @@ class CourseDomain:
                 found = m
                 break
         if not found:
-            raise NotFoundError("Module not found in course.")
+            raise ModuleNotFoundError("Module not found in course.")
         self.modules.remove(found)
         self._normalize_modules_positions()
 
@@ -103,7 +103,7 @@ class CourseDomain:
             raise DomainValidationError("new_position out of range.")
         module = next((m for m in self.modules if m.id == module_id), None)
         if not module:
-            raise NotFoundError("Module not found.")
+            raise ModuleNotFoundError("Module not found.")
         self.modules.remove(module)
         self.modules.insert(new_position, module)
         self._normalize_modules_positions()
@@ -117,7 +117,7 @@ class CourseDomain:
     def get_module(self, module_id: str) -> "ModuleDomain":
         m = next((m for m in self.modules if m.id == module_id), None)
         if not m:
-            raise NotFoundError("Module not found.")
+            raise ModuleNotFoundError("Module not found.")
         return m
 
     def list_module_summaries(self) -> List[Dict[str, Any]]:

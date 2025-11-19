@@ -17,8 +17,8 @@ from django.http import HttpResponseForbidden, FileResponse, Http404
 from content.models import Course
 from media.models import UploadedFile, FileStatus
 from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
-from custom_account.api.mixins import RoleBasedOutputMixin
-from custom_account.services.exceptions import DomainError, UserNotFoundError
+from core.api.mixins import RoleBasedOutputMixin
+from core.exceptions import DomainError, UserNotFoundError
 from media.api.dtos.file_dto import FileInputDTO, FileOutputDTO, FileUpdateInputDTO
 from media.services import file_service
 

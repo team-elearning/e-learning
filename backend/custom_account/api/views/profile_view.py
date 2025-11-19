@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from custom_account.models import UserModel, Profile
 from custom_account.domains.profile_domain import ProfileDomain
-from custom_account.api.mixins import RoleBasedOutputMixin
+from core.api.mixins import RoleBasedOutputMixin
 from custom_account.api.dtos.profile_dto import ProfilePublicOutput, ProfileAdminOutput, ProfileUpdateInput
 from custom_account.serializers import ProfileSerializer
 from custom_account.services import profile_service

@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.core.files.storage import default_storage
 
-from custom_account.services.exceptions import DomainError, UserNotFoundError
+from core.exceptions import DomainError, UserNotFoundError
 from custom_account.models import UserModel
 from content.models import Course, Lesson, Enrollment
 from media.models import UploadedFile, FileStatus

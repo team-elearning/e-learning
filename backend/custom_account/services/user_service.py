@@ -6,7 +6,7 @@ from custom_account.domains.user_domain import UserDomain
 from custom_account.domains.reset_password_domain import ResetPasswordDomain
 from custom_account.models import UserModel
 from custom_account.models import Profile
-from custom_account.services.exceptions import DomainError, UserNotFoundError, IncorrectPasswordError
+from core.exceptions import DomainError, UserNotFoundError, IncorrectPasswordError
 
 
 

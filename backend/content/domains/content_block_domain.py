@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional, List, Dict, Any
 
-from content.services.exceptions import DomainValidationError
+from core.exceptions import DomainValidationError
 from content.domains.commands import AddContentBlockCommand
 from content.models import ContentBlock
 

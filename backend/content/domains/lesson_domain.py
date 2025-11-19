@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from content.domains.content_block_domain import ContentBlockDomain
-from content.services.exceptions import DomainValidationError, InvalidOperation
+from core.exceptions import DomainValidationError, InvalidOperation
 
 
 

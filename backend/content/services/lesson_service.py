@@ -6,7 +6,7 @@ from django.db.models import Max, F, Case, When, Value, Prefetch
 
 from content.models import Lesson, Module, Enrollment, ContentBlock
 from content.domains.lesson_domain import LessonDomain
-from content.services.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
+from core.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
 from content.services import content_block_service
 
 
