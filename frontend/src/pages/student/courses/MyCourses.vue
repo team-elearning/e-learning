@@ -190,8 +190,12 @@
                     <span class="state ok"
                       ><span class="dot"></span> Phù hợp {{ toLevelLabel(s.grade) }}</span
                     >
-                    <button class="join-btn" @click.stop="enroll(s.id)">
-                      <span>Đăng ký</span>
+                    <button
+                      class="join-btn"
+                      :disabled="enrollingId === s.id"
+                      @click.stop="enroll(s.id)"
+                    >
+                      <span>{{ enrollingId === s.id ? 'Đang đăng ký…' : 'Đăng ký' }}</span>
                     </button>
                   </div>
                 </div>
@@ -358,6 +362,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   courseService,
   type CourseSummary,
@@ -382,6 +387,7 @@ function setLevel(v: '' | 'Khối 1–2' | 'Khối 3–5') {
 const err = ref('')
 const loading = ref(false)
 const loadingAll = ref(false)
+const enrollingId = ref<string | number | null>(null)
 const PREFETCH_DETAIL_LIMIT = 80
 
 /* ====== LOAD COURSES FROM SERVICE ====== */
@@ -699,10 +705,21 @@ async function playFirst(id: number | string) {
   else router.push(`/student/courses/${id}/player/${first}`)
 }
 
-function enroll(id: number | string) {
-  if (router.hasRoute('student-course-detail'))
-    router.push({ name: 'student-course-detail', params: { id } })
-  else router.push(`/student/courses/${id}`)
+async function enroll(id: number | string) {
+  if (enrollingId.value === id) return
+  enrollingId.value = id
+  try {
+    await courseService.enroll(id)
+    ElMessage.success('Đăng ký khoá học thành công')
+    activeTab.value = 'main'
+    await load()
+  } catch (e: any) {
+    const message =
+      e?.response?.data?.detail || e?.message || 'Không thể đăng ký khoá học, vui lòng thử lại.'
+    ElMessage.error(message)
+  } finally {
+    enrollingId.value = null
+  }
 }
 
 onMounted(load)
@@ -1039,6 +1056,12 @@ h1 {
 .join-btn:focus-visible {
   outline: 3px solid #bbf7d0;
   outline-offset: 2px;
+}
+.join-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.1);
+  box-shadow: none;
 }
 
 .stats-bottom {
