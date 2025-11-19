@@ -20,7 +20,7 @@
           <div class="mt-4">
             <router-link
               class="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800"
-              :to="{ name:'student-catalog', query:{ grade: 1 } }"
+              :to="{ name:'student-learning-path-courses', params:{ grade: 1 } }"
             >Bắt đầu ngay</router-link>
           </div>
         </section>
@@ -40,7 +40,7 @@
           <div class="mt-4">
             <router-link
               class="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800"
-              :to="{ name:'student-catalog', query:{ grade: 3 } }"
+              :to="{ name:'student-learning-path-courses', params:{ grade: 3 } }"
             >Chọn khóa</router-link>
           </div>
         </section>

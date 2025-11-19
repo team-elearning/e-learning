@@ -204,10 +204,12 @@
 <script setup lang="ts">
 import { reactive, ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/store/auth.store'
 
 const router = useRouter()
 const goProfile = () => router.push({ name: 'student-profile' })
 const goParent = () => router.push({ name: 'student-parent' })
+const auth = useAuthStore()
 
 type Pwd = { current: string; new1: string; new2: string }
 const pwd = reactive<Pwd>({ current: '', new1: '', new2: '' })
@@ -240,8 +242,7 @@ async function changePassword() {
   if (!isValid.value) return
   saving.value = true
   try {
-    // TODO: gọi API đổi mật khẩu thật sự
-    await new Promise((r) => setTimeout(r, 800))
+    await auth.changePassword(pwd.current, pwd.new1)
     showToast('Đổi mật khẩu thành công!', 'success')
     pwd.current = pwd.new1 = pwd.new2 = ''
   } catch (e) {

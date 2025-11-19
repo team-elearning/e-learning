@@ -152,26 +152,32 @@ onMounted(() => {
 <style scoped>
 .exams-page-ui {
   min-height: 100vh;
-  background: #ffffff;
-  padding: 2rem 0;
+  background: #f8fafc;
+  padding: 32px 0 40px;
+  --accent: #16a34a;
+  --accent-dark: #15803d;
+  --accent-soft: #dcfce7;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --text: #0f172a;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 18px;
 }
 
 /* Header */
 .header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 30px;
 }
 
 .title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1a1a1a;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text);
   margin: 0;
 }
 
@@ -185,7 +191,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border: 4px solid #e5e7eb;
-  border-top-color: #10b981;
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
@@ -198,7 +204,7 @@ onMounted(() => {
 }
 
 .loading p {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 1rem;
 }
 
@@ -220,9 +226,9 @@ onMounted(() => {
 }
 
 .exam-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   overflow: hidden;
   transition: all 0.2s;
   cursor: pointer;
@@ -231,13 +237,13 @@ onMounted(() => {
 }
 
 .exam-card:hover {
-  border-color: #10b981;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(22, 163, 74, 0.12);
   transform: translateY(-2px);
 }
 
 .card-header {
-  padding: 1.25rem;
+  padding: 18px 20px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -248,11 +254,11 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   background: #f0fdf4;
-  border-radius: 0.5rem;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #10b981;
+  color: var(--accent);
 }
 
 .exam-icon svg {
@@ -261,10 +267,10 @@ onMounted(() => {
 }
 
 .level-badge {
-  padding: 0.25rem 0.75rem;
+  padding: 6px 12px;
   border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -284,15 +290,15 @@ onMounted(() => {
 }
 
 .card-body {
-  padding: 1.25rem;
+  padding: 18px 20px 12px;
   flex: 1;
 }
 
 .exam-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 0.5rem 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px 0;
 }
 
 .exam-description {
@@ -322,25 +328,27 @@ onMounted(() => {
 }
 
 .card-footer {
-  padding: 1.25rem;
+  padding: 16px 20px 20px;
   border-top: 1px solid #f3f4f6;
 }
 
 .start-btn {
   width: 100%;
-  padding: 0.625rem 1rem;
-  background: #10b981;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  padding: 12px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent-dark);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.16s ease;
+  box-shadow: 0 3px 0 var(--accent-dark);
 }
 
 .start-btn:hover {
-  background: #059669;
+  background: var(--accent-dark);
+  box-shadow: 0 2px 0 #166534;
 }
 
 /* Empty State */
