@@ -200,6 +200,7 @@ export const courseService = {
     if (COURSE_USE_MOCK) return buildMockList(params)
     try {
       const endpoint = useAdminEndpoint ? '/admin/courses/' : '/content/courses/'
+      console.log('[courseService.list]', endpoint)
       const { data } = await api.get(endpoint, { params })
       if (Array.isArray(data)) {
         return { items: data, total: data.length }
@@ -212,13 +213,15 @@ export const courseService = {
       console.error('courseService.list fallback to mock data:', error)
       return buildMockList(params)
     }
+    
   },
 
   // DETAIL - Support both admin and student endpoints
   async detail(id: ID, useAdminEndpoint = false): Promise<CourseDetail> {
     if (COURSE_USE_MOCK) return buildMockDetail(id)
     try {
-      const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}/`
+      const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
+      console.log('[courseService.detail]', endpoint)
       const { data } = await api.get(endpoint)
       return data
     } catch (error) {
@@ -248,14 +251,14 @@ export const courseService = {
   },
   update(id: ID, payload: Partial<CourseDetail> | FormData, useAdminEndpoint = false) {
     if (COURSE_USE_MOCK) return Promise.resolve({ ok: true })
-    const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}/`
+    const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
     return api.patch(endpoint, payload)
   },
   
   // DELETE
   async delete(id: ID, useAdminEndpoint = false): Promise<void> {
     if (COURSE_USE_MOCK) return
-    const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}/`
+    const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
     await api.delete(endpoint)
   },
   

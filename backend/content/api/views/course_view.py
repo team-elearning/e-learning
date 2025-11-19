@@ -107,7 +107,10 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
         Xử lý GET request để lấy chi tiết một course.
         """
         try:
-            course = self.course_service.get_enrolled_course_detail_for_user(course_id=pk)
+            course = self.course_service.get_enrolled_course_detail_for_user(
+                course_id=pk,
+                user=request.user,
+            )
             return Response({"instance": course}, status=status.HTTP_200_OK)
         
         except DomainError as e: # Lỗi "Not Found"

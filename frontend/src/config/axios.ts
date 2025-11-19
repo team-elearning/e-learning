@@ -6,7 +6,7 @@ import { ElMessage } from "element-plus";
 
 const baseURL =
   import.meta.env.MODE === "development"
-    ? "/api" // 🔹 Local dev → dùng proxy
+    ? "/api"
     : import.meta.env.VITE_API_BASE + (import.meta.env.VITE_API_PREFIX || "");
 
 const http = axios.create({
@@ -42,10 +42,22 @@ http.interceptors.request.use(
     if (token && config.headers && !config.url?.includes("/login")) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "";
+    const configuredBase = config.baseURL ?? http.defaults.baseURL ?? "";
+    const base = configuredBase.startsWith("http")
+      ? configuredBase
+      : `${origin}${configuredBase}`;
+    console.log(`[HTTP] ${config.method?.toUpperCase()} ${base}${config.url}`);
+
     return config;
   },
   (error) => Promise.reject(error)
 );
+
 
 /*=========================================
  ✅ Response Interceptor DUY NHẤT
