@@ -518,7 +518,6 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             return Response({"detail": f"Lỗi không xác định: {str(e)}"},
                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
     def patch(self, request, pk: uuid.UUID, *args, **kwargs):
         """
         Cập nhật (PATCH) một course theo logic Moodle (granular).
@@ -587,7 +586,6 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseDetailView (PATCH): {e}", exc_info=True)
             return Response({"detail": "Lỗi máy chủ khi cập nhật course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
     def delete(self, request, pk: uuid.UUID, *args, **kwargs):
         """ Xóa """

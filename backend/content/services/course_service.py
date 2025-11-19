@@ -318,8 +318,8 @@ def patch_course_instructor(course_id: uuid.UUID, data: dict, owner) -> CourseDo
 
     # 4. Xử lý Foreign Keys (ví dụ: Subject)
     # (Logic này giống hệt phiên bản trước)
-    if 'subject' in data:
-        subject_id = data.get('subject') # Dùng get() để cho phép gán None
+    if 'subject_id' in data:
+        subject_id = data.get('subject_id') # Dùng get() để cho phép gán None
         if subject_id is None:
             course.subject = None
         else:
