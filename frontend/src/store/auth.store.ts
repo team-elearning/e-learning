@@ -115,23 +115,11 @@ export const useAuthStore = defineStore('auth', {
 
     // trang quên đổi mật khẩu
     async forgotPassword(email: string) {
-      const service = authService as any
-      if (service['forgotPassword']) {
-        await service['forgotPassword'](email)
-      } else {
-        await new Promise((r) => setTimeout(r, 800))
-        console.log(`[Store Mock] Sent reset email to: ${email}`)
-      }
+      await authService.forgotPassword(email)
     },
     // trang reset mật khẩu
-    async resetPassword(token: string, newPassword: string) {
-      const service = authService as any
-      if (service['resetPassword']) {
-        await service['resetPassword'](token, newPassword)
-      } else {
-        await new Promise((r) => setTimeout(r, 800))
-        console.log(`[Store Mock] Reset password`)
-      }
+    async resetPassword(uid: string, token: string, newPassword: string) {
+      await authService.resetPassword(uid, token, newPassword)
     },
 
     // [ADD] Dùng cho trang Đổi mật khẩu
@@ -144,11 +132,27 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // Khởi tạo nhanh khi app load
-    init() {
+    async init() {
       this.hydrateFromStorage()
 
       if (!this.token) {
         router.push('/login')
+        return
+      }
+
+      // đồng bộ hồ sơ mới nhất
+      try {
+        const profile = await authService.getProfile()
+        this.user = {
+          ...(this.user as AuthUser),
+          ...profile,
+          id: this.user?.id ?? profile.id,
+          role: this.user?.role ?? profile.role,
+        }
+        this.persist()
+      } catch (error) {
+        // nếu token hết hạn, logout sẽ được interceptor xử lý
+        console.error('Failed to fetch profile', error)
       }
     },
 
