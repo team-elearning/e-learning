@@ -888,7 +888,7 @@ class ContentBlockInputSerializer(serializers.Serializer):
         return attrs
 
 class LessonCreateSerializer(serializers.Serializer):
-    title = serializers.CharField(max_length=255)
+    title = serializers.CharField(max_length=255, required=False)
     position = serializers.IntegerField(default=0)
     content_type = serializers.CharField(max_length=32) 
     published = serializers.BooleanField(default=False)
@@ -898,7 +898,7 @@ class LessonCreateSerializer(serializers.Serializer):
 
 
 class ModuleCreateSerializer(serializers.Serializer):
-    title = serializers.CharField(max_length=255)
+    title = serializers.CharField(max_length=255, required=False)
     position = serializers.IntegerField(default=0)
     
     # Sử dụng Serializer lồng nhau

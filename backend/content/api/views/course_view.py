@@ -250,7 +250,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
 
         try:
             # Gọi hàm create_course chung, vì owner đã được truyền vào
-            new_course = self.course_service.create_course(
+            new_course = self.course_service.create_course_admin(
                 data=course_create_dto.model_dump(),
                 owner=request.user
             )
@@ -468,7 +468,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
 
         try:
             # Gọi hàm create_course chung, vì owner đã được truyền vào
-            new_course = self.course_service.create_course(
+            new_course = self.course_service.create_course_instructor(
                 data=course_create_dto.model_dump(),
                 owner=request.user
             )

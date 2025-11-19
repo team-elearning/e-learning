@@ -123,48 +123,52 @@ def commit_files_for_object(file_paths: list[str], related_object) -> int:
 
 @transaction.atomic
 def commit_files_by_ids_for_object(file_ids: list[str], related_object) -> int:
-    """
-    Tìm các file 'staging' bằng ID (UUID) và "commit" chúng,
-    gán chúng vào một đối tượng (Course, Lesson, v.v.).
-    """
     logger.info(f"Bắt đầu commit file (bằng ID) cho đối tượng {related_object}...")
-    
+
     if not file_ids:
         logger.warning("Không có ID file nào được cung cấp để commit.")
         return 0
 
-    # 1. Tìm ContentType (Giữ nguyên)
+    # 1. Chuẩn hóa danh sách ID đầu vào thành Set (để loại trùng và so sánh)
+    # Chuyển tất cả về string để đảm bảo so sánh đúng với UUID từ DB
+    target_ids = set(str(fid) for fid in file_ids)
+
+    # 2. Lấy ContentType (Giữ nguyên)
     try:
         content_type = ContentType.objects.get_for_model(related_object)
         object_id = str(related_object.pk)
     except Exception as e:
-        logger.error(f"Lỗi khi lấy ContentType cho {related_object}: {e}", exc_info=True)
+        logger.error(f"Lỗi khi lấy ContentType: {e}", exc_info=True)
         raise DomainError(f"Không thể lấy ContentType cho {related_object}")
 
-    # 2. Tìm các bản ghi UploadedFile bằng ID (UUID)
-    # --- THAY ĐỔI CHÍNH ---
-    files_to_commit = UploadedFile.objects.filter(
-        id__in=file_ids,  
-    )
-    # --- KẾT THÚC THAY ĐỔI ---
+    # 3. Truy vấn DB
+    # Lưu ý: Chưa update ngay, mà lấy danh sách ID tồn tại trước
+    files_qs = UploadedFile.objects.filter(id__in=target_ids)
     
-    count = files_to_commit.count()
-    if count == 0:
-        # --- THAY ĐỔI LOG ---
-        logger.warning(f"Không tìm thấy file STAGING nào (bằng ID) khớp với: {file_ids}")
-        # --- KẾT THÚC THAY ĐỔI ---
-        return 0
+    # Lấy ra danh sách các ID thực sự tìm thấy trong DB
+    # values_list trả về UUID object, nên cần ép kiểu str để so sánh với target_ids
+    found_ids = set(str(uid) for uid in files_qs.values_list('id', flat=True))
 
-    # 3. Cập nhật (commit) tất cả các file tìm thấy (Giữ nguyên)
-    files_to_commit.update(
+    # 4. --- TÌM RA ID BỊ THIẾU ---
+    # Phép trừ tập hợp: Có trong target_ids nhưng không có trong found_ids
+    missing_ids = target_ids - found_ids
+
+    if missing_ids:
+        error_msg = f"Không tìm thấy file với các ID sau: {missing_ids}"
+        logger.error(error_msg)
+        # Bắn lỗi ngay lập tức, transaction sẽ rollback
+        raise DomainError(error_msg)
+
+    # 5. Nếu không thiếu gì, tiến hành Update
+    updated_count = files_qs.update(
         status=FileStatus.COMMITTED,
         content_type=content_type,
         object_id=object_id,
     )
+
+    logger.info(f"Đã commit thành công {updated_count} file cho {content_type}:{object_id}.")
     
-    logger.info(f"Đã commit thành công {count} file cho {content_type}:{object_id}.")
-    
-    return count
+    return updated_count
 
 
 logger = logging.getLogger(__name__)
