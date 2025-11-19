@@ -4,12 +4,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.core.exceptions import ValidationError
 
-from content.api.mixins import RoleBasedOutputMixin
+from core.api.mixins import RoleBasedOutputMixin
 from content.serializers import CategorySerializer
 from content.api.dtos.category_dto import CategoryInput, UpdateCategoryInput, CategoryOutput
 from content.domains.category_domain import CategoryDomain
 from content.services import category_service
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 import logging
 
 logger = logging.getLogger(__name__)

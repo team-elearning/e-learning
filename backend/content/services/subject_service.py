@@ -8,7 +8,7 @@ from django.utils.text import slugify
 
 from content.models import Subject
 from content.domains.subject_domain import SubjectDomain
-from content.services.exceptions import DomainError, SubjectNotFoundError, ValidationError 
+from core.exceptions import DomainError, SubjectNotFoundError, DomainValidationError
 
 
 
@@ -129,7 +129,7 @@ def update_subject(subject_id: UUID, updates: Dict[str, Any]) -> SubjectDomain:
         
         return domain # Trả về domain đã update (giống `update_user`)
     
-    except ValidationError as e:
+    except DomainValidationError as e:
         raise DomainError(f"Dữ liệu không hợp lệ: {e}")
     except Exception as e:
         raise DomainError(f"Lỗi khi cập nhật chủ đề: {e}")

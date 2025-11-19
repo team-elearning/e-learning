@@ -6,12 +6,13 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
 from content.models import ContentBlock
-from content.services import content_block_service, exceptions 
+from content.services import content_block_service
+from core import exceptions
 from content.serializers import ContentBlockSerializer, ReorderBlocksSerializer
 from content.api.dtos.content_block_dto import ContentBlockInput, ContentBlockUpdateInput, ContentBlockAdminOutput, ContentBlockPublicOutput
-from content.services.exceptions import DomainError 
-from content.api.mixins import ContentBlockPermissionMixin, RoleBasedOutputMixin, LessonPermissionMixin
-from content.api.permissions import IsInstructor
+from core.exceptions import DomainError 
+from core.api.mixins import ContentBlockPermissionMixin, RoleBasedOutputMixin, LessonPermissionMixin
+from core.api.permissions import IsInstructor
 
 
 

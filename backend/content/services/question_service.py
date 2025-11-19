@@ -5,7 +5,7 @@ from django.conf import settings
 
 from content.models import Quiz, Question
 from content.domains.question_domain import QuestionDomain
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 
 
 

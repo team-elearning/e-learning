@@ -8,10 +8,10 @@ from rest_framework.exceptions import ValidationError
 from custom_account.models import UserModel
 from custom_account.domains.user_domain import UserDomain
 from custom_account.api.dtos.user_dto import UpdateUserInput, UserPublicOutput, UserAdminOutput, UserInput
-from custom_account.api.mixins import RoleBasedOutputMixin
+from core.api.mixins import RoleBasedOutputMixin
 from custom_account.serializers import UserSerializer, ChangePasswordSerializer, SetPasswordSerializer, RegisterSerializer
-from custom_account.services import user_service, exceptions
-from custom_account.services.exceptions import DomainError
+from custom_account.services import user_service
+from core.exceptions import DomainError, UserNotFoundError, IncorrectPasswordError
 
 
 
@@ -67,9 +67,9 @@ class ChangePasswordView(APIView):
             success = user_service.change_password(user_id=request.user.id, 
                                                    old_password=data["old_password"], 
                                                    new_password=data["new_password"])
-        except exceptions.UserNotFoundError as e:
+        except UserNotFoundError as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except exceptions.IncorrectPasswordError as e:
+        except IncorrectPasswordError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"success": True}, status=status.HTTP_200_OK)
@@ -261,7 +261,7 @@ class AdminChangePasswordView(APIView):
                 new_password=data["new_password"]
             )
             
-        except exceptions.UserNotFoundError as e:
+        except UserNotFoundError as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             # Catch other potential errors

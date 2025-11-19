@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
-from content.services.exceptions import DomainValidationError
+from core.exceptions import DomainValidationError
 
 # -----------------------
 # Subject Commands

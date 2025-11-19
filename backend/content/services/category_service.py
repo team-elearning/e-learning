@@ -4,7 +4,7 @@ from django.db import transaction
 
 from content.models import Category
 from content.domains.category_domain import CategoryDomain
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 
 
 def create_category(data: Dict[str, Any]) -> CategoryDomain:

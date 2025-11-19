@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Max, F
 from django.core.exceptions import ObjectDoesNotExist
 
-from content.services.exceptions import DomainError, ModuleNotFoundError, CourseNotFoundError
+from core.exceptions import DomainError, ModuleNotFoundError, CourseNotFoundError
 from content.services import lesson_service
 from content.domains.module_domain import ModuleDomain
 from content.models import Module, Course, Lesson

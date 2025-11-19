@@ -9,12 +9,12 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import Http404
 
 from content.serializers import ModuleSerializer
-from content.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, CoursePermissionMixin
+from core.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, CoursePermissionMixin
 from content.services import module_service
 from content.domains.module_domain import ModuleDomain
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 from content.serializers import ModuleSerializer
-from content.api.permissions import IsInstructor
+from core.api.permissions import IsInstructor
 from content.api.dtos.module_dto import ModuleInput, ModulePublicOutput, ModuleAdminOutput, ModuleUpdateInput
 from content.serializers import ModuleCreateSerializer, ModuleReorderSerializer
 from content.models import Course, Module

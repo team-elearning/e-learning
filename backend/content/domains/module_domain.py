@@ -1,10 +1,7 @@
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
-from collections import deque
+from typing import Optional, List
 
-from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
+from core.exceptions import DomainValidationError, LessonNotFoundError
 from content.domains.lesson_domain import LessonDomain
 
 
@@ -45,7 +42,7 @@ class ModuleDomain:
     def remove_lesson(self, lesson_id: str):
         l = next((x for x in self.lessons if x.id == lesson_id), None)
         if not l:
-            raise NotFoundError("Lesson not found in module.")
+            raise LessonNotFoundError("Lesson not found in module.")
         self.lessons.remove(l)
         self._normalize_lessons_positions()
 
@@ -57,7 +54,7 @@ class ModuleDomain:
     def get_lesson(self, lesson_id: str) -> "LessonDomain":
         l = next((x for x in self.lessons if x.id == lesson_id), None)
         if not l:
-            raise NotFoundError("Lesson not found.")
+            raise LessonNotFoundError("Lesson not found.")
         return l
 
     def to_dict(self):

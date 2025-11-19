@@ -6,12 +6,12 @@ from rest_framework import status, permissions
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from pydantic import ValidationError as PydanticValidationError
 
-from content.services.exceptions import DomainError
+from core.exceptions import DomainError
 from content.serializers import QuizPatchInputSerializer
 from content.api.dtos.quiz_dto import QuizUpdateInput, QuizPublicOutput, QuizAdminOutput
 from content.services import quiz_service
-from content.api.permissions import IsInstructor
-from content.api.mixins import RoleBasedOutputMixin 
+from core.api.permissions import IsInstructor
+from core.api.mixins import RoleBasedOutputMixin 
 
 logger = logging.getLogger(__name__)
 

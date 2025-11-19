@@ -6,8 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
-from content.api.mixins import RoleBasedOutputMixin, ExplorationPermissionMixin
-from content.services.exceptions import DomainError 
+from core.api.mixins import RoleBasedOutputMixin, ExplorationPermissionMixin
+from core.exceptions import DomainError 
 from content.models import Exploration
 from content.services import exploration_service 
 from content.serializers import ExplorationCreateSerializer, ExplorationMetadataSerializer
@@ -18,7 +18,7 @@ from content.api.dtos.exploration_dto import (
     ExplorationPublicOutput,
     ExplorationAdminOutput
 )
-from content.api.permissions import IsInstructor # <-- Permission tùy chỉnh
+from core.api.permissions import IsInstructor # <-- Permission tùy chỉnh
 
 
 

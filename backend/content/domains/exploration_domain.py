@@ -1,11 +1,9 @@
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterable, Tuple
+from typing import Optional, List, Dict, Any
 from collections import deque
 
-from content.services.exceptions import DomainValidationError, NotFoundError, InvalidOperation
-from content.domains.commands import CreateExplorationCommand, AddExplorationStateCommand, AddExplorationTransitionCommand
+from core.exceptions import DomainValidationError, StateNotFoundError
+
 
 
 class ExplorationStateDomain:
@@ -90,9 +88,9 @@ class ExplorationDomain:
     def add_transition(self, from_state: str, to_state: str, condition: Dict[str, Any]) -> ExplorationTransitionDomain:
         # validation: ensure states exist (in-memory)
         if not any(s.name == from_state for s in self.states):
-            raise NotFoundError(f"from_state '{from_state}' not found.")
+            raise StateNotFoundError(f"from_state '{from_state}' not found.")
         if not any(s.name == to_state for s in self.states):
-            raise NotFoundError(f"to_state '{to_state}' not found.")
+            raise StateNotFoundError(f"to_state '{to_state}' not found.")
         t = ExplorationTransitionDomain(exploration_id=self.id, from_state=from_state, to_state=to_state, condition=condition)
         self.transitions.append(t)
         return t
@@ -100,7 +98,7 @@ class ExplorationDomain:
     def get_state(self, name: str) -> ExplorationStateDomain:
         s = next((st for st in self.states if st.name == name), None)
         if not s:
-            raise NotFoundError("State not found.")
+            raise StateNotFoundError("State not found.")
         return s
 
     def validate_graph(self):

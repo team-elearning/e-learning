@@ -7,7 +7,7 @@ from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson, Course, Module, Quiz
 from content.domains.content_block_domain import ContentBlockDomain 
 from content.services import quiz_service
-from content.services.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
+from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 
 
 
