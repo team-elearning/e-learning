@@ -180,7 +180,7 @@ def unenroll_user_from_course(course_id: uuid.UUID, user: UserModel) -> None:
 
 
 @transaction.atomic
-def create_course(data: dict, owner) -> CourseDomain:
+def create_course_instructor(data: dict, owner) -> CourseDomain:
     """
     Hàm ĐIỀU PHỐI. Quản lý transaction cho toàn bộ quá trình.
     """
@@ -270,7 +270,7 @@ def create_course(data: dict, owner) -> CourseDomain:
         # Bằng cách raise một Exception để @transaction.atomic bắt được
         raise ValueError(f"Lỗi khi commit file: {str(e)}")
 
-    return CourseDomain.from_model_overview_admin(course)
+    return CourseDomain.from_model_overview(course)
 
 
 @transaction.atomic
@@ -481,6 +481,101 @@ def delete_course_for_instructor(course_id: uuid.UUID, owner) -> None:
     #    Phải làm sau cùng, sau khi đã xóa file thành công.
     course.delete()
     return None
+
+
+@transaction.atomic
+def create_course_admin(data: dict, owner) -> CourseDomain:
+    """
+    Hàm ĐIỀU PHỐI. Quản lý transaction cho toàn bộ quá trình.
+    """
+    # 1. Tách dữ liệu lồng nhau và M2M ra khỏi data chính
+    modules_data = data.get('modules', [])
+    categories_names = data.get('categories', [])
+    tag_names = data.get('tags', [])
+    image_id = data.get('image_id', None)
+    print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", image_id)
+    
+    # (Bạn có thể xử lý tags tương tự)
+    
+    # 2. Xử lý logic cho Course (ví dụ: tạo slug nếu thiếu)
+    if 'slug' not in data or not data['slug']:
+        data['slug'] = slugify(data['title'])
+    # (Bạn nên có logic kiểm tra slug trùng ở đây)
+
+    # 3. Tạo đối tượng gốc (Course)
+    try:
+        # Thay vì dùng **data, chúng ta liệt kê tường minh các trường
+        # từ model 'Course' mà chúng ta mong đợi có trong 'data'.
+        
+        course = Course.objects.create(
+            owner=owner,
+            
+            # Các trường được xử lý hoặc bắt buộc
+            title=data['title'],  # Sẽ báo lỗi KeyError nếu thiếu (đây là điều tốt)
+            slug=data['slug'],    # Đã được đảm bảo có từ Bước 2
+            
+            # Các trường tùy chọn (dùng .get() để an toàn)
+            description=data.get('description'),
+            grade=data.get('grade'),
+            published=data.get('published', False), # Mặc định là False nếu thiếu
+        
+            subject=data.get('subject')
+
+        )
+    
+    except IntegrityError as e:
+        # Bắt lỗi vi phạm ràng buộc CSDL (thường là do 'slug' bị trùng).
+        raise ValueError(f"Slug '{data['slug']}' đã tồn tại. Vui lòng chọn một tiêu đề khác.")
+    
+    except KeyError as e:
+        # Bắt lỗi nếu 'data' thiếu 'title' (hoặc 'slug' nếu Bước 2 lỗi)
+        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {str(e)}")
+    
+    # 4. Xử lý M2M (Category)
+    # (Phải tạo course trước mới gán M2M được)
+    files_to_commit = []
+    if image_id:
+        files_to_commit.append(image_id)
+
+    for tag_name in tag_names:
+        # Tìm hoặc tạo Tag
+        tag, _ = Tag.objects.get_or_create(
+            name=tag_name, 
+            defaults={'slug': slugify(tag_name)}
+        )
+        course.tags.add(tag)
+
+    for cat_name in categories_names:
+        # Tìm hoặc tạo Category
+        category, _ = Category.objects.get_or_create(
+            name=cat_name, 
+            defaults={'slug': slugify(cat_name)}
+        )
+        course.categories.add(category)
+    
+    # 5. GỌI VÀ ỦY QUYỀN cho domain/service con
+    # Đây là phần bạn đã làm đúng
+    for module_data in modules_data:
+        # Hàm con này KHÔNG cần transaction, vì nó đang chạy bên trong
+        # transaction của hàm cha.
+        module, module_files = module_service.create_module(
+            course=course, 
+            data=module_data
+        )
+        files_to_commit.extend(module_files) # Gom file để commit
+    
+    # 6. (Rất quan trọng) Commit file
+    # Chỉ chạy khi toàn bộ 1-5 ở trên thành công
+    # Nếu bước này lỗi, toàn bộ transaction (bước 3, 4, 5) sẽ
+    # TỰ ĐỘNG ROLLBACK. Đây chính là sức mạnh của @transaction.atomic.
+    try:
+        file_service.commit_files_by_ids_for_object(files_to_commit, course)
+    except Exception as e:
+        # Nếu commit file lỗi, chúng ta cần chủ động rollback DB
+        # Bằng cách raise một Exception để @transaction.atomic bắt được
+        raise ValueError(f"Lỗi khi commit file: {str(e)}")
+
+    return CourseDomain.from_model_overview_admin(course)
 
 
 @transaction.atomic
