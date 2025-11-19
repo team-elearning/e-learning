@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 import uuid
 
+from content.models import ContentBlock
+
 # --- TẦNG 1: TỔNG HỢP (AGGREGATES) ---
 
 class CourseProgress(models.Model):
@@ -137,3 +139,39 @@ class QuestionAnswer(models.Model):
 
     class Meta:
         unique_together = ('attempt', 'question_id') # Trong 1 lần làm, mỗi câu chỉ có 1 record
+
+
+#####################################################################################################################################
+class UserBlockProgress(models.Model):
+    """
+    Lưu trạng thái học tập của User tại một Block cụ thể.
+    Đây là bảng đích cho API Heartbeat.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='block_progress')
+    block = models.ForeignKey(ContentBlock, on_delete=models.CASCADE, related_name='user_progress')
+    
+    # --- DỮ LIỆU QUẢN LÝ (Fixed - Để query báo cáo nhanh) ---
+    # Cần biết user đã xong chưa để hiển thị dấu tích xanh
+    is_completed = models.BooleanField(default=False) 
+    
+    # Cần biết user học bao lâu rồi (Analytics)
+    time_spent_seconds = models.IntegerField(default=0) 
+    
+    # Nếu là Quiz, cần biết điểm số (để tính grade course)
+    score = models.FloatField(null=True, blank=True)
+
+    # Lưu vị trí: {"video_timestamp": 120.5} hoặc {"pdf_page": 5}
+    resume_data = models.JSONField(default=dict, blank=True) 
+    
+    last_accessed = models.DateTimeField(auto_now=True) # Tự động cập nhật mỗi khi heartbeat gọi
+
+    class Meta:
+        # Quan trọng: Một User chỉ có 1 dòng record cho 1 Block -> Dễ dàng Resume
+        unique_together = ('user', 'block')
+        indexes = [
+            models.Index(fields=['user', 'block']),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.block} - {self.last_accessed}"

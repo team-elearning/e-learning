@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/content/', include('content.urls')),
     path('api/media/', include('media.urls')),
     path('api/payments/', include('payments.api.urls')),
+    path('api/progress/', include('progress.urls')),
     path('api/', include('content.urls')),
     path("", home),
 

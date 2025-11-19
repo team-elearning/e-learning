@@ -107,15 +107,30 @@ async function load() {
   try {
     loading.value = true
     err.value = ''
-    const { items, total } = await courseService.list({
-      page: 1,
-      pageSize: 200,
-      status: 'published' as CourseStatus,
-      sortBy: 'updatedAt' as const,
-      sortDir: 'descending' as const,
-    })
-    all.value = items || []
-    totalCount.value = total || all.value.length
+    let items: CourseSummary[] = []
+    let total = 0
+    try {
+      const publicRes = await courseService.listPublicCatalog()
+      items = publicRes.items
+      total = publicRes.total
+    } catch (apiError) {
+      console.warn('Public course API failed, fallback to mock list', apiError)
+    }
+
+    if (!items.length) {
+      const fallback = await courseService.list({
+        page: 1,
+        pageSize: 200,
+        status: 'published' as CourseStatus,
+        sortBy: 'updatedAt' as const,
+        sortDir: 'descending' as const,
+      })
+      items = fallback.items || []
+      total = fallback.total || items.length
+    }
+
+    all.value = items
+    totalCount.value = total || items.length
   } catch (e: any) {
     err.value = e?.message || 'Không tải được danh sách khoá học'
   } finally {
