@@ -48,7 +48,15 @@
             :key="String(c.id)"
             @click="openCourse(Number(c.id))"
           >
-            <img class="thumb" :src="c.thumbnail" :alt="c.title" />
+            <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+              <img
+                :src="thumbSource(c.id, c.thumbnail)"
+                :alt="c.title"
+                loading="lazy"
+                @load="markThumbLoaded(c.id)"
+                @error="(e) => handleThumbError(e, c.id)"
+              />
+            </div>
             <div class="title">{{ c.title }}</div>
             <div
               class="progress-line"
@@ -92,7 +100,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { courseService, type CourseSummary } from '@/services/course.service'
+import { courseService, type CourseSummary, type ID, resolveMediaUrl } from '@/services/course.service'
 import { useExamStore } from '@/store/exam.store'
 // ✅ CÁCH IMPORT ĐÚNG
 import * as echarts from 'echarts/core'
@@ -116,6 +124,8 @@ const errMsg = ref('')
 // ===== Courses =====
 const featured = ref<CourseCard[]>([])
 const resumeCourse = ref<CourseCard | null>(null)
+const thumbLoaded = ref<Record<string, boolean>>({})
+const thumbSrc = ref<Record<string, string>>({})
 
 async function fetchCourses() {
   try {
@@ -130,6 +140,7 @@ async function fetchCourses() {
       const p = (Number(c.id) * 13) % 100
       return { ...c, progress: p, done: p >= 100 }
     })
+    await Promise.all(mapped.map((c) => ensureThumb(c.id, c.thumbnail)))
     featured.value = mapped.slice(0, 6)
     resumeCourse.value = mapped.find((c) => c.progress > 0 && c.progress < 100) || mapped[0] || null
   } catch (e: any) {
@@ -177,6 +188,31 @@ function openExamDetail(id: number | string) {
   if (hasRoute('student-practice-taking'))
     router.push({ name: 'student-practice-taking', params: { examId: id } })
   else router.push(`/student/practice/${id}/taking`)
+}
+
+function markThumbLoaded(id: ID) {
+  thumbLoaded.value = { ...thumbLoaded.value, [String(id)]: true }
+}
+function isThumbLoaded(id: ID) {
+  return Boolean(thumbLoaded.value[String(id)])
+}
+function handleThumbError(event: Event, id: ID) {
+  const img = event.target as HTMLImageElement | null
+  if (img) img.style.opacity = '0'
+  markThumbLoaded(id)
+}
+async function ensureThumb(id: ID, url?: string | null) {
+  const key = String(id)
+  if (!url || thumbSrc.value[key]) return
+  try {
+    const resolved = await resolveMediaUrl(url)
+    if (resolved) thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+  } catch (error) {
+    console.warn('Không thể tải thumbnail dashboard', error)
+  }
+}
+function thumbSource(id: ID, fallback?: string | null) {
+  return thumbSrc.value[String(id)] || fallback || ''
 }
 
 onMounted(async () => {
@@ -313,9 +349,10 @@ onMounted(async () => {
 .course-card .thumb {
   width: 100%;
   height: 90px;
-  object-fit: cover;
   border-radius: 8px;
+  overflow: hidden;
   margin-bottom: 8px;
+  background: #f3f4f6;
 }
 .course-card .title {
   font-weight: 600;
@@ -334,12 +371,59 @@ onMounted(async () => {
   width: var(--progress-target, 0%);
   animation: fillProgress 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+/* override thumb loader */
+.course-card .thumb {
+  position: relative;
+}
+.course-card .thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.course-card .thumb.loaded img {
+  opacity: 1;
+}
+.course-card .thumb::before,
+.course-card .thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.course-card .thumb::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+.course-card .thumb::after {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: dash-spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.course-card .thumb.loaded::before,
+.course-card .thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
+}
 @keyframes fillProgress {
   from {
     width: 0;
   }
   to {
     width: var(--progress-target, 0%);
+  }
+}
+
+@keyframes dash-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 .status {

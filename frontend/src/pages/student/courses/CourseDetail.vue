@@ -2,7 +2,9 @@
   <div class="detail-page" v-if="course">
     <div class="hero">
       <div class="hero-text">
-        <p class="crumb">Khóa học · Khối {{ course.grade }} · {{ subjectLabel(course.subject) }}</p>
+        <p class="crumb">
+          Khóa học · Khối {{ course.grade }} · {{ subjectLabel(course.subject, course.subjectName) }}
+        </p>
         <h1>{{ course.title }}</h1>
         <p class="lead">{{ course.description || 'Khoá học giúp bạn nắm vững kiến thức theo lộ trình.' }}</p>
         <div class="tags">
@@ -10,11 +12,16 @@
           <span class="pill muted">{{ course.lessonsCount }} bài học</span>
           <span class="pill muted">GV {{ course.teacherName }}</span>
         </div>
-        <div class="cta">
-          <button class="primary" @click="enroll">Đăng ký ngay</button>
-        </div>
       </div>
-      <img :src="course.thumbnail" :alt="course.title" class="hero-thumb" />
+      <div :class="['hero-thumb', { loaded: heroLoaded }]">
+        <img
+          :src="heroSrc || course.thumbnail"
+          :alt="course.title"
+          loading="lazy"
+          @load="onHeroLoad"
+          @error="onHeroError"
+        />
+      </div>
     </div>
 
     <div class="layout">
@@ -42,7 +49,7 @@
         <h4>Thông tin</h4>
         <ul class="info">
           <li><span>Khối:</span> <b>{{ course.grade }}</b></li>
-          <li><span>Môn:</span> <b>{{ subjectLabel(course.subject) }}</b></li>
+          <li><span>Môn:</span> <b>{{ subjectLabel(course.subject, course.subjectName) }}</b></li>
           <li><span>Bài học:</span> <b>{{ course.lessonsCount }}</b></li>
           <li><span>Giáo viên:</span> <b>{{ course.teacherName }}</b></li>
         </ul>
@@ -59,7 +66,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { courseService, type CourseDetail, type Lesson } from '@/services/course.service'
+import { courseService, type CourseDetail, type Lesson, resolveMediaUrl } from '@/services/course.service'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,16 +74,22 @@ const router = useRouter()
 const course = ref<CourseDetail | null>(null)
 const loading = ref(false)
 const err = ref('')
+const heroLoaded = ref(false)
+const heroSrc = ref('')
 
-function subjectLabel(s: CourseDetail['subject']) {
-  const map: Record<CourseDetail['subject'], string> = {
-    math: 'Toán',
-    vietnamese: 'Tiếng Việt',
-    english: 'Tiếng Anh',
-    science: 'Khoa học',
-    history: 'Lịch sử',
-  }
-  return map[s] || s
+const SUBJECT_LABELS: Record<string, string> = {
+  math: 'Toán',
+  vietnamese: 'Tiếng Việt',
+  english: 'Tiếng Anh',
+  science: 'Khoa học',
+  history: 'Lịch sử',
+}
+
+function subjectLabel(subject?: CourseDetail['subject'], subjectName?: string | null) {
+  if (subjectName) return subjectName
+  if (!subject) return '—'
+  if (typeof subject === 'string') return SUBJECT_LABELS[subject] || subject
+  return '—'
 }
 
 function typeLabel(t: Lesson['type']) {
@@ -94,12 +107,24 @@ async function load() {
     err.value = ''
     const id = route.params.id as any
     course.value = await courseService.detail(id)
+    heroSrc.value =
+      (await resolveMediaUrl(course.value?.thumbnail)) || course.value?.thumbnail || ''
+    heroLoaded.value = false
   } catch (e: any) {
     err.value = e?.message || 'Không thể tải khoá học'
     course.value = null
   } finally {
     loading.value = false
   }
+}
+
+function onHeroLoad() {
+  heroLoaded.value = true
+}
+function onHeroError(event: Event) {
+  const img = event.target as HTMLImageElement | null
+  if (img) img.style.opacity = '0'
+  heroLoaded.value = true
 }
 
 function enroll() {
@@ -149,10 +174,52 @@ onMounted(load)
 .hero-thumb {
   width: 100%;
   height: 220px;
-  object-fit: cover;
   border-radius: 16px;
   border: 1px solid #e5e7eb;
   background: #fff;
+  overflow: hidden;
+  position: relative;
+}
+.hero-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  display: block;
+}
+.hero-thumb.loaded img {
+  opacity: 1;
+}
+.hero-thumb::before,
+.hero-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.hero-thumb::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+.hero-thumb::after {
+  width: 34px;
+  height: 34px;
+  border: 4px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.hero-thumb.loaded::before,
+.hero-thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
+}
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 .tags {
   display: flex;
@@ -171,11 +238,6 @@ onMounted(load)
 .pill.muted {
   background: #f3f4f6;
   color: #4b5563;
-}
-.cta {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 .layout {
   max-width: 1180px;

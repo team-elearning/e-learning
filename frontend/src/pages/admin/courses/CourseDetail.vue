@@ -9,7 +9,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="truncate text-xl font-semibold text-gray-800">{{ detail.title }}</h2>
               <el-tag size="small">Lớp {{ detail.grade }}</el-tag>
-              <el-tag size="small" type="info">{{ subjectName(detail.subject) }}</el-tag>
+              <el-tag size="small" type="info">{{ detail.subjectName || subjectName(detail.subject) }}</el-tag>
               <el-tag size="small" :type="statusTagType(detail.status)">{{
                 statusLabel(detail.status)
               }}</el-tag>
