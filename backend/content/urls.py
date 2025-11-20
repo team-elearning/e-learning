@@ -39,7 +39,7 @@ urlpatterns = [
     path('courses/<uuid:pk>/enroll/', CourseEnrollView.as_view(), name='public-course-enroll'),
     path('courses/<uuid:pk>/unenroll/', CourseEnrollView.as_view(), name='public-course-unenroll'),
     path('my-courses/', MyEnrolledCourseListView.as_view(), name='public-course-list'),
-    path('courses/<uuid:pk>', PublicCourseDetailView.as_view(), name='public-course-detail'),
+    path('courses/<uuid:pk>/', PublicCourseDetailView.as_view(), name='public-course-detail'),
 
 
     # # ---------------------------- ADMIN ---------------------------------------

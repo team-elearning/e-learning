@@ -155,28 +155,139 @@
           </div>
 
           <!-- Actions -->
-          <div class="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+          <div class="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
             <button
               class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-50 w-full sm:w-auto"
               @click="viewDetail(c)"
             >
               Chi tiết
             </button>
+
             <button
               class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 w-full sm:w-auto"
               @click="editCourse(c)"
             >
               Sửa
             </button>
+
+            <!-- Nút xoá (mở popup) -->
+            <button
+              class="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 w-full sm:w-auto disabled:opacity-60"
+              :disabled="deletingId === c.id"
+              @click="openDeleteModal(c)"
+            >
+              {{ deletingId === c.id ? 'Đang xoá…' : 'Xoá' }}
+            </button>
           </div>
         </article>
       </div>
     </main>
+
+    <!-- POPUP XÁC NHẬN XOÁ -->
+    <transition
+      enter-active-class="transition-opacity duration-150 ease-out"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="deleteModal.open"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+        @click.self="closeDeleteModal"
+      >
+        <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200">
+          <div class="mb-3 flex items-center gap-3">
+            <div
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 text-rose-600"
+            >
+              ⚠
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Xoá khoá học</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Thao tác này không thể hoàn tác.</p>
+            </div>
+          </div>
+
+          <p class="text-sm text-slate-700 mb-4">
+            Bạn có chắc chắn muốn xoá khoá học
+            <span class="font-semibold">"{{ deleteModal.course?.title }}"</span> không?
+          </p>
+
+          <div class="flex justify-end gap-2 mt-2">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              @click="closeDeleteModal"
+              :disabled="deletingId === deleteModal.course?.id"
+            >
+              Huỷ
+            </button>
+            <button
+              type="button"
+              class="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+              @click="confirmDelete"
+              :disabled="deletingId === deleteModal.course?.id"
+            >
+              {{ deletingId === deleteModal.course?.id ? 'Đang xoá…' : 'Xoá khoá học' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- POPUP THÔNG BÁO (xoá thành công / lỗi chung) -->
+    <transition
+      enter-active-class="transition-opacity duration-150 ease-out"
+      leave-active-class="transition-opacity duration-150 ease-in"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="notificationModal.open"
+        class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+        role="dialog"
+        aria-modal="true"
+        @click.self="notificationModal.open = false"
+      >
+        <div
+          class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl outline-none"
+        >
+          <div class="mb-4 flex items-center gap-3">
+            <div
+              :class="[
+                'p-2 rounded-full',
+                notificationModal.type === 'success'
+                  ? 'bg-green-100 text-green-600'
+                  : 'bg-amber-100 text-amber-600',
+              ]"
+            >
+              <span v-if="notificationModal.type === 'success'">✓</span>
+              <span v-else>⚠</span>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800">{{ notificationModal.title }}</h3>
+          </div>
+
+          <div class="mb-6">
+            <p class="text-slate-700">{{ notificationModal.message }}</p>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="button"
+              class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+              @click="notificationModal.open = false"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -214,8 +325,38 @@ const gradeFilter = ref('')
 
 // map courseId -> blob URL (thumbnail)
 const thumbnailUrlMap = ref<Record<string, string>>({})
+const deletingId = ref<string | null>(null)
 
-// ========== LOAD THUMBNAIL GIỐNG CALL KHÓA HỌC ==========
+// state popup xoá
+const deleteModal = reactive<{
+  open: boolean
+  course: CourseItem | null
+}>({
+  open: false,
+  course: null,
+})
+
+// popup thông báo
+const notificationModal = reactive<{
+  open: boolean
+  type: 'success' | 'error'
+  title: string
+  message: string
+}>({
+  open: false,
+  type: 'success',
+  title: '',
+  message: '',
+})
+
+function showNotification(type: 'success' | 'error', title: string, message: string) {
+  notificationModal.type = type
+  notificationModal.title = title
+  notificationModal.message = message
+  notificationModal.open = true
+}
+
+// ========== LOAD THUMBNAIL ==========
 async function loadThumbnail(course: CourseItem) {
   if (!course.image_url) return
   if (thumbnailUrlMap.value[course.id]) return
@@ -247,15 +388,16 @@ const fetchCourses = async () => {
       },
     })
 
-    courses.value = data || []
-
-    // clear blob cũ để tránh leak
+    // clear blob cũ
     Object.values(thumbnailUrlMap.value).forEach((u) => URL.revokeObjectURL(u))
     thumbnailUrlMap.value = {}
 
-    // tải thumbnail cho các khoá có image_url (song song)
+    courses.value = data || []
+
     const withImage = courses.value.filter((c) => c.image_url)
-    await Promise.all(withImage.map((c) => loadThumbnail(c)))
+    withImage.forEach((c) => {
+      loadThumbnail(c)
+    })
   } catch (err: any) {
     console.error('❌ Lỗi tải danh sách khoá học:', err)
     error.value =
@@ -291,7 +433,6 @@ const filteredCourses = computed(() => {
     })
   }
 
-  // sort theo tên
   list.sort((a, b) => a.title.localeCompare(b.title, 'vi'))
   return list
 })
@@ -307,6 +448,57 @@ const viewDetail = (course: CourseItem) => {
 
 const editCourse = (course: CourseItem) => {
   router.push({ path: `/teacher/courses/${course.id}/edit` })
+}
+
+// ========== DELETE (POPUP) ==========
+function openDeleteModal(course: CourseItem) {
+  deleteModal.course = course
+  deleteModal.open = true
+}
+
+function closeDeleteModal() {
+  if (deletingId.value) return // đang xoá thì không cho đóng
+  deleteModal.open = false
+  deleteModal.course = null
+}
+
+const confirmDelete = async () => {
+  if (!deleteModal.course) return
+  const course = deleteModal.course
+
+  deletingId.value = course.id
+  error.value = ''
+
+  try {
+    await axios.delete(`/api/content/instructor/courses/${course.id}/`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    // xoá khỏi list
+    courses.value = courses.value.filter((c) => c.id !== course.id)
+
+    // revoke thumbnail nếu có
+    const url = thumbnailUrlMap.value[course.id]
+    if (url) {
+      URL.revokeObjectURL(url)
+      delete thumbnailUrlMap.value[course.id]
+    }
+
+    deleteModal.open = false
+    deleteModal.course = null
+
+    // 🔔 thông báo xoá thành công
+    showNotification('success', 'Thành công', 'Đã xoá khoá học thành công.')
+  } catch (err: any) {
+    console.error('❌ Lỗi xoá khoá học:', err)
+    error.value =
+      err?.response?.data?.detail || err?.message || 'Không thể xoá khoá học. Vui lòng thử lại.'
+    showNotification('error', 'Lỗi', 'Không thể xoá khoá học. Vui lòng thử lại.')
+  } finally {
+    deletingId.value = null
+  }
 }
 
 // cleanup blob URL

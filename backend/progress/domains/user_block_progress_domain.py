@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import UUID

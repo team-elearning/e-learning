@@ -481,6 +481,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
             return Response({"detail": "Lỗi máy chủ khi tạo course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView):
     """
     GET /instructor/courses/<pk>/    - Lấy chi tiết (của tôi).
@@ -517,7 +518,6 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             logger.error(f"Lỗi không xác định trong DetailView (GET): {e}", exc_info=True)
             return Response({"detail": f"Lỗi không xác định: {str(e)}"},
                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
     def patch(self, request, pk: uuid.UUID, *args, **kwargs):
         """
@@ -587,7 +587,6 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseDetailView (PATCH): {e}", exc_info=True)
             return Response({"detail": "Lỗi máy chủ khi cập nhật course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
     def delete(self, request, pk: uuid.UUID, *args, **kwargs):
         """ Xóa """
