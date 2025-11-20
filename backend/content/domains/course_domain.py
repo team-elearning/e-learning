@@ -218,14 +218,18 @@ class CourseDomain:
         [STRATEGY: OVERVIEW]
         Chỉ metadata + Tags/Categories dạng String.
         """
-        # 1. Lấy khung sườn
         data = cls._map_base_attributes(model)
 
-        # 2. Đắp thịt (Dạng String nhẹ nhàng)
         data["category_names"] = [cat.name for cat in model.categories.all()]
         data["tag_names"] = [tag.name for tag in model.tags.all()]
+
+        categories = list(model.categories.all())
+        tags = list(model.tags.all())
+
+        # Truyền vào key _objs để __init__ nhận diện
+        data["category_objs"] = categories
+        data["tag_objs"] = tags
         
-        # 3. Trả về
         return cls(**data)
     
     @classmethod
@@ -267,140 +271,3 @@ class CourseDomain:
         cls._load_modules(domain, model)
 
         return domain
-
-
-    # @classmethod
-    # def from_model(cls, model):
-    #     """
-    #     [CẬP NHẬT] Hàm 'nặng' (full) này dùng cho Detail View.
-    #     Nó sẽ gọi hàm 'nhẹ' trước.
-    #     """
-    #     # Dùng lại hàm overview để lấy tất cả metadata cơ bản
-    #     course_domain = cls.from_model_overview(model)
-        
-    #     # Giờ mới load 'children' (phần nặng)
-    #     # Service nào gọi hàm này PHẢI prefetch 'modules__lessons'
-    #     modules_sorted = sorted(model.modules.all(), key=lambda m: m.position)
-    #     for module_model in modules_sorted:
-    #         module_domain = ModuleDomain.from_model(module_model)
-    #         course_domain.modules.append(module_domain)
-        
-    #     return course_domain
-    
-    # @classmethod
-    # def from_model_admin(cls, model):
-    #     """
-    #     [MỚI] Hàm 'Full Detail' dành cho Admin View (GET /admin/courses/<pk>/).
-        
-    #     Bao gồm:
-    #     1. Metadata đầy đủ & Relations dạng Object (Tái sử dụng from_model_overview_admin).
-    #     2. Cấu trúc cây nội dung (Modules -> Lessons -> ...).
-    #     """
-    #     # 1. Bước nền: Lấy Metadata + Full Relations (Owner, Subject, Tags...)
-    #     # Chúng ta gọi lại hàm overview vừa viết để không phải copy-paste code
-    #     course_domain = cls.from_model_overview_admin(model)
-        
-    #     # 2. Bước nạp nội dung con (Modules)
-    #     # Lưu ý quan trọng: Service gọi hàm này PHẢI prefetch_related('modules__lessons')
-    #     # để đảm bảo hiệu năng.
-        
-    #     if hasattr(model, 'modules'):
-    #         # Sắp xếp module theo vị trí (position) để hiển thị đúng thứ tự
-    #         modules_sorted = sorted(model.modules.all(), key=lambda m: m.position)
-            
-    #         for module_model in modules_sorted:
-    #             # Convert Module Model -> Module Domain
-    #             # (Giả sử ModuleDomain.from_model đã xử lý việc load lessons bên trong)
-    #             module_domain = ModuleDomain.from_model(module_model)
-    #             course_domain.modules.append(module_domain)
-        
-    #     return course_domain
-    
-
-    # @classmethod
-    # def from_model_overview(cls, model):
-    #     """
-    #     [MỚI] Hàm "nhẹ" - Chỉ map metadata, KHÔNG load 'children' (modules).
-    #     """
-    #     course_domain = cls(
-    #         id=str(model.id),
-    #         title=model.title,
-            
-    #         subject_id=str(model.subject_id) if model.subject_id else None,
-    #         owner_id=model.owner_id if model.owner_id else None,
-            
-    #         description=model.description,
-    #         grade=model.grade,
-    #         slug=model.slug,
-    #         published=model.published,
-    #         published_at=model.published_at,
-            
-    #         # M2M này OK vì đã prefetch ở service
-    #         category_names=[cat.name for cat in model.categories.all()],
-    #         tag_names=[tag.name for tag in model.tags.all()] 
-    #     )
-        
-    #     # Dòng này giờ sẽ rất nhanh VÌ chúng ta sẽ prefetch 'files' ở Bước 3
-    #     first_file = model.files.first() 
-    #     if first_file:
-    #         course_domain.image_url = first_file.url
-        
-    #     return course_domain
-    
-
-    # @classmethod
-    # def from_model_overview_admin(cls, model):
-    #     """
-    #     Factory Method DÀNH RIÊNG CHO ADMIN.
-    #     Nó map dữ liệu 'giàu' (Full Objects) vào Domain.
-    #     """
-    #     # 1. Convert các quan hệ sang Domain con (hoặc Dict)
-    #     #    Điều này thỏa mãn yêu cầu của Pydantic Admin DTO
-        
-    #     # Owner (User)
-    #     owner_domain = None
-    #     if model.owner:
-    #         # Giả sử UserDomain có from_model
-    #         owner_domain = UserDomain.from_model(model.owner) 
-
-    #     # Subject
-    #     subject_domain = None
-    #     if model.subject:
-    #         # Giả sử SubjectDomain có from_model
-    #         subject_domain = SubjectDomain.from_model(model.subject)
-
-    #     # Categories & Tags (List of Domains)
-    #     category_domains = [
-    #         CategoryDomain.from_model(cat) for cat in model.categories.all()
-    #     ]
-    #     tag_domains = [
-    #         TagDomain.from_model(tag) for tag in model.tags.all()
-    #     ]
-
-    #     # 2. Khởi tạo CourseDomain với các object vừa tạo
-    #     course_domain = cls(
-    #         id=str(model.id),
-    #         title=model.title,
-    #         description=model.description,
-    #         grade=model.grade,
-    #         slug=model.slug,
-    #         published=model.published,
-    #         published_at=model.published_at,
-            
-    #         # Các ID vẫn giữ để tương thích ngược
-    #         owner_id=model.owner_id,
-    #         subject_id=str(model.subject_id) if model.subject_id else None,
-            
-    #         # --- TRUYỀN FULL OBJECTS VÀO ĐÂY ---
-    #         owner_obj=owner_domain,
-    #         subject_obj=subject_domain,
-    #         category_objs=category_domains,
-    #         tag_objs=tag_domains,
-    #     )
-        
-    #     # Xử lý File ảnh
-    #     first_file = model.files.first()
-    #     if first_file:
-    #         course_domain.image_url = first_file.url
-            
-    #     return course_domain

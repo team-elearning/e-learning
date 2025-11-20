@@ -500,12 +500,11 @@ def publish_course(
     try:
         qs = Course.objects.all()
         is_admin = getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)
-
         if is_admin:
             course = qs.get(pk=course_id)
         else:
             course = qs.get(pk=course_id, owner=actor)
-            
+
     except Course.DoesNotExist:
         raise ValueError("Không tìm thấy khóa học hoặc bạn không có quyền thực hiện.")
 
