@@ -4,27 +4,26 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from pydantic import ConfigDict, field_serializer
 
+from content.api.dtos.question_dto import QuestionCreateInput, QuestionUpdateInput
 
 
-# ---
-# DTO CÂU HỎI (QUESTION)
-# ---
 
-class QuestionUpdateInput(BaseModel):
+class QuizCreateInput(BaseModel):
     """
-    DTO cho một câu hỏi khi PATCH.
-    Tất cả các trường là Optional.
+    DTO cho payload của 'quiz'.
+    ĐÂY LÀ NƠI CẦN SỬA.
     """
-    id: Optional[uuid.UUID] = None # Key để service C/U/D
-    type: Optional[str] = None
-    position: Optional[int] = None
-    prompt: Optional[Dict[str, Any]] = None
-    answer_payload: Optional[Dict[str, Any]] = None
-    hint: Optional[Dict[str, Any]] = None
+    title: str
+    
+    # === SỬA DÒNG NÀY ===
+    # Chuyển từ 'int' hoặc 'str' sang 'timedelta'
+    time_limit: Optional[timedelta] = None
+    # === KẾT THÚC SỬA ===
+    
+    time_open: Optional[datetime] = None
+    time_close: Optional[datetime] = None
+    questions: List[QuestionCreateInput] = []
 
-# ---
-# DTO BÀI QUIZ (QUIZ)
-# ---
 
 class QuizUpdateInput(BaseModel):
     """
@@ -96,3 +95,4 @@ class QuizAdminOutput(QuizPublicOutput):
     để có thể mở rộng sau này (ví dụ: thêm thông tin owner).
     """
     pass
+

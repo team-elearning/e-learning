@@ -15,9 +15,13 @@ from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, C
 from core.exceptions import DomainError, CourseNotFoundError
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
+from content.types import CourseFetchStrategy, CourseFilter
 
 
 
+# ==========================================
+# PUBLIC INTERFACE (PUBLIC)
+# ==========================================
 logger = logging.getLogger(__name__)
 class PublicCourseListView(RoleBasedOutputMixin, APIView):
     """
@@ -40,7 +44,10 @@ class PublicCourseListView(RoleBasedOutputMixin, APIView):
         Xử lý GET request để list tất cả courses.
         """
         try:
-            courses_list = self.course_service.list_courses()
+            courses_list = self.course_service.get_courses(
+                filters=CourseFilter(published_only=True),
+                strategy=CourseFetchStrategy.OVERVIEW
+            )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong PublicCourseListView (GET): {e}", exc_info=True)
@@ -72,8 +79,9 @@ class MyEnrolledCourseListView(RoleBasedOutputMixin, APIView):
         """
         try:
             # 3. Gọi hàm service MỚI, chuyên biệt
-            enrolled_courses_list = self.course_service.list_enrolled_courses_for_user(
-                user=request.user
+            enrolled_courses_list = self.course_service.get_courses(
+                filters=CourseFilter(enrolled_user=request.user), # Tự động distinct() bên trong
+                strategy=CourseFetchStrategy.OVERVIEW
             )
             
             # 4. Trả về
@@ -96,7 +104,7 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
 
     # Cấu hình DTO output
     output_dto_public = CoursePublicOutput
-    output_dto_admin  = CoursePublicOutput 
+    output_dto_admin  = CourseAdminOutput 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,9 +115,9 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
         Xử lý GET request để lấy chi tiết một course.
         """
         try:
-            course = self.course_service.get_enrolled_course_detail_for_user(
-                course_id=pk,
-                user=request.user,
+            course = self.course_service.get_course_single(
+                filters=CourseFilter(course_id=pk, enrolled_user=request.user), # Check đã enroll chưa
+                strategy=CourseFetchStrategy.FULL_STRUCTURE # Lấy bài học để học
             )
             return Response({"instance": course}, status=status.HTTP_200_OK)
         
@@ -209,7 +217,9 @@ class CourseEnrollView(APIView):
 
 
 
-# ------------------ ADMIN -------------------------------
+# ==========================================
+# PUBLIC INTERFACE (ADMIN)
+# ==========================================
 class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
     """
     GET /admin/courses/ - List các course.
@@ -227,7 +237,10 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
     def get(self, request, *args, **kwargs):
         """ Lấy list course CỦA TÔI """
         try:
-            courses_list = self.course_service.list_all_course_overviews()
+            courses_list = self.course_service.get_courses(
+                filters=CourseFilter(),
+                strategy=CourseFetchStrategy.ADMIN_DETAIL
+            )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -250,9 +263,10 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
 
         try:
             # Gọi hàm create_course chung, vì owner đã được truyền vào
-            new_course = self.course_service.create_course_admin(
+            new_course = self.course_service.create_course(
                 data=course_create_dto.model_dump(),
-                owner=request.user
+                created_by=request.user,
+                output_strategy=CourseFetchStrategy.ADMIN_DETAIL
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
@@ -285,7 +299,10 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         try:
             # 1. Gọi thẳng service
             #    Hàm này đã bao gồm cả check quyền owner
-            course = self.course_service.get_course_detail_admin(course_id=pk)
+            course = self.course_service.get_course_single(
+                filters=CourseFilter(course_id=pk),
+                strategy=CourseFetchStrategy.ADMIN_DETAIL
+            )
             
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
@@ -341,7 +358,10 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             # Nếu không có gì để cập nhật, chúng ta chỉ cần
             # lấy và trả về instance hiện tại.
             try:
-                instance = self.course_service.get_course_detail_admin(course_id=pk)
+                instance = self.course_service.get_course_single(
+                    filters=CourseFilter(course_id=pk),
+                    strategy=CourseFetchStrategy.ADMIN_DETAIL # Map sang Admin DTO
+                )
 
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
             except (DomainError, ValueError) as e:
@@ -351,9 +371,11 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         # 4. Gọi Service (Giống hệt POST)
         # GỌI HÀM 'patch_course' MÀ CHÚNG TA VỪA TẠO
         try:
-            updated_course = self.course_service.patch_course_admin(
+            updated_course = self.course_service.patch_course(
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
+                actor=request.user,
+                output_strategy=CourseFetchStrategy.ADMIN_DETAIL
             )
             # 'updated_course' là một CourseDomain đã được cập nhật
             return Response({"instance": updated_course}, status=status.HTTP_200_OK)
@@ -387,46 +409,53 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-# class AdminCoursePublishView(RoleBasedOutputMixin, APIView):
-#     """
-#     POST /courses/{id}/publish/
-#     body: {"require_all_lessons_published": false}
-#     """
-#     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+class AdminCoursePublishView(APIView):
+    permission_classes = [permissions.IsAdminUser, permissions.IsAuthenticated]
 
-#     def post(self, request, course_id: str):
-#         require_all = request.data.get("require_all_lessons_published", False)
-#         course_domain = course_service.get_course(course_id)
-#         if not course_domain:
-#             return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-#         try:
-#             # Using a simple dict as command for simplicity, matching service layer
-#             publish_command_data = {"published": True, "require_all_lessons_published": require_all}
-#             course_domain = course_service.publish_course(course_id=course_id, publish_data=type("PublishCmd", (), publish_command_data))
+    def post(self, request, pk):
+        """
+        POST /admin/courses/<pk>/publish/
+        Admin có quyền publish bất cứ khóa nào.
+        """
+        
+        try:
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=True
+            )
+            # Admin thì trả về AdminOutput
+            return Response(course, status=status.HTTP_200_OK)
             
-#             return Response(course_domain)
-#         except Exception as exc:
-#             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class AdminCourseUnpublishView(RoleBasedOutputMixin, APIView):
-#     """
-#     POST /courses/{id}/unpublish/
-#     """
-#     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+class AdminCourseUnpublishView(APIView):
+    permission_classes = [permissions.IsAdminUser, permissions.IsAuthenticated]
 
-#     def post(self, request, course_id: str):
-#         try:
-#             updated = course_service.unpublish_course(course_id=course_id)
-#             if not updated:
-#                 return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+    def post(self, request, pk):
+        """
+        POST /admin/courses/<pk>/publish/
+        Admin có quyền publish bất cứ khóa nào.
+        """
+        
+        try:
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=False
+            )
+            # Admin thì trả về AdminOutput
+            return Response(course, status=status.HTTP_200_OK)
             
-#             return Response(updated)
-#         except Exception as ex:
-#             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ------------------ INSTRUCTOR --------------------
+# ==========================================
+# PUBLIC INTERFACE (INSTRUCTOR)
+# ==========================================
 class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     """
     GET /instructor/courses/ - List các course CỦA TÔI.
@@ -445,7 +474,10 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     def get(self, request, *args, **kwargs):
         """ Lấy list course CỦA TÔI """
         try:
-            courses_list = self.course_service.list_course_overviews_instructor(owner=request.user)
+            courses_list = self.course_service.get_courses(
+                filters=CourseFilter(owner=request.user), # Tự động check quyền owner
+                strategy=CourseFetchStrategy.OVERVIEW
+            )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong InstructorCourseListCreateView (GET): {e}", exc_info=True)
@@ -468,9 +500,10 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
 
         try:
             # Gọi hàm create_course chung, vì owner đã được truyền vào
-            new_course = self.course_service.create_course_instructor(
+            new_course = self.course_service.create_course(
                 data=course_create_dto.model_dump(),
-                owner=request.user
+                created_by=request.user,
+                output_strategy=CourseFetchStrategy.OVERVIEW
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
@@ -503,9 +536,9 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         try:
             # 1. Gọi thẳng service
             #    Hàm này đã bao gồm cả check quyền owner
-            course = self.course_service.get_course_instructor(
-                course_id=pk, 
-                owner=request.user
+            course = self.course_service.get_course_single(
+                filters=CourseFilter(course_id=pk, owner=request.user), # Tự động check quyền owner
+                strategy=CourseFetchStrategy.FULL_STRUCTURE # Lấy full modules để edit
             )
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
@@ -560,8 +593,9 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             # Nếu không có gì để cập nhật, chúng ta chỉ cần
             # lấy và trả về instance hiện tại.
             try:
-                instance = self.course_service.get_course_instructor(
-                    course_id=pk, owner=request.user
+                instance = self.course_service.get_course_single(
+                    filters=CourseFilter(course_id=pk, owner=request.user), # Tự động check quyền owner
+                    strategy=CourseFetchStrategy.FULL_STRUCTURE
                 )
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
             except (DomainError, ValueError) as e:
@@ -571,10 +605,11 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         # 4. Gọi Service (Giống hệt POST)
         # GỌI HÀM 'patch_course' MÀ CHÚNG TA VỪA TẠO
         try:
-            updated_course = self.course_service.patch_course_instructor(
+            updated_course = self.course_service.patch_course(
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
-                owner=request.user
+                actor=request.user,
+                output_strategy=CourseFetchStrategy.FULL_STRUCTURE
             )
             # 'updated_course' là một CourseDomain đã được cập nhật
             return Response({"instance": updated_course}, status=status.HTTP_200_OK)
@@ -608,70 +643,43 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-# class InstructorCoursePublishView(APIView):
-#     """
-#     POST /instructor/courses/{id}/publish/
-#     """
-#     permission_classes = [IsInstructor] 
+class InstructorCoursePublishView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsInstructor]
 
-#     def post(self, request, course_id: str):
-#         try:
-#             # Kiểm tra quyền
-#             self.check_course_permission(request, course_id=course_id)
-#         except Http404 as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-#         except PermissionDenied as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
-        
-#         require_all = request.data.get("require_all_lessons_published", False)
-        
-#         try:
-#             publish_command_data = {"published": True, "require_all_lessons_published": require_all}
+    def post(self, request, pk):
+        """
+        POST /instructor/courses/<pk>/publish/
+        """
+
+        try:
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=True
+            )
+            # Trả về DTO output (Serializer)
+            return Response(course, status=status.HTTP_200_OK)
             
-#             # Gọi service mới của Instructor
-#             course_domain = course_service.publish_course_for_instructor(
-#                 course_id=course_id, 
-#                 publish_data=type("PublishCmd", (), publish_command_data),
-#                 owner=request.user
-#             )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InstructorCourseUnpublishView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsInstructor]
+
+    def post(self, request, pk):
+        """
+        POST /instructor/courses/<pk>/publish/
+        """
+
+        try:
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=False
+            )
+            # Trả về DTO output (Serializer)
+            return Response(course, status=status.HTTP_200_OK)
             
-#             # Trả về DTO (thay vì Serializer)
-#             return Response(course_domain, status=status.HTTP_200_OK)
-
-#         except (DomainError, InvalidOperation) as exc:
-#             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as exc:
-#             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class InstructorCourseUnpublishView(APIView):
-#     """
-#     POST /api/v1/instructor/courses/{id}/unpublish/
-#     """
-#     permission_classes = [IsInstructor]
-
-#     def post(self, request, course_id: str):
-#         try:
-#             # Kiểm tra quyền
-#             self.check_course_permission(request, course_id=course_id)
-#         except Http404 as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-#         except PermissionDenied as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
-        
-#         try:
-#             # Gọi service mới của Instructor
-#             course_domain = course_service.unpublish_course_for_instructor(
-#                 course_id=course_id,
-#                 owner=request.user
-#             )
-            
-#             if not course_domain:
-#                  return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-
-#             return Response(CourseAdminOutput.model_validate(course_domain).model_dump(), status=status.HTTP_200_OK)
-            
-#         except (DomainError, InvalidOperation) as ex:
-#             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
-#         except Exception as ex:
-#             return Response({"detail": str(ex)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

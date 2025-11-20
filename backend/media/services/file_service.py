@@ -6,6 +6,8 @@ from django.db import transaction
 from datetime import timedelta
 from django.utils import timezone
 from django.core.files.storage import default_storage
+from django.db.models import Q
+from django.contrib.auth.models import AbstractBaseUser
 
 from core.exceptions import DomainError, UserNotFoundError
 from custom_account.models import UserModel
@@ -18,7 +20,7 @@ from media.domains.file_domain import FileDomain
 User = get_user_model()
 
 @transaction.atomic
-def create_file_upload(user_id: int, data: dict) -> FileDomain:
+def create_file_upload(user: UserModel, data: dict) -> FileDomain:
     """
     Service xử lý nghiệp vụ upload file.
     Nhận user_id (từ request.user) và data (từ Pydantic Input DTO).
@@ -35,12 +37,6 @@ def create_file_upload(user_id: int, data: dict) -> FileDomain:
 
     if not all([file_data, content_type_str, component is not None]):
         raise DomainError("Dữ liệu input (file, content_type, component) bị thiếu.")
-
-    # Kiểm tra nghiệp vụ 
-    try:
-        user = User.objects.get(pk=user_id)
-    except User.DoesNotExist:
-        raise UserNotFoundError(f"User with ID {user_id} not found.")
     
     if content_type_str and object_id is not None:
         try:
@@ -122,16 +118,26 @@ def commit_files_for_object(file_paths: list[str], related_object) -> int:
 
 
 @transaction.atomic
-def commit_files_by_ids_for_object(file_ids: list[str], related_object) -> int:
+def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: AbstractBaseUser = None) -> int:
     logger.info(f"Bắt đầu commit file (bằng ID) cho đối tượng {related_object}...")
 
     if not file_ids:
         logger.warning("Không có ID file nào được cung cấp để commit.")
         return 0
 
-    # 1. Chuẩn hóa danh sách ID đầu vào thành Set (để loại trùng và so sánh)
-    # Chuyển tất cả về string để đảm bảo so sánh đúng với UUID từ DB
-    target_ids = set(str(fid) for fid in file_ids)
+    # 1. VALIDATE & CHUẨN HÓA UUID
+    valid_target_ids = set()
+    for fid in file_ids:
+        try:
+            # Kiểm tra xem string có phải UUID hợp lệ không
+            uuid_obj = uuid.UUID(str(fid))
+            valid_target_ids.add(str(uuid_obj))
+        except (ValueError, TypeError):
+            # Nếu ID rác -> Bỏ qua hoặc Báo lỗi tùy nghiệp vụ. 
+            # Ở đây ta chọn báo lỗi để Frontend biết đường sửa.
+            msg = f"ID file không hợp lệ: {fid}"
+            logger.warning(msg)
+            raise DomainError(msg)
 
     # 2. Lấy ContentType (Giữ nguyên)
     try:
@@ -141,20 +147,58 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object) -> int:
         logger.error(f"Lỗi khi lấy ContentType: {e}", exc_info=True)
         raise DomainError(f"Không thể lấy ContentType cho {related_object}")
 
-    # 3. Truy vấn DB
-    # Lưu ý: Chưa update ngay, mà lấy danh sách ID tồn tại trước
-    files_qs = UploadedFile.objects.filter(id__in=target_ids)
+    # 3. TRUY VẤN DB (AN TOÀN CẤP ĐỘ CAO)
+    # Lấy owner của related_object (nếu có) để đảm bảo chính chủ
+    # Hầu hết các model trong LMS (Course, Lesson) đều có field 'owner' hoặc 'created_by'
+    owner = getattr(related_object, 'owner', None) 
+    
+    is_admin=False
+    if actor and (getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)):
+        is_admin = True
+
+    filters = Q(id__in=valid_target_ids)
+    
+    # Điều kiện 1: File đã thuộc về Object này rồi (Re-save)
+    cond_owned_by_object = Q(content_type=content_type, object_id=object_id)
+    
+    # Điều kiện 2: HOẶC File mới (Pending) VÀ phải do chính người này upload
+    cond_pending_and_my_file = Q(status=FileStatus.STAGING)
+    
+    # --- LOGIC PHÂN QUYỀN QUAN TRỌNG ---
+    if not is_admin:
+        # USER THƯỜNG:
+        # Chỉ được commit file staging nếu file đó do CHÍNH CHỦ sở hữu object upload
+        # (Hoặc do chính actor upload - tùy nghiệp vụ bạn muốn chặt đến đâu)
+        if owner:
+            cond_pending &= Q(uploaded_by=owner)
+        else:
+            # Nếu object không có owner (trường hợp hiếm), bắt buộc file phải do actor upload
+            if actor:
+                cond_pending &= Q(uploaded_by=actor)
+    else:
+        # ADMIN:
+        # Được phép commit BẤT KỲ file staging nào (miễn là có ID).
+        # Admin có quyền tối thượng ("God mode") để sửa chữa dữ liệu hộ user.
+        pass
+
+    # Combine
+    files_qs = UploadedFile.objects.filter(
+        filters & (cond_pending_and_my_file | cond_owned_by_object)
+    )
     
     # Lấy ra danh sách các ID thực sự tìm thấy trong DB
     # values_list trả về UUID object, nên cần ép kiểu str để so sánh với target_ids
     found_ids = set(str(uid) for uid in files_qs.values_list('id', flat=True))
 
-    # 4. --- TÌM RA ID BỊ THIẾU ---
-    # Phép trừ tập hợp: Có trong target_ids nhưng không có trong found_ids
-    missing_ids = target_ids - found_ids
+    # 4. KIỂM TRA THIẾU (MISSING OR FORBIDDEN)
+    # missing_ids ở đây bao gồm cả: File không tồn tại VÀ File tồn tại nhưng của người khác
+    missing_ids = valid_target_ids - found_ids
 
     if missing_ids:
-        error_msg = f"Không tìm thấy file với các ID sau: {missing_ids}"
+        error_msg = (
+            f"Không thể commit các file sau (Không tồn tại hoặc thuộc về đối tượng khác): "
+            f"{missing_ids}"
+        )
         logger.error(error_msg)
         # Bắn lỗi ngay lập tức, transaction sẽ rollback
         raise DomainError(error_msg)
@@ -327,20 +371,22 @@ def update_file(file_id: uuid.UUID, data: dict) -> FileDomain:
 
 def delete_file(file_id: uuid.UUID) -> None:
     """
-    Xóa một file (cả bản ghi CSDL và file vật lý).
+    Service xóa file lẻ (Dành cho API xóa file độc lập).
     """
-    logger.info(f"Service: Xóa file ID {file_id}...")
+    logger.info(f"Service: Yêu cầu xóa file ID {file_id}...")
     
-    file_model = get_file_model(file_id)
-    
-    # 1. Xóa file vật lý khỏi S3/media
-    # (Nếu không có file vật lý, nó sẽ bỏ qua một cách an toàn)
-    file_model.file.delete(save=False)
-    
-    # 2. Xóa bản ghi (record) khỏi CSDL
+    # 1. Tìm file
+    try:
+        file_model = UploadedFile.objects.get(pk=file_id)
+    except UploadedFile.DoesNotExist:
+        # Nếu file không tồn tại, coi như đã xóa thành công (Idempotent)
+        return None
+
+    # 2. Chỉ cần gọi delete() của Model
+    # Signal post_delete sẽ tự động nhảy vào xóa file trên S3/Disk
     file_model.delete()
     
-    logger.info(f"Service: Đã xóa thành công file ID {file_id}.")
+    logger.info(f"Service: Đã xóa file ID {file_id}.")
     return None
 
 

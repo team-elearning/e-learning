@@ -5,6 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 from content.models import Course
 
@@ -78,7 +80,7 @@ class UploadedFile(models.Model):
         return self.original_filename or self.file.name
 
     @property
-    def url(self):
+    def url_raw(self):
         if self.file:
             return self.file.url
         return None
@@ -102,5 +104,14 @@ class UploadedFile(models.Model):
         if not self.file:
             return None
         return self.file.url
+    
+@receiver(post_delete, sender=UploadedFile)
+def auto_delete_file_on_db_delete(sender, instance, **kwargs):
+    """
+    Khi một bản ghi UploadedFile bị xóa khỏi DB, 
+    hàm này tự động xóa file vật lý tương ứng trên S3/Disk.
+    """
+    if instance.file:
+        instance.file.delete(save=False)
     
 

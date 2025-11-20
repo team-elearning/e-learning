@@ -7,6 +7,18 @@ from typing import Optional, Dict, Any, Literal
 # Định nghĩa các loại block hợp lệ
 BlockType = Literal["text", "image", "video", "quiz", "exploration_ref"]
 
+class ContentBlockCreateInput(BaseModel):
+    """
+    DTO cho một Content Block bên trong JSON.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    type: str
+    position: int = 0
+    # Payload đã được DRF Serializer validate, 
+    # nên ở đây chỉ cần nhận là một dict
+    payload: Dict[str, Any]
+
 
 class ContentBlockInput(BaseModel):
     """
@@ -25,14 +37,11 @@ class ContentBlockInput(BaseModel):
 
 
 class ContentBlockUpdateInput(BaseModel):
-    """
-    DTO cho việc CẬP NHẬT (PATCH) một ContentBlock.
-    Tất cả các trường đều là optional.
-    'position' bị cấm cập nhật trực tiếp qua service,
-    phải dùng endpoint /reorder/, nên không có ở đây.
-    """
-    type: BlockType | None = None
-    payload: Dict[str, Any] | None = None
+    """DTO Input cho ContentBlock (PATCH)."""
+    id: Optional[uuid.UUID] = None
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    position: Optional[int] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
@@ -43,14 +52,20 @@ class ContentBlockUpdateInput(BaseModel):
 
 class ContentBlockPublicOutput(BaseModel):
     """
-    DTO cho HỌC SINH (Public).
+    DTO Output cho Content Block.
     """
     model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
-    type: BlockType
+    type: str
     position: int
-    payload: Dict[str, Any]
+    payload: Dict[str, Any] # Payload đã được chuẩn hóa (ví dụ: chứa quiz_id)
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """
+        Convert the model to a dictionary.
+        """
+        return self.model_dump(exclude_none=exclude_none)
 
 
 class ContentBlockAdminOutput(BaseModel):
