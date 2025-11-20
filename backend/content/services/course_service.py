@@ -197,6 +197,9 @@ def create_course_instructor(data: dict, owner) -> CourseDomain:
         data['slug'] = slugify(data['title'])
     # (Bạn nên có logic kiểm tra slug trùng ở đây)
 
+    if Course.objects.filter(slug=data['slug']).exists():
+        raise ValueError(f"Slug khóa học '{data['slug']}' đã tồn tại. Vui lòng đổi tên khóa học.")
+
     # 3. Tạo đối tượng gốc (Course)
     try:
         # Thay vì dùng **data, chúng ta liệt kê tường minh các trường
@@ -223,8 +226,7 @@ def create_course_instructor(data: dict, owner) -> CourseDomain:
         raise ValueError(f"Slug '{data['slug']}' đã tồn tại. Vui lòng chọn một tiêu đề khác.")
     
     except KeyError as e:
-        # Bắt lỗi nếu 'data' thiếu 'title' (hoặc 'slug' nếu Bước 2 lỗi)
-        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {str(e)}")
+        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {str(e)}") from e
     
     # 4. Xử lý M2M (Category)
     # (Phải tạo course trước mới gán M2M được)
@@ -232,21 +234,41 @@ def create_course_instructor(data: dict, owner) -> CourseDomain:
     if image_id:
         files_to_commit.append(image_id)
 
-    for tag_name in tag_names:
-        # Tìm hoặc tạo Tag
-        tag, _ = Tag.objects.get_or_create(
-            name=tag_name, 
-            defaults={'slug': slugify(tag_name)}
-        )
-        course.tags.add(tag)
+    if tag_names:
+        tags_objects = []
+        for tag_name in tag_names:
+            tag_slug = slugify(tag_name)
+            try:
+                # Cố gắng tìm theo tên, nếu chưa có thì tạo kèm slug
+                t, created = Tag.objects.get_or_create(
+                    name=tag_name, 
+                    defaults={'slug': tag_slug}
+                )
+            except IntegrityError:
+                # TRƯỜNG HỢP VA CHẠM:
+                # Name không trùng (nên Django cố tạo mới), nhưng Slug lại trùng với một tag khác.
+                # Ví dụ: DB có "Toán Học" (slug: toan), User nhập "Toán" (slug: toan).
+                # Giải pháp: Lấy cái tag đang giữ slug đó (chấp nhận dùng lại tag cũ)
+                t = Tag.objects.get(slug=tag_slug)
+            tags_objects.append(t)
+        course.tags.set(tags_objects)
 
-    for cat_name in categories_names:
-        # Tìm hoặc tạo Category
-        category, _ = Category.objects.get_or_create(
-            name=cat_name, 
-            defaults={'slug': slugify(cat_name)}
-        )
-        course.categories.add(category)
+    if categories_names:
+        cats_objects = []
+        for cat_name in categories_names:
+            cat_slug = slugify(cat_name)
+            try:
+                c, created = Category.objects.get_or_create(
+                    name=cat_name, 
+                    defaults={'slug': cat_slug}
+                )
+            except IntegrityError:
+                # Nếu trùng slug thì lấy category cũ
+                c = Category.objects.get(slug=cat_slug)
+            
+            cats_objects.append(c)
+            
+        course.categories.set(cats_objects)
     
     # 5. GỌI VÀ ỦY QUYỀN cho domain/service con
     # Đây là phần bạn đã làm đúng

@@ -481,6 +481,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
             return Response({"detail": "Lỗi máy chủ khi tạo course."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView):
     """
     GET /instructor/courses/<pk>/    - Lấy chi tiết (của tôi).
