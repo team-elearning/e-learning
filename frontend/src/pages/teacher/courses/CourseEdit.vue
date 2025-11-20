@@ -1,422 +1,788 @@
-<!-- frontend/src/pages/teacher/courses/CourseEdit.vue -->
 <template>
   <div class="min-h-screen w-full bg-slate-50">
-    <main class="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 md:px-10">
-      <div class="page-head">
-        <div>
-          <p class="page-kicker">Khoá học</p>
-          <h1 class="page-title">Chỉnh sửa khoá học</h1>
+    <main class="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 md:px-10 md:py-8">
+      <!-- Header -->
+      <div
+        class="mb-5 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center"
+      >
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            @click="goBack"
+          >
+            ‹
+          </button>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-slate-400">Sửa khoá học</p>
+            <h1 class="text-xl font-semibold sm:text-2xl">
+              {{ course?.title || 'Đang tải…' }}
+            </h1>
+          </div>
         </div>
-        <div class="page-actions">
-          <button class="btn btn-secondary" type="button" @click="router.push('/teacher/courses')">Về danh sách</button>
-          <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? 'Đang lưu…' : 'Lưu thay đổi' }}
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            @click="goToList"
+          >
+            Quay lại danh sách
           </button>
         </div>
       </div>
 
-      <div v-if="loading" class="card flex items-center gap-2 text-slate-600">
-        <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500" />
-        <span>Đang tải khoá học…</span>
-      </div>
-      <div v-else-if="err" class="card border border-rose-200 bg-rose-50 text-rose-700">
-        {{ err }}
+      <!-- Loading -->
+      <div v-if="loading" class="space-y-4">
+        <div class="h-40 w-full rounded-2xl bg-slate-200 animate-pulse" />
+        <div class="h-4 w-1/2 rounded bg-slate-200 animate-pulse" />
+        <div class="h-4 w-1/3 rounded bg-slate-200 animate-pulse" />
+        <div class="h-32 w-full rounded-2xl bg-slate-200 animate-pulse" />
       </div>
 
-      <template v-else>
-        <!-- Thông tin khoá học -->
-        <section class="card">
-          <div class="section-head">
-            <h2 class="section-title">Thông tin khoá học</h2>
-            <p class="section-desc">Cập nhật thông tin cơ bản và ảnh khoá học.</p>
-          </div>
-          <div class="space-y-4">
-            <label class="field">
-              <span class="label">Tên khoá học <span class="text-rose-600">*</span></span>
-              <input v-model.trim="form.title" class="input" placeholder="Nhập tên khoá học" />
-            </label>
-            <div class="grid gap-3 md:grid-cols-3">
-              <label class="field">
-                <span class="label">Khối lớp</span>
-                <select v-model.number="form.grade" class="input">
-                  <option v-for="g in [1,2,3,4,5]" :key="g" :value="g">Lớp {{ g }}</option>
-                </select>
-              </label>
-              <label class="field">
-                <span class="label">Môn học</span>
-                <select v-model="form.subject" class="input">
-                  <option value="math">Toán</option>
-                  <option value="vietnamese">Tiếng Việt</option>
-                  <option value="english">Tiếng Anh</option>
-                  <option value="science">Khoa học</option>
-                  <option value="history">Lịch sử</option>
-                </select>
-              </label>
-              <label class="field">
-                <span class="label">Mức độ</span>
-                <select v-model="form.level" class="input">
-                  <option value="basic">Cơ bản</option>
-                  <option value="advanced">Nâng cao</option>
-                </select>
-              </label>
-            </div>
-            <div class="grid gap-3 md:grid-cols-3">
-              <label class="field">
-                <span class="label">Trạng thái</span>
-                <select v-model="form.status" class="input">
-                  <option value="draft">Nháp</option>
-                  <option value="published">Xuất bản</option>
-                </select>
-              </label>
-              <label class="field md:col-span-2">
-                <span class="label">Ảnh thumbnail (chọn file)</span>
-                <label class="input-file">
-                  <input type="file" accept="image/*" class="hidden" @change="onPickThumb" />
-                  <span class="input-file__btn">Chọn ảnh</span>
-                  <span class="input-file__text">{{ form.thumbnailFile?.name || 'Chưa chọn ảnh' }}</span>
-                </label>
-                <div v-if="form.thumbnailPreview" class="thumb-preview">
-                  <img :src="form.thumbnailPreview" alt="preview" class="thumb-img" />
-                </div>
-              </label>
-            </div>
-            <label class="field">
-              <span class="label">Mô tả</span>
-              <textarea
-                v-model.trim="form.description"
-                rows="3"
-                class="input"
-                placeholder="Mô tả ngắn gọn nội dung, mục tiêu…"
+      <!-- Error -->
+      <div
+        v-else-if="error"
+        class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+      >
+        {{ error }}
+      </div>
+
+      <!-- Content -->
+      <div v-else-if="course" class="space-y-6">
+        <!-- Form chỉnh sửa -->
+        <form class="grid grid-cols-1 gap-6 lg:grid-cols-[280px,1fr]" @submit.prevent="submit">
+          <!-- Thumbnail & info ngắn -->
+          <section class="space-y-4">
+            <!-- Thumbnail -->
+            <div
+              class="h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 sm:h-56"
+            >
+              <img
+                v-if="coverBlobUrl"
+                :src="coverBlobUrl"
+                :alt="f.title || 'Ảnh khoá học'"
+                class="h-full w-full object-cover"
               />
-            </label>
-          </div>
-        </section>
+              <div
+                v-else
+                class="flex h-full w-full items-center justify-center text-5xl text-slate-300"
+              >
+                🎓
+              </div>
+            </div>
 
-        <!-- Chương trình học -->
-        <section class="card">
-          <div class="mb-3 flex items-center justify-between">
+            <!-- Upload ảnh bìa -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <h2 class="mb-2 text-sm font-semibold text-slate-800">Ảnh khoá học</h2>
+              <p class="mb-3 text-xs text-slate-500">
+                Ảnh bìa hiển thị trong danh sách và trang chi tiết khoá học (tùy chọn).
+              </p>
+
+              <input
+                ref="coverInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onPickCover"
+              />
+
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  @click="coverInput?.click()"
+                >
+                  Chọn ảnh bìa
+                </button>
+
+                <span v-if="coverFileName" class="text-xs text-slate-600">
+                  {{ coverFileName }}
+                </span>
+                <span v-else class="text-xs text-slate-400">
+                  Chưa chọn ảnh mới (giữ nguyên ảnh hiện tại).
+                </span>
+              </div>
+
+              <p class="mt-2 text-[11px] text-slate-400">Hỗ trợ JPG/PNG, tối đa 2MB.</p>
+              <p v-if="coverErr" class="mt-2 text-xs font-medium text-rose-600">
+                {{ coverErr }}
+              </p>
+            </div>
+
+            <!-- Thông tin nhanh -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 text-xs">
+              <p class="font-semibold text-slate-700">Tóm tắt</p>
+              <p class="mt-1 text-slate-500">
+                Lớp:
+                <span class="font-medium text-slate-700">
+                  {{ f.grade || 'Chưa rõ' }}
+                </span>
+              </p>
+              <p class="mt-1 text-slate-500">
+                Môn:
+                <span class="font-medium text-slate-700">
+                  {{ f.subject || course.categories[0] || 'Chưa rõ' }}
+                </span>
+              </p>
+              <p class="mt-1 text-slate-500">
+                Số chương:
+                <span class="font-medium text-slate-700">
+                  {{ f.modules.length }}
+                </span>
+              </p>
+            </div>
+          </section>
+
+          <!-- Form chi tiết -->
+          <section class="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+            <!-- Tên khoá học -->
             <div>
-              <h2 class="section-title">Chương trình học (Modules &amp; Lessons)</h2>
-              <p class="section-desc">Thêm chương và bài, mỗi bài chọn file video.</p>
+              <label class="mb-1 block text-sm font-semibold text-slate-800">
+                Tên khoá học <span class="text-rose-600">*</span>
+              </label>
+              <input
+                v-model.trim="f.title"
+                type="text"
+                class="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                :class="titleErr ? 'border-rose-500 ring-rose-500' : 'border-slate-300'"
+                placeholder="Ví dụ: Toán 5 (Hỗ trợ học bộ Cánh diều)"
+                @input="titleErr = ''"
+              />
+              <p v-if="titleErr" class="mt-1 text-xs font-medium text-rose-600">
+                {{ titleErr }}
+              </p>
             </div>
-            <div class="flex gap-2">
-              <button type="button" class="btn btn-primary" @click="addModule">+ Thêm Chương</button>
+
+            <!-- Môn & khối -->
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-800"> Môn học </label>
+                <select
+                  v-model="f.subject"
+                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="">Chọn môn</option>
+                  <option value="Toán">Toán</option>
+                  <option value="Tiếng Việt">Tiếng Việt</option>
+                  <option value="Tiếng Anh">Tiếng Anh</option>
+                  <option value="Khoa học">Khoa học</option>
+                  <option value="Lịch sử">Lịch sử</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-800"> Khối lớp </label>
+                <select
+                  v-model="f.grade"
+                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="1">Lớp 1</option>
+                  <option value="2">Lớp 2</option>
+                  <option value="3">Lớp 3</option>
+                  <option value="4">Lớp 4</option>
+                  <option value="5">Lớp 5</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Mô tả -->
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-800"> Mô tả </label>
+              <textarea
+                v-model.trim="f.description"
+                rows="4"
+                class="w-full resize-y rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                placeholder="Mô tả chi tiết về khoá học..."
+              ></textarea>
+            </div>
+
+            <!-- Tags -->
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-800">
+                Tags
+                <span class="text-xs font-normal text-slate-500">(phân cách bằng dấu phẩy)</span>
+              </label>
+              <input
+                v-model="tagsInput"
+                type="text"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                placeholder="Ví dụ: toan, lop 5, canh dieu"
+                @input="updateTags"
+              />
+              <p class="mt-1 text-[11px] text-slate-500">
+                Tags giúp học sinh tìm kiếm khoá học dễ dàng hơn.
+              </p>
+            </div>
+
+            <!-- CHỈNH SỬA CHƯƠNG / BÀI HỌC -->
+            <div class="mt-4 space-y-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-sm font-semibold text-slate-800">Chương học (modules)</p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    Em có thể đổi tên chương / bài học, thêm hoặc xoá chương / bài. Nội dung chi
+                    tiết bên trong bài (text, file, quiz, ...) giữ nguyên.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  @click="addModule"
+                >
+                  + Thêm chương
+                </button>
+              </div>
+
+              <div v-if="!f.modules.length" class="text-xs text-slate-500">
+                Chưa có chương nào. Nhấn <b>Thêm chương</b> để bắt đầu.
+              </div>
+
+              <div v-else class="space-y-3">
+                <div
+                  v-for="(m, mIndex) in f.modules"
+                  :key="m.id || mIndex"
+                  class="rounded-lg border border-slate-200 bg-white p-3"
+                >
+                  <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-700"
+                      >
+                        {{ mIndex + 1 }}
+                      </span>
+                      <input
+                        v-model.trim="m.title"
+                        type="text"
+                        class="w-full rounded border border-slate-300 px-2 py-1.5 text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                        :placeholder="`Chương ${mIndex + 1}`"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      class="text-xs text-rose-600 hover:text-rose-700"
+                      @click="removeModule(mIndex)"
+                    >
+                      Xoá
+                    </button>
+                  </div>
+
+                  <!-- Lessons -->
+                  <div class="mt-2 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <p class="text-[11px] font-semibold text-slate-700">
+                        Bài học ({{ m.lessons.length }})
+                      </p>
+                      <button
+                        type="button"
+                        class="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                        @click="addLesson(mIndex)"
+                      >
+                        + Thêm bài
+                      </button>
+                    </div>
+
+                    <div v-if="!m.lessons.length" class="text-[11px] text-slate-500">
+                      Chưa có bài học nào trong chương này.
+                    </div>
+
+                    <div v-else class="space-y-2">
+                      <div
+                        v-for="(lesson, lIndex) in m.lessons"
+                        :key="lesson.id || lIndex"
+                        class="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5"
+                      >
+                        <div class="flex flex-1 items-center gap-2">
+                          <span
+                            class="inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-700"
+                          >
+                            B{{ lIndex + 1 }}
+                          </span>
+                          <div class="flex-1">
+                            <input
+                              v-model.trim="lesson.title"
+                              type="text"
+                              class="w-full rounded border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                              :placeholder="`Bài ${lIndex + 1}`"
+                            />
+                            <p class="mt-0.5 text-[10px] text-slate-500">
+                              {{ lesson.content_blocks?.length || 0 }} nội dung (text / video / file
+                              / quiz ...)
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="text-[11px] text-rose-600 hover:text-rose-700"
+                          @click="removeLesson(mIndex, lIndex)"
+                        >
+                          Xoá
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div
+              class="mt-4 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-4"
+            >
+              <button
+                type="button"
+                class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                @click="goBack"
+              >
+                Huỷ
+              </button>
+              <button
+                type="submit"
+                class="rounded-xl bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="submitting"
+              >
+                {{ submitting ? 'Đang lưu…' : 'Lưu thay đổi' }}
+              </button>
+            </div>
+          </section>
+        </form>
+      </div>
+
+      <!-- Không có course mà cũng không loading & không lỗi -->
+      <div v-else class="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        Không tìm thấy dữ liệu khoá học.
+      </div>
+
+      <!-- Notification modal -->
+      <transition
+        enter-active-class="transition-opacity duration-150 ease-out"
+        leave-active-class="transition-opacity duration-150 ease-in"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="notification.open"
+          class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          @click.self="notification.open = false"
+        >
+          <div
+            class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl outline-none"
+          >
+            <div class="mb-4 flex items-center gap-3">
+              <div
+                :class="[
+                  'p-2 rounded-full',
+                  notification.type === 'success'
+                    ? 'bg-green-100 text-green-600'
+                    : 'bg-amber-100 text-amber-600',
+                ]"
+              >
+                <span v-if="notification.type === 'success'">✓</span>
+                <span v-else>⚠</span>
+              </div>
+              <h3 class="text-lg font-bold text-slate-800">
+                {{ notification.title }}
+              </h3>
+            </div>
+
+            <div class="mb-6">
+              <p class="text-slate-700">{{ notification.message }}</p>
+            </div>
+
+            <div class="flex justify-end">
+              <button
+                type="button"
+                class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                @click="notification.open = false"
+              >
+                OK
+              </button>
             </div>
           </div>
-
-          <div v-if="!form.modules.length" class="empty">Chưa có chương. Hãy thêm chương đầu tiên.</div>
-
-          <div v-for="(mod, mIndex) in form.modules" :key="mod.id" class="module">
-            <div class="module-header">
-              <div class="flex-1 space-y-2">
-                <label class="field">
-                  <span class="label">Tên chương</span>
-                  <input
-                    v-model.trim="mod.title"
-                    class="input"
-                    :placeholder="`Chương ${mIndex + 1}`"
-                  />
-                </label>
-              </div>
-              <button type="button" class="btn btn-ghost text-rose-600" @click="removeModule(mIndex)">Xoá</button>
-            </div>
-
-            <div class="lesson-actions">
-              <span class="text-sm font-semibold text-slate-700">Bài học</span>
-              <button type="button" class="btn btn-secondary" @click="addLesson(mod)">+ Thêm Bài</button>
-            </div>
-
-            <div v-if="!mod.lessons.length" class="empty small">Chưa có bài trong chương này.</div>
-
-            <div v-for="(lesson, lIndex) in mod.lessons" :key="lesson.id" class="lesson">
-              <div class="flex-1 grid gap-2 md:grid-cols-2">
-                <label class="field">
-                  <span class="label">Tên bài học</span>
-                  <input
-                    v-model.trim="lesson.title"
-                    class="input"
-                    :placeholder="`Bài ${mIndex + 1}.${lIndex + 1}`"
-                  />
-                </label>
-                <label class="field">
-                  <span class="label">File video</span>
-                  <input type="file" accept="video/*" class="input" @change="onPickVideo(lesson, $event)" />
-                  <p v-if="lesson.videoPreview" class="text-xs text-slate-500 truncate">Đã chọn: {{ lesson.videoFile?.name || 'Video mẫu' }}</p>
-                </label>
-              </div>
-              <button type="button" class="btn btn-ghost text-rose-600" @click="removeLesson(mod, lIndex)">Xoá</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Errors -->
-        <div v-if="errors.length" class="card border border-rose-200 bg-rose-50 text-rose-700">
-          <div class="font-semibold">Cần kiểm tra:</div>
-          <ul class="list-disc pl-5 space-y-1 text-sm">
-            <li v-for="err in errors" :key="err">{{ err }}</li>
-          </ul>
         </div>
-
-        <!-- Actions -->
-        <div class="mt-6 flex flex-wrap gap-3">
-          <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? 'Đang lưu…' : 'LƯU THAY ĐỔI' }}
-          </button>
-          <span v-if="successMsg" class="text-sm text-emerald-700">{{ successMsg }}</span>
-        </div>
-      </template>
+      </transition>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { courseService, type CourseDetail } from '@/services/course.service'
+import axios from 'axios'
 
-type LessonDraft = { id: string; title: string; videoFile: File | null; videoPreview: string }
-type ModuleDraft = { id: string; title: string; lessons: LessonDraft[] }
-
-const router = useRouter()
 const route = useRoute()
-const courseId = route.params.id
+const router = useRouter()
 
-const loading = ref(true)
-const err = ref('')
-const errors = ref<string[]>([])
-const saving = ref(false)
-const successMsg = ref('')
+// ================== AUTH HEADER ==================
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access')
+  return token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {}
+}
 
-const form = reactive<{
+// ================== TYPES ==================
+interface Lesson {
+  id?: string
+  title: string
+  position: number
+  content_type: string
+  published?: boolean
+  content_blocks: any[]
+}
+
+interface Module {
+  id?: string
+  title: string
+  position: number
+  lessons: Lesson[]
+}
+
+interface CourseDetail {
+  id: string
   title: string
   description: string
-  grade: number
-  subject: 'math' | 'vietnamese' | 'english' | 'science' | 'history'
-  level: 'basic' | 'advanced'
-  status: 'draft' | 'published'
-  thumbnailFile: File | null
-  thumbnailPreview: string
-  modules: ModuleDraft[]
+  grade: string | null
+  image_url: string | null
+  subject: string | null
+  slug: string
+  categories: string[]
+  tags: string[]
+  modules: Module[]
+}
+
+// ================== STATE ==================
+const course = ref<CourseDetail | null>(null)
+const loading = ref(false)
+const error = ref('')
+
+const submitting = ref(false)
+
+// form state
+const f = reactive<{
+  title: string
+  description: string
+  grade: string
+  subject: string
+  tags: string[]
+  modules: Module[]
 }>({
   title: '',
   description: '',
-  grade: 3,
-  subject: 'math',
-  level: 'basic',
-  status: 'draft',
-  thumbnailFile: null,
-  thumbnailPreview: '',
+  grade: '5',
+  subject: '',
+  tags: [],
   modules: [],
 })
 
-function uid(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 8)}`
+const titleErr = ref('')
+
+// cover
+const coverInput = ref<HTMLInputElement | null>(null)
+const coverFileName = ref('')
+const coverErr = ref('')
+const coverBlobUrl = ref<string | null>(null)
+const coverImageId = ref<string | null>(null)
+
+// tags input
+const tagsInput = ref('')
+
+// notification
+const notification = reactive({
+  open: false,
+  type: 'success' as 'success' | 'error',
+  title: '',
+  message: '',
+})
+
+// lưu blob url để revoke
+const blobUrls = new Set<string>()
+
+// ================== HELPERS ==================
+const showNotification = (type: 'success' | 'error', title: string, message: string) => {
+  notification.type = type
+  notification.title = title
+  notification.message = message
+  notification.open = true
 }
 
-function fillFromDetail(d: CourseDetail) {
-  form.title = d.title || ''
-  form.description = d.description || ''
-  form.grade = Number(d.grade) || 3
-  form.subject = (d.subject as any) || 'math'
-  form.level = (d.level as any) || 'basic'
-  form.status = (d.status as any) === 'published' ? 'published' : 'draft'
-  form.thumbnailFile = null
-  form.thumbnailPreview = d.thumbnail || ''
-  form.modules = (d.sections || []).map((s, idx) => ({
-    id: String(s.id || uid('m')),
-    title: s.title || `Chương ${idx + 1}`,
-    lessons: (s.lessons || []).map((l, li) => ({
-      id: String(l.id || uid('l')),
-      title: l.title || `Bài ${idx + 1}.${li + 1}`,
-      videoFile: null,
-      videoPreview: (l as any).videoUrl || '',
-    })),
-  }))
-  if (!form.modules.length) {
-    form.modules.push({
-      id: uid('m'),
-      title: 'Chương 1',
-      lessons: [{ id: uid('l'), title: 'Bài 1', videoFile: null, videoPreview: '' }],
-    })
-  }
+const updateTags = () => {
+  f.tags = tagsInput.value
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
 }
 
-function addModule() {
-  const idx = form.modules.length + 1
-  form.modules.push({
-    id: uid('m'),
-    title: `Chương ${idx}`,
-    lessons: [{ id: uid('l'), title: `Bài ${idx}.1`, videoFile: null, videoPreview: '' }],
-  })
-}
-
-function removeModule(index: number) {
-  form.modules.splice(index, 1)
-}
-
-function addLesson(mod: ModuleDraft) {
-  const lessonNo = mod.lessons.length + 1
-  mod.lessons.push({ id: uid('l'), title: `Bài ${lessonNo}`, videoFile: null, videoPreview: '' })
-}
-
-function removeLesson(mod: ModuleDraft, index: number) {
-  mod.lessons.splice(index, 1)
-}
-
-function fillSample() {
-  form.title = 'Luyện thi Toán lớp 3 - Học kỳ 1'
-  form.description = 'Ôn tập lý thuyết và bài tập trọng tâm, bám sát chương trình.'
-  form.grade = 3
-  form.subject = 'math'
-  form.level = 'basic'
-  form.status = 'published'
-  form.thumbnailFile = null
-  form.thumbnailPreview = 'https://picsum.photos/seed/course-sample/800/360'
-  form.modules = [
-    {
-      id: uid('m'),
-      title: 'Ôn số và phép tính',
-      lessons: [
-        { id: uid('l'), title: 'Cộng trừ trong phạm vi 1000', videoFile: null, videoPreview: '' },
-        { id: uid('l'), title: 'Ôn bảng nhân chia', videoFile: null, videoPreview: '' },
-      ],
-    },
-    {
-      id: uid('m'),
-      title: 'Hình học cơ bản',
-      lessons: [
-        { id: uid('l'), title: 'Đo độ dài đoạn thẳng', videoFile: null, videoPreview: '' },
-        { id: uid('l'), title: 'Chu vi hình chữ nhật', videoFile: null, videoPreview: '' },
-      ],
-    },
-    {
-      id: uid('m'),
-      title: 'Ứng dụng',
-      lessons: [
-        { id: uid('l'), title: 'Giải bài toán có lời văn', videoFile: null, videoPreview: '' },
-      ],
-    },
-  ]
-}
-
-function validate() {
-  const errs: string[] = []
-  if (!form.title.trim()) errs.push('Nhập tên khoá học')
-  if (!form.modules.length) errs.push('Thêm ít nhất 1 chương')
-
-  form.modules.forEach((m, mi) => {
-    if (!m.title.trim()) errs.push(`Chương ${mi + 1}: cần tên chương`)
-    if (!m.lessons.length) errs.push(`Chương ${mi + 1}: cần ít nhất 1 bài học`)
-    m.lessons.forEach((l, li) => {
-      if (!l.title.trim()) errs.push(`Bài ${mi + 1}.${li + 1}: cần tên`)
-      if (!l.videoFile && !l.videoPreview) errs.push(`Bài ${mi + 1}.${li + 1}: chọn file video`)
-    })
-  })
-
-  errors.value = errs
-  return !errs.length
-}
-
-function mapPayload(): Partial<CourseDetail> {
-  return {
-    title: form.title.trim(),
-    description: form.description.trim() || undefined,
-    grade: form.grade as any,
-    subject: form.subject as any,
-    level: form.level as any,
-    status: form.status as any,
-    thumbnail: form.thumbnailPreview || undefined,
-    sections: form.modules.map((m, idx) => ({
-      id: m.id,
-      title: m.title.trim() || `Chương ${idx + 1}`,
-      order: idx + 1,
-      lessons: m.lessons.map((l, li) => ({
-        id: l.id,
-        title: l.title.trim() || `Bài ${idx + 1}.${li + 1}`,
-        type: 'video',
-        videoUrl: l.videoPreview || l.videoFile?.name || undefined,
-        isPreview: li === 0,
-      })),
-    })),
-  }
-}
-
-function onPickThumb(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (f) {
-    form.thumbnailFile = f
-    form.thumbnailPreview = URL.createObjectURL(f)
-  }
-}
-
-function onPickVideo(lesson: LessonDraft, e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (f) {
-    lesson.videoFile = f
-    lesson.videoPreview = URL.createObjectURL(f)
-  }
-}
-
-async function load() {
-  loading.value = true
-  err.value = ''
+async function fetchBlobUrl(path: string): Promise<string | null> {
   try {
-    const d = await courseService.detail(courseId as any)
-    fillFromDetail(d)
+    const res = await axios.get(path, {
+      responseType: 'blob',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    const url = URL.createObjectURL(res.data)
+    blobUrls.add(url)
+    return url
+  } catch (e) {
+    console.error('❌ Lỗi tải file blob:', path, e)
+    return null
+  }
+}
+
+// upload ảnh bìa
+type MediaComponent = 'lesson_material' | 'course_thumbnail'
+
+interface UploadMediaResponse {
+  id: string
+  original_filename: string
+  uploaded_at: string
+  status: string
+  component: string
+  url: string
+}
+
+async function uploadMedia(
+  file: File,
+  component: MediaComponent,
+  contentTypeStr: string,
+): Promise<UploadMediaResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('component', component)
+  formData.append('content_type_str', contentTypeStr)
+
+  const { data } = await axios.post<UploadMediaResponse>('/api/media/upload/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      ...getAuthHeaders(),
+    },
+  })
+
+  return data
+}
+
+// ================== FETCH COURSE ==================
+async function fetchCourse() {
+  const id = route.params.id
+  if (!id) {
+    error.value = 'Không tìm thấy ID khoá học trên URL.'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const { data } = await axios.get<CourseDetail>(`/api/content/instructor/courses/${id}/`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    course.value = data
+
+    // map data -> form
+    f.title = data.title || ''
+    f.description = data.description || ''
+    f.grade = data.grade || '5'
+    f.subject = data.subject || data.categories[0] || ''
+    f.tags = data.tags || []
+
+    tagsInput.value = f.tags.join(', ')
+
+    // clone modules để chỉnh sửa
+    f.modules = (data.modules || []).map((m, mIndex) => ({
+      id: m.id,
+      title: m.title,
+      position: m.position ?? mIndex,
+      lessons: (m.lessons || []).map((l, lIndex) => ({
+        id: l.id,
+        title: l.title,
+        position: l.position ?? lIndex,
+        content_type: l.content_type,
+        published: l.published,
+        content_blocks: l.content_blocks || [],
+      })),
+    }))
+
+    // cover blob
+    if (data.image_url) {
+      const url = await fetchBlobUrl(data.image_url)
+      if (url) {
+        coverBlobUrl.value = url
+      }
+    }
   } catch (e: any) {
-    err.value = e?.message || 'Không tải được khoá học'
+    console.error('❌ Lỗi tải chi tiết khoá học:', e)
+    error.value =
+      e?.response?.data?.detail ||
+      e?.message ||
+      'Không thể tải chi tiết khoá học. Vui lòng thử lại.'
   } finally {
     loading.value = false
   }
 }
 
-async function save() {
-  successMsg.value = ''
-  if (!validate() || saving.value) return
-  saving.value = true
+// ================== COVER HANDLER ==================
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024
+const OVER_LIMIT_MSG = 'File ảnh vượt quá dung lượng cho phép (2MB)'
+
+const onPickCover = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (file.size > MAX_AVATAR_SIZE) {
+    coverErr.value = OVER_LIMIT_MSG
+    coverFileName.value = ''
+    return
+  }
+
+  coverErr.value = ''
+  coverFileName.value = file.name
+
+  // preview local
+  if (coverBlobUrl.value) {
+    URL.revokeObjectURL(coverBlobUrl.value)
+  }
+  const localUrl = URL.createObjectURL(file)
+  coverBlobUrl.value = localUrl
+  blobUrls.add(localUrl)
+
   try {
-    await courseService.update(courseId as any, mapPayload())
-    successMsg.value = 'Đã lưu thay đổi (mock).'
-    router.push('/teacher/courses')
-  } catch (e: any) {
-    errors.value = [e?.message || 'Không thể lưu khoá học']
-  } finally {
-    saving.value = false
+    const res = await uploadMedia(file, 'course_thumbnail', 'image')
+    coverImageId.value = res.id
+  } catch (err) {
+    console.error('❌ Lỗi upload ảnh bìa:', err)
+    coverImageId.value = null
+    showNotification('error', 'Lỗi', 'Upload ảnh bìa thất bại. Vui lòng thử lại.')
   }
 }
 
+// ================== EDIT MODULES / LESSONS ==================
+function addModule() {
+  f.modules.push({
+    title: '',
+    position: f.modules.length,
+    lessons: [],
+  })
+}
+
+function removeModule(mIndex: number) {
+  f.modules.splice(mIndex, 1)
+  f.modules.forEach((m, idx) => {
+    m.position = idx
+  })
+}
+
+function addLesson(mIndex: number) {
+  const mod = f.modules[mIndex]
+  mod.lessons.push({
+    title: '',
+    position: mod.lessons.length,
+    content_type: 'lesson',
+    published: false,
+    content_blocks: [],
+  })
+}
+
+function removeLesson(mIndex: number, lIndex: number) {
+  const mod = f.modules[mIndex]
+  mod.lessons.splice(lIndex, 1)
+  mod.lessons.forEach((l, idx) => {
+    l.position = idx
+  })
+}
+
+// ================== SUBMIT (PATCH) ==================
+async function submit() {
+  titleErr.value = ''
+  if (!f.title || !f.title.trim()) {
+    titleErr.value = 'Vui lòng nhập tên khoá học.'
+    return
+  }
+
+  if (!course.value) return
+
+  submitting.value = true
+  try {
+    const payload: any = {
+      title: f.title,
+      description: f.description,
+      grade: f.grade,
+      subject: f.subject || null,
+      tags: f.tags,
+      categories: f.subject ? [f.subject] : [],
+      modules: f.modules,
+    }
+
+    // chỉ gửi image_id nếu user đã upload ảnh mới
+    if (coverImageId.value) {
+      payload.image_id = coverImageId.value
+    }
+
+    await axios.patch(`/api/content/instructor/courses/${course.value.id}/`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+
+    showNotification('success', 'Thành công', 'Đã lưu thay đổi khoá học.')
+
+    // cập nhật lại course local cho đồng bộ
+    course.value = {
+      ...course.value,
+      title: f.title,
+      description: f.description,
+      grade: f.grade,
+      subject: f.subject || null,
+      categories: payload.categories,
+      tags: [...f.tags],
+      modules: JSON.parse(JSON.stringify(f.modules)),
+    }
+  } catch (e: any) {
+    console.error('❌ Lỗi khi cập nhật khoá học:', e)
+    showNotification(
+      'error',
+      'Lỗi',
+      e?.response?.data?.detail ||
+        e?.message ||
+        'Có lỗi xảy ra khi lưu khoá học. Vui lòng thử lại.',
+    )
+  } finally {
+    submitting.value = false
+  }
+}
+
+// ================== NAV ==================
+function goBack() {
+  router.back()
+}
+
+function goToList() {
+  router.push({ path: '/teacher/courses' })
+}
+
+// ================== INIT & CLEANUP ==================
 onMounted(() => {
-  load()
+  fetchCourse()
+})
+
+onBeforeUnmount(() => {
+  blobUrls.forEach((u) => URL.revokeObjectURL(u))
+  blobUrls.clear()
 })
 </script>
 
 <style scoped>
-.card { @apply mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm; }
-.section-title { @apply mb-3 text-lg font-semibold text-slate-800; }
-.section-head { @apply mb-2 flex items-center justify-between gap-3; }
-.section-desc { @apply text-sm text-slate-500; }
-.page-head { @apply mb-5 flex flex-wrap items-center justify-between gap-3; }
-.page-kicker { @apply text-sm text-slate-500; }
-.page-title { @apply text-2xl font-semibold; }
-.page-actions { @apply flex gap-2; }
-.field { @apply flex flex-col gap-1; }
-.label { @apply text-sm font-medium text-slate-700; }
-.input { @apply w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100; }
-.input-file {
-  @apply flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm;
+h1 {
+  word-break: break-word;
 }
-.input-file__btn { @apply inline-flex items-center rounded-md bg-sky-600 px-3 py-1 text-white text-xs font-semibold; }
-.input-file__text { @apply text-slate-600; }
-.thumb-preview { @apply mt-2; }
-.thumb-img { @apply h-28 w-full max-w-sm rounded-lg object-cover border; }
-.module { @apply mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3; }
-.module-header { @apply mb-3 flex flex-wrap items-start gap-3; }
-.lesson-actions { @apply mb-2 flex items-center justify-between; }
-.lesson { @apply mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3; }
-.empty { @apply rounded-lg border border-dashed border-slate-200 bg-slate-100 px-3 py-3 text-sm text-slate-500; }
-.empty.small { @apply py-2; }
-.btn { @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition; }
-.btn-primary { @apply bg-sky-600 text-white hover:bg-sky-700; }
-.btn-secondary { @apply border border-sky-200 bg-white text-sky-700 hover:bg-sky-50; }
-.btn-ghost { @apply rounded-lg px-2 py-1 text-sm font-semibold hover:bg-slate-100; }
 </style>
