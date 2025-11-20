@@ -239,7 +239,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
         try:
             courses_list = self.course_service.get_courses(
                 filters=CourseFilter(),
-                strategy=CourseFetchStrategy.ADMIN_DETAIL
+                strategy=CourseFetchStrategy.OVERVIEW
             )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
@@ -409,8 +409,11 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-class AdminCoursePublishView(APIView):
+class AdminCoursePublishView(RoleBasedOutputMixin, APIView):
     permission_classes = [permissions.IsAdminUser, permissions.IsAuthenticated]
+
+    output_dto_public = CoursePublicOutput
+    output_dto_admin  = CourseAdminOutput
 
     def post(self, request, pk):
         """
@@ -425,14 +428,17 @@ class AdminCoursePublishView(APIView):
                 publish_action=True
             )
             # Admin thì trả về AdminOutput
-            return Response(course, status=status.HTTP_200_OK)
+            return Response({"instance": course}, status=status.HTTP_200_OK)
             
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class AdminCourseUnpublishView(APIView):
+class AdminCourseUnpublishView(RoleBasedOutputMixin, APIView):
     permission_classes = [permissions.IsAdminUser, permissions.IsAuthenticated]
+
+    output_dto_public = CoursePublicOutput
+    output_dto_admin  = CourseAdminOutput
 
     def post(self, request, pk):
         """
@@ -447,7 +453,7 @@ class AdminCourseUnpublishView(APIView):
                 publish_action=False
             )
             # Admin thì trả về AdminOutput
-            return Response(course, status=status.HTTP_200_OK)
+            return Response({"instance": course}, status=status.HTTP_200_OK)
             
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -643,8 +649,11 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-class InstructorCoursePublishView(APIView):
+class InstructorCoursePublishView(RoleBasedOutputMixin, APIView):
     permission_classes = [permissions.IsAuthenticated, IsInstructor]
+
+    output_dto_public = CoursePublicOutput
+    output_dto_admin  = CourseAdminOutput
 
     def post(self, request, pk):
         """
@@ -657,15 +666,18 @@ class InstructorCoursePublishView(APIView):
                 actor=request.user, 
                 publish_action=True
             )
-            # Trả về DTO output (Serializer)
-            return Response(course, status=status.HTTP_200_OK)
+
+            return Response({"instance": course}, status=status.HTTP_200_OK)
             
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InstructorCourseUnpublishView(APIView):
+class InstructorCourseUnpublishView(RoleBasedOutputMixin, APIView):
     permission_classes = [permissions.IsAuthenticated, IsInstructor]
+
+    output_dto_public = CoursePublicOutput
+    output_dto_admin  = CourseAdminOutput
 
     def post(self, request, pk):
         """
@@ -678,8 +690,8 @@ class InstructorCourseUnpublishView(APIView):
                 actor=request.user, 
                 publish_action=False
             )
-            # Trả về DTO output (Serializer)
-            return Response(course, status=status.HTTP_200_OK)
+
+            return Response({"instance": course}, status=status.HTTP_200_OK)
             
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

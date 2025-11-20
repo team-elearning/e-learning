@@ -78,6 +78,7 @@ class CoursePublicOutput(BaseModel):
     title: str
     description: Optional[str]
     grade: Optional[str]
+    published: bool
     
     # Giả sử bạn muốn public các trường này
     image_url: Optional[str] = None

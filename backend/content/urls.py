@@ -2,7 +2,7 @@
 from django.urls import path
 
 from content.api.views.category_view import PublicCategoryListView, PublicCategoryDetailView, AdminCategoryListView, AdminCategoryDetailView
-from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView, MyEnrolledCourseListView
+from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView, MyEnrolledCourseListView, AdminCoursePublishView, AdminCourseUnpublishView, InstructorCoursePublishView, InstructorCourseUnpublishView
 from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDetailView
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
@@ -70,6 +70,8 @@ urlpatterns = [
 
     path('admin/courses/', AdminCourseListCreateView.as_view(), name='admin-course-list-create'),
     path('admin/courses/<uuid:pk>/', AdminCourseDetailView.as_view(), name='admin-course-detail'),
+    path('admin/courses/<uuid:pk>/publish/', AdminCoursePublishView.as_view(), name='admin-course-public'),
+    path('admin/courses/<uuid:pk>/unpublish/', AdminCourseUnpublishView.as_view(), name='admin-course-unpublic'),
 
     path('admin/quizzes/', AdminQuizListView.as_view(), name='admin-quiz-list'),
     path('admin/quizzes/<uuid:pk>/', AdminQuizDetailView.as_view(), name='admin-quiz-detail'),
@@ -78,6 +80,8 @@ urlpatterns = [
     # # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
+    path('instructor/courses/<uuid:pk>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-public'),
+    path('instructor/courses/<uuid:pk>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublic'),
     
     path('instructor/quizzes/<uuid:pk>/', IntructorQuizDetailView.as_view(), name='instructor-quiz-detail'),
 
