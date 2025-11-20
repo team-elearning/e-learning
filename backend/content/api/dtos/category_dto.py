@@ -10,6 +10,7 @@ class UpdateCategoryInput(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
 
+
 class CategoryOutput(BaseModel):
     """DTO cho Category (để lồng vào Course output)."""
     model_config = ConfigDict(from_attributes=True)

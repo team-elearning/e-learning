@@ -1,10 +1,27 @@
 import uuid
-from pydantic import BaseModel, ConfigDict, Field
-from typing import List
+from pydantic import BaseModel, ConfigDict, field_validator
+from typing import List, Any, Optional
+
+from content.api.dtos.content_block_dto import ContentBlockCreateInput, ContentBlockUpdateInput, ContentBlockPublicOutput
+
+
 
 # =================================================================
 # == Input DTOs 
 # =================================================================
+
+class LessonCreateInput(BaseModel):
+    """
+    DTO cho một Lesson lồng bên trong Module.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    title: str
+    position: int = 0
+    content_type: str
+    published: bool = False
+    content_blocks: List[ContentBlockCreateInput] = []
+
 
 class LessonInput(BaseModel):
     """
@@ -21,21 +38,24 @@ class LessonInput(BaseModel):
         """
         return self.model_dump(exclude_none=exclude_none)
 
+
 class LessonUpdateInput(BaseModel):
-    """
-    DTO để cập nhật (PATCH) một Lesson.
-    Giống như UpdateUserInput, mọi trường đều là optional.
-    """
-    title: str | None = None
-    position: int | None = None
-    content_type: str | None = None
-    published: bool | None = None
+    """DTO Input cho Lesson (PATCH)."""
+    id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+    content_type: Optional[str] = None
+    published: Optional[bool] = None
+    position: Optional[int] = None
+    
+    # Lồng nhau
+    content_blocks: Optional[List[ContentBlockUpdateInput]] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
         Convert the model to a dictionary.
         """
         return self.model_dump(exclude_none=exclude_none)
+
 
 class LessonReorderInput(BaseModel):
     """
@@ -55,23 +75,33 @@ class LessonReorderInput(BaseModel):
 
 class LessonPublicOutput(BaseModel):
     """
-    DTO chứa các trường public cho Lesson.
-    Giống như UserPublicOutput.
+    DTO Output cho Lesson (lồng trong Module).
     """
     model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
-    module_id: uuid.UUID
     title: str
     position: int
     content_type: str
-    published: bool
+    published: bool # Có thể bạn muốn public trường này
+    content_blocks: List[ContentBlockPublicOutput] = []
 
+    @field_validator('content_blocks', mode='before')
+    @classmethod
+    def convert_blocks_manager_to_list(cls, v: Any) -> list:
+        if hasattr(v, 'all'):
+            # return list(v.all().order_by('position'))
+            return list(v.all())
+        if isinstance(v, list):
+            return v
+        return []
+    
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
         Convert the model to a dictionary.
         """
         return self.model_dump(exclude_none=exclude_none)
+
 
 class LessonAdminOutput(BaseModel):
     """

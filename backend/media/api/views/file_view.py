@@ -54,7 +54,7 @@ class FileUploadView(RoleBasedOutputMixin, APIView):
             # BƯỚC 3: Gọi Service
             # Service nhận user_id (từ context) và dict (từ DTO)
             file_domain = file_service.create_file_upload(
-                user_id=request.user.id,
+                user=request.user,
                 data=file_input_dto.to_dict() 
             )
 
