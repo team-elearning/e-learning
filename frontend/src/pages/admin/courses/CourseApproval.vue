@@ -46,7 +46,7 @@
           <template #default="{ row }">
             <div class="font-medium text-gray-800">{{ row.title }}</div>
             <div class="text-xs text-gray-500">
-              GV: {{ row.teacherName }} • Lớp {{ row.grade }} • {{ subjectName(row.subject) }}
+              GV: {{ row.teacherName }} • Lớp {{ row.grade }} • {{ row.subjectName || subjectName(row.subject) }}
             </div>
           </template>
         </el-table-column>

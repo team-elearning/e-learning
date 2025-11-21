@@ -85,8 +85,14 @@
                 class="card"
                 @click="playFirst(c.id)"
               >
-                <div class="thumb">
-                  <img :src="c.thumbnail" :alt="c.title" />
+                <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+                  <img
+                    :src="thumbSource(c.id, c.thumbnail)"
+                    :alt="c.title"
+                    loading="lazy"
+                    @load="markThumbLoaded(c.id)"
+                    @error="(e) => handleThumbError(e, c.id)"
+                  />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
                     <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </button>
@@ -133,8 +139,14 @@
                 class="card"
                 @click="playFirst(c.id)"
               >
-                <div class="thumb">
-                  <img :src="c.thumbnail" :alt="c.title" />
+                <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+                  <img
+                    :src="thumbSource(c.id, c.thumbnail)"
+                    :alt="c.title"
+                    loading="lazy"
+                    @load="markThumbLoaded(c.id)"
+                    @error="(e) => handleThumbError(e, c.id)"
+                  />
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
                     <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </button>
@@ -178,22 +190,29 @@
                 v-for="s in suppList"
                 :key="`supp-${activeTab}-${s.id}`"
                 class="card"
-                @click="enroll(s.id)"
+                @click="openSuppInfo(s)"
               >
-                <div class="thumb">
-                  <img :src="s.thumbnail" :alt="s.title" />
+                <div :class="['thumb', { loaded: isThumbLoaded(s.id) }]">
+                  <img
+                    :src="thumbSource(s.id, s.thumbnail)"
+                    :alt="s.title"
+                    loading="lazy"
+                    @load="markThumbLoaded(s.id)"
+                    @error="(e) => handleThumbError(e, s.id)"
+                  />
                   <span class="chip">{{ s.tag }}</span>
                 </div>
                 <div class="meta">
                   <div class="title">{{ s.title }}</div>
+                  <div class="price-tag">{{ formatPrice(s.price) }}</div>
                   <div class="info">
                     <span class="state ok"
-                      ><span class="dot"></span> Phù hợp {{ toLevelLabel(s.grade) }}</span
+                      ><span class="dot"></span> Phù hợp {{ toLevelLabel(Number(s.grade)) }}</span
                     >
                     <button
                       class="join-btn"
                       :disabled="enrollingId === s.id"
-                      @click.stop="enroll(s.id)"
+                      @click.stop="handleSuppEnroll(s)"
                     >
                       <span>{{ enrollingId === s.id ? 'Đang đăng ký…' : 'Đăng ký' }}</span>
                     </button>
@@ -336,8 +355,14 @@
               class="recent-item"
               @click="playFirst(c.id)"
             >
-              <div class="recent-thumb">
-                <img :src="c.thumbnail" :alt="c.title" />
+              <div :class="['recent-thumb', { loaded: isThumbLoaded(c.id) }]">
+                <img
+                  :src="thumbSource(c.id, c.thumbnail)"
+                  :alt="c.title"
+                  loading="lazy"
+                  @load="markThumbLoaded(c.id)"
+                  @error="(e) => handleThumbError(e, c.id)"
+                />
               </div>
               <div class="recent-info">
                 <div class="recent-title">{{ c.title }}</div>
@@ -356,6 +381,54 @@
         </div>
       </aside>
     </div>
+
+    <transition name="preview">
+      <div v-if="previewOpen && previewCourse" class="preview-panel">
+        <button class="close-btn" type="button" @click="closePreview">×</button>
+        <div
+          :class="[
+            'preview-thumb',
+            { loaded: previewCourse ? isThumbLoaded(previewCourse.id) : false },
+          ]"
+        >
+          <img
+            :src="previewCourse ? thumbSource(previewCourse.id, previewCourse.thumbnail) : ''"
+            :alt="previewCourse?.title || 'Khoá học'"
+            loading="lazy"
+            @load="previewCourse && markThumbLoaded(previewCourse.id)"
+            @error="(e) => previewCourse && handleThumbError(e, previewCourse.id)"
+          />
+        </div>
+        <div class="preview-body">
+          <p class="preview-tag">{{ toLevelLabel(Number(previewCourse?.grade || 1)) }}</p>
+          <h3>{{ previewCourse?.title }}</h3>
+          <p class="preview-meta">
+            {{ formatSubjectLabel(previewCourse) }} · GV {{ previewCourse?.teacherName }} ·
+            {{ previewCourse?.lessonsCount }} bài học
+          </p>
+          <p class="preview-price">{{ formatPrice(previewCourse?.price) }}</p>
+          <p class="preview-note">
+            Khóa học này giúp bạn củng cố kiến thức nền tảng theo đúng lộ trình. Hãy xem nhanh thông
+            tin và đăng ký để kích hoạt ngay.
+          </p>
+          <div class="preview-actions">
+            <button
+              class="primary"
+              :disabled="!!previewCourse && enrollingId === previewCourse.id"
+              @click="previewCourse && handleSuppEnroll(previewCourse)"
+            >
+              {{
+                Number(previewCourse?.price ?? 0) > 0
+                  ? 'Đi tới đăng ký'
+                  : 'Đăng ký ngay'
+              }}
+            </button>
+            <button class="ghost" type="button" @click="closePreview">Đóng</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+    <div v-if="previewOpen" class="preview-backdrop" @click="closePreview"></div>
   </div>
 </template>
 
@@ -368,6 +441,8 @@ import {
   type CourseSummary,
   type CourseDetail,
   type CourseStatus,
+  type ID,
+  resolveMediaUrl,
 } from '@/services/course.service'
 
 const router = useRouter()
@@ -389,6 +464,8 @@ const loading = ref(false)
 const loadingAll = ref(false)
 const enrollingId = ref<string | number | null>(null)
 const PREFETCH_DETAIL_LIMIT = 80
+const thumbLoaded = ref<Record<string, boolean>>({})
+const thumbSrc = ref<Record<string, string>>({})
 
 /* ====== LOAD COURSES FROM SERVICE ====== */
 type Item = CourseSummary & {
@@ -409,6 +486,34 @@ const courseTrophyFrameMap = new Map<string, number>()
 const trophyTarget = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyAnimated = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyFrameMap = new Map<string, number>()
+const suppCourses = ref<CourseSummary[]>([])
+const previewCourse = ref<CourseSummary | null>(null)
+const previewOpen = ref(false)
+
+function markThumbLoaded(id: ID) {
+  thumbLoaded.value = { ...thumbLoaded.value, [String(id)]: true }
+}
+function isThumbLoaded(id: ID) {
+  return Boolean(thumbLoaded.value[String(id)])
+}
+function handleThumbError(event: Event, id: ID) {
+  const img = event.target as HTMLImageElement | null
+  if (img) img.style.opacity = '0'
+  markThumbLoaded(id)
+}
+async function ensureThumb(id: ID, url?: string | null) {
+  const key = String(id)
+  if (!url || thumbSrc.value[key]) return
+  try {
+    const resolved = await resolveMediaUrl(url)
+    if (resolved) thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+  } catch (error) {
+    console.warn('Không thể tải ảnh khoá học', error)
+  }
+}
+function thumbSource(id: ID, fallback?: string | null) {
+  return thumbSrc.value[String(id)] || fallback || ''
+}
 
 function getAnimatedProgress(id: number | string, fallback: number) {
   const val = animatedProgressMap[String(id)]
@@ -471,6 +576,22 @@ function toLevelLabel(grade: number) {
   return grade <= 2 ? 'Khối 1–2' : 'Khối 3–5'
 }
 
+function formatPrice(price?: number | null) {
+  if (price == null || Number(price) === 0) return 'Miễn phí'
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Number(price))
+}
+
+function formatSubjectLabel(course?: CourseSummary | Item | null) {
+  if (!course) return 'Môn học'
+  if (course.subjectName) return course.subjectName
+  if (typeof course.subject === 'string' && course.subject.trim().length) return course.subject
+  return 'Môn học'
+}
+
 function calcScore(progress: number) {
   const earned = Math.max(0, Math.min(5, Math.round(progress / 20)))
   return { earned, total: 5 }
@@ -511,6 +632,7 @@ async function hydrateCourses(items: CourseSummary[]) {
       isPurchased,
     }
   })
+  await Promise.all(all.value.map((i) => ensureThumb(i.id, i.thumbnail)))
 }
 
 async function load(fetchAll = false) {
@@ -519,32 +641,44 @@ async function load(fetchAll = false) {
     loading.value = true
     loadingAll.value = fetchAll
 
-    const pageSize = fetchAll ? 200 : 20
-    const baseParams = {
-      page: 1,
-      pageSize,
-      status: 'published' as CourseStatus,
-      sortBy: 'updatedAt' as const,
-      sortDir: 'descending' as const,
-    }
-
-    const first = await courseService.list(baseParams)
-    let items = first.items || []
-    const total = first.total || items.length
-
-    if (fetchAll && total > items.length) {
-      const totalPages = Math.ceil(total / pageSize)
-      const others = await Promise.all(
-        Array.from({ length: totalPages - 1 }, (_, idx) =>
-          courseService.list({ ...baseParams, page: idx + 2 }),
-        ),
-      )
-      others.forEach((res) => {
-        if (res?.items?.length) items = items.concat(res.items)
+    let enrolledItems: CourseSummary[] = []
+    try {
+      enrolledItems = await courseService.listMyEnrolled()
+    } catch (error) {
+      console.warn('Không tải được danh sách khoá học đã đăng ký, fallback list()', error)
+      const fallback = await courseService.list({
+        page: 1,
+        pageSize: fetchAll ? 200 : 20,
+        status: 'published' as CourseStatus,
+        sortBy: 'updatedAt' as const,
+        sortDir: 'descending' as const,
       })
+      enrolledItems = fallback.items || []
     }
 
-    await hydrateCourses(items)
+    await hydrateCourses(enrolledItems)
+
+    const enrolledIds = new Set(all.value.map((c) => String(c.id)))
+
+    let catalogItems: CourseSummary[] = []
+    try {
+      const publicRes = await courseService.listPublicCatalog()
+      catalogItems = publicRes.items
+    } catch (error) {
+      console.warn('Không tải được catalog công khai, fallback list()', error)
+      const fallback = await courseService.list({
+        page: 1,
+        pageSize: fetchAll ? 200 : 40,
+        status: 'published' as CourseStatus,
+        sortBy: 'updatedAt' as const,
+        sortDir: 'descending' as const,
+      })
+      catalogItems = fallback.items || []
+    }
+
+    const supplementary = catalogItems.filter((c) => !enrolledIds.has(String(c.id)))
+    suppCourses.value = supplementary
+    await Promise.all(supplementary.map((c) => ensureThumb(c.id, c.thumbnail)))
   } catch (e: any) {
     err.value = e?.message || String(e)
   } finally {
@@ -572,6 +706,20 @@ watch(
       animateCourseProgress(course.id, course.progress)
       animateCourseTrophy(course.id, course.scoreEarned)
     })
+  },
+  { deep: true },
+)
+
+watch(
+  suppCourses,
+  () => {
+    if (
+      previewCourse.value &&
+      !suppCourses.value.some((c) => String(c.id) === String(previewCourse.value?.id ?? ''))
+    ) {
+      previewOpen.value = false
+      previewCourse.value = null
+    }
   },
   { deep: true },
 )
@@ -641,8 +789,11 @@ function getAnimatedTrophy(key: 'base' | 'mid') {
 
 /** Supp tab */
 const suppList = computed(() => {
-  let arr = all.value.slice().map((c) => ({ ...c, tag: c.tag || 'Bổ trợ' }))
-  if (level.value) arr = arr.filter((s) => toLevelLabel(s.grade) === level.value)
+  let arr = suppCourses.value.slice().map((c) => ({
+    ...c,
+    tag: c.subjectName || c.subject?.toString()?.toUpperCase() || 'Bổ trợ',
+  }))
+  if (level.value) arr = arr.filter((s) => toLevelLabel(Number(s.grade)) === level.value)
   if (q.value) {
     const key = q.value.toLowerCase()
     arr = arr.filter(
@@ -693,33 +844,104 @@ function openDetail(id: number | string) {
 }
 
 async function playFirst(id: number | string) {
-  let d = detailsMap.value.get(String(id))
-  if (!d) {
-    d = await courseService.detail(id)
-    detailsMap.value.set(String(id), d)
+  try {
+    console.log('[playFirst] Bắt đầu mở khóa học:', id)
+    let d = detailsMap.value.get(String(id))
+    if (!d) {
+      console.log('[playFirst] Chưa có detail, đang tải...')
+      try {
+        d = await courseService.detail(id)
+        detailsMap.value.set(String(id), d)
+        console.log('[playFirst] Đã tải detail thành công:', d)
+      } catch (error) {
+        console.error('[playFirst] Không thể tải chi tiết khóa học:', error)
+        ElMessage.error('Không thể tải thông tin khóa học. Vui lòng thử lại.')
+        return
+      }
+    } else {
+      console.log('[playFirst] Đã có detail trong cache')
+    }
+    
+    // Tìm lesson đầu tiên
+    let firstLessonId: string | number | null = null
+    if (d.sections && d.sections.length > 0) {
+      console.log('[playFirst] Có', d.sections.length, 'sections')
+      for (const section of d.sections) {
+        if (section.lessons && section.lessons.length > 0) {
+          firstLessonId = section.lessons[0].id
+          console.log('[playFirst] Tìm thấy lesson đầu tiên:', firstLessonId)
+          break
+        }
+      }
+    } else {
+      console.warn('[playFirst] Không có sections hoặc sections rỗng')
+    }
+    
+    if (!firstLessonId) {
+      console.warn('[playFirst] Không tìm thấy lesson, chuyển đến detail page')
+      ElMessage.warning('Khóa học này chưa có bài học nào.')
+      openDetail(id)
+      return
+    }
+    
+    // Điều hướng đến player
+    const routeName = 'student-course-player'
+    const routePath = `/student/courses/${id}/player/${firstLessonId}`
+    console.log('[playFirst] Điều hướng đến player:', { routeName, routePath, id, lessonId: firstLessonId })
+    
+    if (router.hasRoute(routeName)) {
+      router.push({ name: routeName, params: { id, lessonId: firstLessonId } })
+    } else {
+      router.push(routePath)
+    }
+  } catch (error: any) {
+    console.error('[playFirst] Lỗi khi mở khóa học:', error)
+    ElMessage.error('Không thể mở khóa học. Vui lòng thử lại.')
   }
-  const first = d.sections?.[0]?.lessons?.[0]?.id
-  if (!first) return openDetail(id)
-  if (router.hasRoute('student-course-player'))
-    router.push({ name: 'student-course-player', params: { id, lessonId: first } })
-  else router.push(`/student/courses/${id}/player/${first}`)
 }
 
-async function enroll(id: number | string) {
-  if (enrollingId.value === id) return
+async function enroll(id: number | string): Promise<boolean> {
+  if (enrollingId.value === id) return false
   enrollingId.value = id
   try {
     await courseService.enroll(id)
     ElMessage.success('Đăng ký khoá học thành công')
-    activeTab.value = 'main'
     await load()
+    return true
   } catch (e: any) {
     const message =
       e?.response?.data?.detail || e?.message || 'Không thể đăng ký khoá học, vui lòng thử lại.'
     ElMessage.error(message)
+    return false
   } finally {
     enrollingId.value = null
   }
+}
+
+async function handleSuppEnroll(course: CourseSummary | Item) {
+  if (!course) return
+  const requiresPayment = Number(course.price ?? 0) > 0
+  if (requiresPayment) {
+    previewOpen.value = false
+    openDetail(course.id)
+    return
+  }
+  const success = await enroll(course.id)
+  if (success) {
+    previewOpen.value = false
+    await playFirst(course.id)
+  }
+}
+
+function openSuppInfo(course: CourseSummary | Item) {
+  if (!course) return
+  previewCourse.value = course
+  previewOpen.value = true
+  ensureThumb(course.id, course.thumbnail)
+}
+
+function closePreview() {
+  previewOpen.value = false
 }
 
 onMounted(load)
@@ -940,6 +1162,9 @@ h1 {
   position: relative;
   aspect-ratio: 16/9;
   background: #e5e7eb;
+  overflow: hidden;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
 }
 .thumb img {
   position: absolute;
@@ -947,6 +1172,36 @@ h1 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.thumb.loaded img {
+  opacity: 1;
+}
+.thumb::before,
+.thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.thumb::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+.thumb::after {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.thumb.loaded::before,
+.thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
 }
 .play {
   position: absolute;
@@ -961,6 +1216,7 @@ h1 {
   display: grid;
   place-items: center;
   cursor: pointer;
+  z-index: 2;
 }
 .play svg {
   width: 20px;
@@ -984,6 +1240,11 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.price-tag {
+  font-weight: 800;
+  color: #0ea5e9;
+  font-size: 13px;
 }
 .title {
   font-weight: 800;
@@ -1299,11 +1560,42 @@ h1 {
   overflow: hidden;
   background: #e5e7eb;
   flex-shrink: 0;
+  position: relative;
 }
 .recent-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.recent-thumb.loaded img {
+  opacity: 1;
+}
+.recent-thumb::before,
+.recent-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.recent-thumb::before {
+  background: rgba(255, 255, 255, 0.3);
+}
+.recent-thumb::after {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.recent-thumb.loaded::before,
+.recent-thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
 }
 .recent-info {
   flex: 1;
@@ -1349,6 +1641,102 @@ h1 {
   animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+.preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 80;
+}
+.preview-panel {
+  position: fixed;
+  right: clamp(12px, 5vw, 60px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(420px, 92vw);
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15);
+  padding: 22px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.preview-thumb {
+  width: 100%;
+  height: 180px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #e2e8f0;
+  position: relative;
+}
+.preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.preview-thumb.loaded img {
+  opacity: 1;
+}
+.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #475569;
+  z-index: 2;
+}
+.preview-body h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.preview-tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.preview-meta {
+  color: #475569;
+  font-size: 13px;
+}
+.preview-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0ea5e9;
+}
+.preview-note {
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.preview-actions {
+  display: flex;
+  gap: 10px;
+}
+.preview-enter-active,
+.preview-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.preview-enter-from,
+.preview-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) scale(0.97);
+}
+
 @keyframes ringFill {
   from {
     stroke-dashoffset: 326.73;
@@ -1363,6 +1751,12 @@ h1 {
   }
   to {
     width: var(--progress-target, 0%);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
 

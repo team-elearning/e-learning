@@ -97,7 +97,7 @@
         <el-table-column label="Lớp/Môn" width="140">
           <template #default="{ row }">
             <div class="text-sm">Lớp {{ row.grade }}</div>
-            <div class="text-xs text-gray-500">{{ subjectName(row.subject) }}</div>
+            <div class="text-xs text-gray-500">{{ row.subjectName || subjectName(row.subject) }}</div>
           </template>
         </el-table-column>
 
