@@ -14,7 +14,7 @@ class ExamCreateInput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     title: str = Field(..., min_length=3, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = None    
 
     # --- Time Config ---
     # Pydantic tự parse chuỗi "00:45:00" thành timedelta
