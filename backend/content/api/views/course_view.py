@@ -16,6 +16,7 @@ from core.exceptions import DomainError, CourseNotFoundError
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
 from content.types import CourseFetchStrategy, CourseFilter
+from content.services import enrollment_service
 
 
 
@@ -147,7 +148,7 @@ class CourseEnrollView(APIView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Giữ sự nhất quán với các View khác của bạn
-        self.course_service = course_service 
+        self.enrollment_service = enrollment_service 
 
     def post(self, request, pk: uuid.UUID, *args, **kwargs):
         """
@@ -162,7 +163,7 @@ class CourseEnrollView(APIView):
             # - Tạo record Enrollment
             
             # (Chúng ta sẽ định nghĩa hàm này ở bước 2)
-            enrollment_domain = self.course_service.enroll_user_in_course(
+            enrollment_domain = self.enrollment_service.enroll_user_in_course(
                 course_id=pk, 
                 user=request.user
             )
@@ -194,7 +195,7 @@ class CourseEnrollView(APIView):
             # - Xóa record
             
             # (Chúng ta sẽ định nghĩa hàm này ở bước 2)
-            self.course_service.unenroll_user_from_course(
+            self.enrollment_service.unenroll_user_from_course(
                 course_id=pk, 
                 user=request.user
             )

@@ -1,6 +1,7 @@
 from django.db import models
 import uuid
 from django.core.validators import MinValueValidator
+from django.conf import settings
 
 from custom_account.models import UserModel
 
@@ -40,6 +41,8 @@ class Quiz(models.Model):
     show_correct_answer = models.BooleanField(default=True, verbose_name="Hiện đáp án sau khi nộp")
     description = models.TextField(blank=True, verbose_name="Mô tả / Hướng dẫn")
     
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='quiz_owned')
+
     def __str__(self):
         return self.title
 
