@@ -357,6 +357,7 @@
                         </div>
 
                         <!-- QUIZ -->
+                        <!-- QUIZ -->
                         <div v-else-if="block.type === 'quiz'" class="space-y-4">
                           <label class="block">
                             <span class="label-text">Tiêu đề bài kiểm tra</span>
@@ -368,7 +369,7 @@
                           </label>
 
                           <label class="block">
-                            <span class="label-text">Thời gian làm bài</span>
+                            <span class="label-text">Thời gian làm bài (HH:MM:SS)</span>
                             <input
                               v-model="block.payload.time_limit"
                               class="input-field"
@@ -405,20 +406,25 @@
                               </div>
 
                               <div class="question-body space-y-3">
+                                <!-- Loại câu hỏi -->
                                 <label class="block">
                                   <span class="label-text">Loại câu hỏi</span>
                                   <select
                                     v-model="question.type"
                                     class="input-field"
-                                    @change="resetQuestionPayload(question, block, questionIndex)"
+                                    @change="resetQuestionPayload(question)"
                                   >
                                     <option value="multiple_choice_single">Chọn một đáp án</option>
                                     <option value="multiple_choice_multi">Chọn nhiều đáp án</option>
-                                    <option value="true_false">Đúng/Sai</option>
+                                    <option value="true_false">Đúng / Sai</option>
                                     <option value="fill_in_the_blank">Điền vào chỗ trống</option>
+                                    <option value="short_answer">Tự luận ngắn (điền đáp án)</option>
+                                    <!-- <option value="matching">Nối cột (matching)</option> -->
+                                    <!-- <option value="essay">Tự luận dài (chấm tay)</option> -->
                                   </select>
                                 </label>
 
+                                <!-- Nội dung câu hỏi -->
                                 <label class="block">
                                   <span class="label-text">Nội dung câu hỏi</span>
                                   <textarea
@@ -429,66 +435,79 @@
                                   ></textarea>
                                 </label>
 
-                                <!-- Multiple choice (single) -->
+                                <!-- 1. MULTIPLE CHOICE (single & multi) -->
                                 <div
-                                  v-if="question.type === 'multiple_choice_single'"
+                                  v-if="
+                                    question.type === 'multiple_choice_single' ||
+                                    question.type === 'multiple_choice_multi'
+                                  "
                                   class="space-y-2"
                                 >
                                   <span class="label-text">Lựa chọn</span>
+
                                   <div
                                     v-for="(choice, choiceIndex) in question.answer_payload.choices"
                                     :key="choiceIndex"
-                                    class="choice-item"
+                                    class="flex items-center gap-2"
                                   >
-                                    <div class="flex items-center gap-2">
-                                      <input
-                                        v-model="choice.id"
-                                        class="input-field w-12"
-                                        placeholder="ID"
-                                      />
-                                      <input
-                                        v-model="choice.text"
-                                        class="input-field flex-1"
-                                        placeholder="Nội dung lựa chọn"
-                                      />
-                                      <label class="flex items-center gap-1">
-                                        <input
-                                          type="radio"
-                                          :name="`question-${moduleIndex}-${lessonIndex}-${blockIndex}-${questionIndex}-correct`"
-                                          :value="choiceIndex"
-                                          v-model="
-                                            selectedCorrectChoice[
-                                              getQuestionKey(block, questionIndex)
-                                            ]
-                                          "
-                                          @change="setCorrectChoice(question, choiceIndex)"
-                                        />
-                                        <span class="text-sm">Đúng</span>
-                                      </label>
-                                      <button
-                                        type="button"
-                                        class="text-rose-600"
-                                        @click="removeChoice(question, choiceIndex)"
-                                      >
-                                        ✕
-                                      </button>
+                                    <!-- Chữ cái cố định A/B/C/D... -->
+                                    <div
+                                      class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700"
+                                    >
+                                      {{ String.fromCharCode(65 + choiceIndex) }}
                                     </div>
+
+                                    <!-- Nội dung đáp án -->
+                                    <input
+                                      v-model="choice.text"
+                                      class="input-field flex-1"
+                                      placeholder="Nội dung lựa chọn"
+                                    />
+
+                                    <!-- Đánh dấu đúng -->
+                                    <label class="flex items-center gap-1 text-xs text-slate-700">
+                                      <!-- Chọn 1 đáp án -->
+                                      <input
+                                        v-if="question.type === 'multiple_choice_single'"
+                                        type="radio"
+                                        :name="`q-${moduleIndex}-${lessonIndex}-${blockIndex}-${questionIndex}`"
+                                        :checked="choice.is_correct"
+                                        @change="setCorrectChoice(question, choiceIndex)"
+                                      />
+                                      <!-- Chọn nhiều đáp án -->
+                                      <input
+                                        v-else
+                                        type="checkbox"
+                                        :checked="choice.is_correct"
+                                        @change="toggleMultiCorrect(choice)"
+                                      />
+                                      <span>Đúng</span>
+                                    </label>
+
+                                    <!-- Xoá lựa chọn -->
+                                    <button
+                                      type="button"
+                                      class="px-1 text-sm text-rose-600 hover:text-rose-700"
+                                      @click="removeChoice(question, choiceIndex)"
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
+
                                   <button
                                     type="button"
-                                    class="btn-secondary text-sm"
+                                    class="btn-secondary text-sm mt-1"
                                     @click="addChoice(question)"
                                   >
                                     + Thêm lựa chọn
                                   </button>
                                 </div>
 
-                                <!-- True/False -->
+                                <!-- 2. TRUE / FALSE -->
                                 <div v-else-if="question.type === 'true_false'" class="space-y-2">
                                   <label class="flex items-center gap-2">
                                     <input
                                       type="radio"
-                                      :name="`question-${moduleIndex}-${lessonIndex}-${blockIndex}-${questionIndex}-tf`"
                                       :value="true"
                                       v-model="question.answer_payload.answer"
                                     />
@@ -497,7 +516,6 @@
                                   <label class="flex items-center gap-2">
                                     <input
                                       type="radio"
-                                      :name="`question-${moduleIndex}-${lessonIndex}-${blockIndex}-${questionIndex}-tf`"
                                       :value="false"
                                       v-model="question.answer_payload.answer"
                                     />
@@ -505,6 +523,232 @@
                                   </label>
                                 </div>
 
+                                <!-- 3. FILL IN THE BLANK -->
+                                <div
+                                  v-else-if="question.type === 'fill_in_the_blank'"
+                                  class="space-y-2"
+                                >
+                                  <p class="text-xs text-gray-600">
+                                    Sử dụng [BLANK_1], [BLANK_2]... trong câu hỏi, sau đó khai báo
+                                    đáp án ở dưới.
+                                  </p>
+                                  <div
+                                    v-for="(blank, bIndex) in question.answer_payload.blanks"
+                                    :key="bIndex"
+                                    class="choice-item"
+                                  >
+                                    <div class="flex items-center gap-2">
+                                      <input
+                                        v-model="blank.id"
+                                        class="input-field w-28"
+                                        placeholder="ID (vd: BLANK_1)"
+                                      />
+                                      <input
+                                        v-model="blank.answer"
+                                        class="input-field flex-1"
+                                        placeholder="Đáp án cho chỗ trống"
+                                      />
+                                      <button
+                                        type="button"
+                                        class="text-rose-600"
+                                        @click="removeBlank(question, bIndex)"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    class="btn-secondary text-sm"
+                                    @click="addBlank(question)"
+                                  >
+                                    + Thêm chỗ trống
+                                  </button>
+                                </div>
+
+                                <!-- 4. SHORT ANSWER (valid_answers) -->
+                                <div v-else-if="question.type === 'short_answer'" class="space-y-2">
+                                  <p class="text-xs text-gray-600">
+                                    Khai báo các đáp án chấp nhận được (ví dụ: "3", "3.0"...).
+                                  </p>
+                                  <div
+                                    v-for="(ans, aIndex) in question.answer_payload.valid_answers"
+                                    :key="aIndex"
+                                    class="choice-item"
+                                  >
+                                    <div class="flex items-center gap-2">
+                                      <input
+                                        v-model="ans.answer"
+                                        class="input-field flex-1"
+                                        placeholder="Đáp án hợp lệ"
+                                      />
+                                      <label class="flex items-center gap-1 text-xs">
+                                        <input type="checkbox" v-model="ans.case_sensitive" />
+                                        <span>Phân biệt hoa thường</span>
+                                      </label>
+                                      <button
+                                        type="button"
+                                        class="text-rose-600"
+                                        @click="removeShortAnswer(question, aIndex)"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    class="btn-secondary text-sm"
+                                    @click="addShortAnswer(question)"
+                                  >
+                                    + Thêm đáp án
+                                  </button>
+                                </div>
+
+                                <!-- 5. MATCHING -->
+                                <div v-else-if="question.type === 'matching'" class="space-y-3">
+                                  <p class="text-xs text-gray-600">
+                                    Nối phân số ở cột A với số thập phân tương ứng ở cột B (giống
+                                    JSON ví dụ).
+                                  </p>
+
+                                  <!-- Column A -->
+                                  <div class="space-y-2">
+                                    <span class="label-text">Cột A</span>
+                                    <div
+                                      v-for="(item, aIndex) in question.answer_payload.column_a"
+                                      :key="aIndex"
+                                      class="choice-item"
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <input
+                                          v-model="item.id"
+                                          class="input-field w-20"
+                                          placeholder="ID (vd: a1)"
+                                        />
+                                        <input
+                                          v-model="item.text"
+                                          class="input-field flex-1"
+                                          placeholder="Nội dung"
+                                        />
+                                        <button
+                                          type="button"
+                                          class="text-rose-600"
+                                          @click="removeMatchItem(question, 'column_a', aIndex)"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      class="btn-secondary text-sm"
+                                      @click="addMatchItem(question, 'column_a')"
+                                    >
+                                      + Thêm dòng A
+                                    </button>
+                                  </div>
+
+                                  <!-- Column B -->
+                                  <div class="space-y-2">
+                                    <span class="label-text">Cột B</span>
+                                    <div
+                                      v-for="(item, bIndex) in question.answer_payload.column_b"
+                                      :key="bIndex"
+                                      class="choice-item"
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <input
+                                          v-model="item.id"
+                                          class="input-field w-20"
+                                          placeholder="ID (vd: b1)"
+                                        />
+                                        <input
+                                          v-model="item.text"
+                                          class="input-field flex-1"
+                                          placeholder="Nội dung"
+                                        />
+                                        <button
+                                          type="button"
+                                          class="text-rose-600"
+                                          @click="removeMatchItem(question, 'column_b', bIndex)"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      class="btn-secondary text-sm"
+                                      @click="addMatchItem(question, 'column_b')"
+                                    >
+                                      + Thêm dòng B
+                                    </button>
+                                  </div>
+
+                                  <!-- Correct matches -->
+                                  <div class="space-y-2">
+                                    <span class="label-text">Ghép đúng</span>
+                                    <div
+                                      v-for="(match, mIndex) in question.answer_payload
+                                        .correct_matches"
+                                      :key="mIndex"
+                                      class="choice-item"
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <select v-model="match.a_id" class="input-field w-28">
+                                          <option disabled value="">Chọn A</option>
+                                          <option
+                                            v-for="item in question.answer_payload.column_a"
+                                            :key="item.id"
+                                            :value="item.id"
+                                          >
+                                            {{ item.id }}
+                                          </option>
+                                        </select>
+                                        <span>→</span>
+                                        <select v-model="match.b_id" class="input-field w-28">
+                                          <option disabled value="">Chọn B</option>
+                                          <option
+                                            v-for="item in question.answer_payload.column_b"
+                                            :key="item.id"
+                                            :value="item.id"
+                                          >
+                                            {{ item.id }}
+                                          </option>
+                                        </select>
+                                        <button
+                                          type="button"
+                                          class="text-rose-600"
+                                          @click="removeMatchRow(question, mIndex)"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      class="btn-secondary text-sm"
+                                      @click="addMatchRow(question)"
+                                    >
+                                      + Thêm cặp ghép
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <!-- 6. ESSAY -->
+                                <div v-else-if="question.type === 'essay'" class="space-y-2">
+                                  <label class="block">
+                                    <span class="label-text">Hướng dẫn chấm điểm</span>
+                                    <textarea
+                                      v-model="question.answer_payload.grading_instructions"
+                                      rows="3"
+                                      class="input-field resize-y"
+                                      placeholder="Học sinh cần nêu được..."
+                                    ></textarea>
+                                  </label>
+                                </div>
+
+                                <!-- Gợi ý -->
                                 <label class="block">
                                   <span class="label-text">Gợi ý (tuỳ chọn)</span>
                                   <input
@@ -517,6 +761,7 @@
                             </div>
                           </div>
                         </div>
+
                         <!-- END QUIZ -->
                       </div>
                     </div>
@@ -601,11 +846,11 @@ const getAuthHeaders = () => {
     : {}
 }
 
-// Helper để tạo key duy nhất cho mỗi câu hỏi
-const getQuestionKey = (block: any, questionIndex: number) =>
-  `${block.type}-${questionIndex}-${Date.now()}`
+// // Helper để tạo key duy nhất cho mỗi câu hỏi
+// const getQuestionKey = (block: any, questionIndex: number) =>
+//   `${block.type}-${questionIndex}-${Date.now()}`
 
-const selectedCorrectChoice = ref<Record<string, number>>({})
+// const selectedCorrectChoice = ref<Record<string, number>>({})
 
 // Refs cho file inputs nội dung (image/video/pdf/docx)
 const fileInputRefs = ref<Record<string, HTMLInputElement>>({})
@@ -925,22 +1170,49 @@ const getBaseAnswerPayload = (type: string) => {
     case 'multiple_choice_single':
     case 'multiple_choice_multi':
       return { choices: [] }
+
     case 'true_false':
       return { answer: true }
+
     case 'fill_in_the_blank':
-      return { blanks: [{ id: 'BLANK_1', answer: '' }] }
+      return {
+        blanks: [
+          {
+            id: 'BLANK_1',
+            answer: '',
+          },
+        ],
+      }
+
+    case 'short_answer':
+      return {
+        valid_answers: [
+          {
+            answer: '',
+            case_sensitive: false,
+          },
+        ],
+      }
+
+    case 'matching':
+      return {
+        column_a: [{ id: 'a1', text: '' }],
+        column_b: [{ id: 'b1', text: '' }],
+        correct_matches: [],
+      }
+
+    case 'essay':
+      return {
+        grading_instructions: '',
+      }
+
     default:
       return {}
   }
 }
 
-const resetQuestionPayload = (question: any, block: any, questionIndex: number) => {
+const resetQuestionPayload = (question: any) => {
   question.answer_payload = getBaseAnswerPayload(question.type)
-
-  if (question.type !== 'multiple_choice_single') {
-    const key = getQuestionKey(block, questionIndex)
-    delete selectedCorrectChoice.value[key]
-  }
 }
 
 const addQuestion = (block: any) => {
@@ -964,11 +1236,15 @@ const removeQuestion = (block: any, questionIndex: number) => {
   })
 }
 
+// Thêm 1 lựa chọn mới: id cố định a, b, c, d...
 const addChoice = (question: any) => {
   if (!question.answer_payload.choices) {
     question.answer_payload.choices = []
   }
-  const choiceId = String.fromCharCode(97 + question.answer_payload.choices.length) // a, b, c, ...
+
+  const index = question.answer_payload.choices.length
+  const choiceId = String.fromCharCode(97 + index) // 'a', 'b', 'c', ...
+
   question.answer_payload.choices.push({
     id: choiceId,
     text: '',
@@ -976,14 +1252,26 @@ const addChoice = (question: any) => {
   })
 }
 
+// Xoá lựa chọn + đánh lại id a, b, c, ...
 const removeChoice = (question: any, choiceIndex: number) => {
   question.answer_payload.choices.splice(choiceIndex, 1)
+
+  // đánh lại id theo a, b, c...
+  question.answer_payload.choices.forEach((choice: any, idx: number) => {
+    choice.id = String.fromCharCode(97 + idx)
+  })
 }
 
+// Single choice: chỉ cho 1 đáp án đúng
 const setCorrectChoice = (question: any, choiceIndex: number) => {
   question.answer_payload.choices.forEach((choice: any, index: number) => {
     choice.is_correct = index === choiceIndex
   })
+}
+
+// Multi choice: toggle đúng / sai cho từng đáp án
+const toggleMultiCorrect = (choice: any) => {
+  choice.is_correct = !choice.is_correct
 }
 
 /* ---------- Notification ---------- */
@@ -1099,6 +1387,69 @@ onBeforeUnmount(() => {
     })
   })
 })
+
+// FILL IN THE BLANK
+const addBlank = (question: any) => {
+  if (!question.answer_payload.blanks) {
+    question.answer_payload.blanks = []
+  }
+  const index = question.answer_payload.blanks.length
+  question.answer_payload.blanks.push({
+    id: `BLANK_${index + 1}`,
+    answer: '',
+  })
+}
+
+const removeBlank = (question: any, index: number) => {
+  question.answer_payload.blanks.splice(index, 1)
+}
+
+// SHORT ANSWER
+const addShortAnswer = (question: any) => {
+  if (!question.answer_payload.valid_answers) {
+    question.answer_payload.valid_answers = []
+  }
+  question.answer_payload.valid_answers.push({
+    answer: '',
+    case_sensitive: false,
+  })
+}
+
+const removeShortAnswer = (question: any, index: number) => {
+  question.answer_payload.valid_answers.splice(index, 1)
+}
+
+// MATCHING
+const addMatchItem = (question: any, column: 'column_a' | 'column_b') => {
+  if (!question.answer_payload[column]) {
+    question.answer_payload[column] = []
+  }
+  const list = question.answer_payload[column]
+  const prefix = column === 'column_a' ? 'a' : 'b'
+  const index = list.length + 1
+  list.push({
+    id: `${prefix}${index}`,
+    text: '',
+  })
+}
+
+const removeMatchItem = (question: any, column: 'column_a' | 'column_b', index: number) => {
+  question.answer_payload[column].splice(index, 1)
+}
+
+const addMatchRow = (question: any) => {
+  if (!question.answer_payload.correct_matches) {
+    question.answer_payload.correct_matches = []
+  }
+  question.answer_payload.correct_matches.push({
+    a_id: '',
+    b_id: '',
+  })
+}
+
+const removeMatchRow = (question: any, index: number) => {
+  question.answer_payload.correct_matches.splice(index, 1)
+}
 </script>
 
 <style scoped>
