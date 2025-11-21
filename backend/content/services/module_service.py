@@ -22,8 +22,6 @@ def create_module(course: Course, data: Dict[str, Any]) -> Tuple[ModuleDomain, L
 
     # 2. Xử lý logic nghiệp vụ của Module (lấy từ code cũ của bạn)
     title = data.get('title')
-    if Module.objects.filter(course=course, title=title).exists():
-        raise DomainError(f"Module với title '{title}' đã tồn tại trong khóa học này.")
 
     position = data.get('position')
     if position is None:
@@ -93,7 +91,7 @@ def patch_module(module_id: uuid.UUID, data: dict) -> Tuple[Module, List[uuid.UU
         raise ValueError("Module not found.")
 
     # 2. Tách data
-    lessons_data = data.pop('lessons', None)
+    lessons_data = data.get('lessons', None)
     files_to_commit = [] # Tương lai có thể dùng cho file của module
 
     # 3. Cập nhật trường đơn giản của Module

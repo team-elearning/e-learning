@@ -301,8 +301,18 @@ def patch_course(
         if subject_title is None:
             course.subject = None
         else:
+            subject_title = str(subject_title).strip()
+            if not subject_title:
+                raise ValueError("Subject không được để trống.")
             try:
-                course.subject = Subject.objects.get(title=subject_title)
+                subject_obj, created = Subject.objects.get_or_create(
+                    title__iexact=subject_title,
+                    defaults={
+                        'title': subject_title,
+                        'slug': slugify(subject_title),
+                    }
+                )
+                course.subject = subject_obj
             except (Subject.DoesNotExist, ValueError):
                 raise ValueError(f"Subject '{subject_title}' không hợp lệ.")
         
