@@ -36,6 +36,7 @@ class CourseDomain:
                  category_names: List[str] = None,
                  tag_names: List[str] = None,
                  image_url: Optional[str] = None,
+                 module_count: int = 0,
                  subject_obj: Optional[Any] = None,
                  category_objs: Optional[List[Any]] = None,
                  tag_objs: Optional[List[Any]] = None):
@@ -57,6 +58,7 @@ class CourseDomain:
         self.tag_names = tag_names or []
         self.modules: List[ModuleDomain] = []
         self.image_url = image_url
+        self.module_count = module_count
         self.validate()
 
     def validate(self):
@@ -172,6 +174,7 @@ class CourseDomain:
             "categories": self.categories,
             "tags": self.tags,
             "image_url": self.image_url,
+            "module_count": self.module_count,
             "modules": [m.to_dict() for m in self.modules],
         }
     
@@ -186,6 +189,14 @@ class CourseDomain:
         if first_file:
             image_url = first_file.url
 
+        # --- [UPDATE 4] Logic lấy module_count ---
+        # Ưu tiên lấy từ annotate (tối ưu hiệu năng) nếu có,
+        # nếu không thì mới query count()
+        count = getattr(model, 'module_count', None)
+        if count is None:
+             # Fallback: Đếm trực tiếp (lưu ý N+1 query nếu list nhiều course)
+            count = model.modules.count() if hasattr(model, 'modules') else 0
+
         return {
             "id": str(model.id),
             "title": model.title,
@@ -197,6 +208,7 @@ class CourseDomain:
             "owner_id": model.owner_id,
             "subject_id": str(model.subject_id) if model.subject_id else None,
             "image_url": image_url,
+            "module_count": count,
         }
     
     @staticmethod

@@ -2,7 +2,13 @@ import api from '@/config/axios'
 
 export type ID = string | number
 export type Grade = 1 | 2 | 3 | 4 | 5
-export type Subject = 'math' | 'vietnamese' | 'english' | 'science' | 'history'
+export type Subject =
+  | 'math'
+  | 'vietnamese'
+  | 'english'
+  | 'science'
+  | 'history'
+  | string
 export type Level = 'basic' | 'advanced'
 export type CourseStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'archived'
 
@@ -11,6 +17,7 @@ export interface CourseSummary {
   title: string
   grade: Grade
   subject: Subject
+  subjectName?: string | null
   teacherId: ID
   teacherName: string
   lessonsCount: number
@@ -89,6 +96,7 @@ export interface StudentMyCoursesFilters {
 }
 
 const COURSE_USE_MOCK = false
+const mediaCache = new Map<string, string>()
 const SUBJECTS: Subject[] = ['math', 'vietnamese', 'english', 'science', 'history']
 function subjectLabel(s: Subject) {
   return s === 'math'
@@ -193,6 +201,173 @@ function buildMockDetail(id: ID): CourseDetail {
   }
 }
 
+type RawSubject = { id?: ID; title?: string; slug?: string } | string | null | undefined
+type RawLesson = { id?: ID; title?: string; content_type?: string; type?: string; durationMinutes?: number; duration?: number; duration_minutes?: number; is_preview?: boolean; isPreview?: boolean }
+type RawModule = { id?: ID; title?: string; position?: number; order?: number; lessons?: RawLesson[] }
+
+const DEFAULT_THUMBNAIL =
+  'https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?auto=format&fit=crop&w=960&q=60'
+
+const COURSE_STATUSES: CourseStatus[] = ['draft', 'pending_review', 'published', 'rejected', 'archived']
+
+function normalizeStatus(rawStatus?: string, published?: boolean): CourseStatus {
+  if (rawStatus && COURSE_STATUSES.includes(rawStatus as CourseStatus)) return rawStatus as CourseStatus
+  return published ? 'published' : 'draft'
+}
+
+function normalizeSubject(raw: RawSubject): { slug: Subject | null; title?: string | null } {
+  if (!raw) return { slug: null, title: null }
+  if (typeof raw === 'string') return { slug: raw, title: raw }
+  return {
+    slug: (raw.slug || raw.title || null) as Subject | null,
+    title: raw.title || raw.slug || null,
+  }
+}
+
+function normalizeGrade(value: any): Grade {
+  const num = Number(value)
+  if (!Number.isNaN(num) && num >= 1 && num <= 5) return num as Grade
+  return 1
+}
+
+function normalizeSubjectSlug(slug?: Subject | string | null): Subject {
+  if (slug && SUBJECTS.includes(slug as Subject)) return slug as Subject
+  return 'math'
+}
+
+function normalizeLessonType(contentType?: string, fallback?: string): Lesson['type'] {
+  const type = (contentType || fallback || '').toLowerCase()
+  if (type === 'video') return 'video'
+  if (type === 'exercise' || type === 'quiz' || type === 'exploration') return 'quiz'
+  return 'pdf'
+}
+
+function normalizeLessons(rawLessons?: RawLesson[]): Lesson[] {
+  if (!Array.isArray(rawLessons)) return []
+  return rawLessons
+    .map((lesson, idx): Lesson => {
+      const duration =
+        lesson.durationMinutes ??
+        lesson.duration ??
+        lesson.duration_minutes
+      return {
+        id: lesson.id ?? `lesson-${idx}`,
+        title: lesson.title || `Bài học ${idx + 1}`,
+        type: normalizeLessonType(lesson.content_type, lesson.type),
+        durationMinutes: typeof duration === 'number' ? duration : undefined,
+        isPreview: Boolean(lesson.is_preview ?? lesson.isPreview),
+      }
+    })
+    .filter(Boolean)
+}
+
+function normalizeSections(payload: any): Section[] {
+  if (Array.isArray(payload?.sections)) return payload.sections
+  if (!Array.isArray(payload?.modules)) return []
+  return payload.modules
+    .slice()
+    .sort((a: RawModule, b: RawModule) => (a?.position ?? a?.order ?? 0) - (b?.position ?? b?.order ?? 0))
+    .map((module: RawModule, idx: number): Section => ({
+      id: module.id ?? `section-${idx}`,
+      title: module.title || `Chương ${idx + 1}`,
+      order: module.position ?? module.order ?? idx,
+      lessons: normalizeLessons(module.lessons),
+    }))
+}
+
+function normalizeCourseSummary(payload: any): CourseSummary {
+  if (!payload) {
+    return buildMockDetail(1)
+  }
+  const { slug: subjectSlug, title: subjectTitle } = normalizeSubject(
+    payload.subject ?? payload.subject_obj ?? payload.subjectInfo,
+  )
+  const teacherId: ID =
+    payload.teacherId ??
+    payload.teacher_id ??
+    payload.owner_id ??
+    payload.ownerId ??
+    payload.owner?.id ??
+    'unknown'
+  const teacherName =
+    payload.teacherName ??
+    payload.owner_name ??
+    payload.owner?.full_name ??
+    payload.owner?.email ??
+    payload.owner?.username ??
+    'Đang cập nhật'
+  const createdAt = payload.createdAt ?? payload.created_at ?? new Date().toISOString()
+  const updatedAt = payload.updatedAt ?? payload.updated_at ?? createdAt
+  const thumbnail =
+    payload.thumbnail ??
+    payload.thumbnail_url ??
+    payload.image_url ??
+    payload.imageUrl ??
+    undefined
+  const lessonsFromModules = Array.isArray(payload.modules)
+    ? payload.modules.reduce(
+        (total: number, mod: RawModule) => total + (Array.isArray(mod?.lessons) ? mod.lessons.length : 0),
+        0,
+      )
+    : 0
+  const lessonsCount = payload.lessonsCount ?? payload.lessons_count ?? lessonsFromModules
+  const enrollments = payload.enrollments ?? payload.enrollment_count ?? 0
+  const price =
+    payload.price ??
+    payload.price_amount ??
+    payload.tuition ??
+    payload.priceValue ??
+    undefined
+
+  return {
+    id: payload.id ?? '',
+    title: payload.title ?? 'Khoá học',
+    grade: normalizeGrade(payload.grade ?? payload.grade_label),
+    subject: normalizeSubjectSlug(subjectSlug),
+    subjectName: subjectTitle,
+    teacherId,
+    teacherName,
+    lessonsCount,
+    enrollments,
+    status: normalizeStatus(payload.status, payload.published),
+    createdAt,
+    updatedAt,
+    thumbnail,
+    price,
+  }
+}
+
+function normalizeCourseDetail(payload: any): CourseDetail {
+  const summary = normalizeCourseSummary(payload)
+  const sections = normalizeSections(payload)
+  const duration =
+    payload.durationMinutes ??
+    payload.duration_minutes ??
+    payload.duration ??
+    (sections.length
+      ? sections.reduce(
+          (total, section) =>
+            total +
+            section.lessons.reduce((acc, lesson) => acc + (lesson.durationMinutes || 0), 0),
+          0,
+        )
+      : undefined)
+
+  return {
+    ...summary,
+    lessonsCount: summary.lessonsCount || sections.reduce((acc, s) => acc + (s.lessons?.length || 0), 0),
+    description: payload.description ?? payload.summary,
+    introduction: payload.introduction ?? payload.intro,
+    level: payload.level,
+    durationMinutes: typeof duration === 'number' && duration > 0 ? duration : undefined,
+    sections,
+    video_url: payload.video_url ?? payload.intro_video_url,
+    video_file: payload.video_file,
+    price: summary.price ?? payload.price,
+    thumbnail: summary.thumbnail ?? payload.thumbnail ?? payload.image_url ?? DEFAULT_THUMBNAIL,
+  }
+}
+
 // ====== SERVICE ======
 export const courseService = {
   // LIST - Support both admin and student endpoints
@@ -202,12 +377,11 @@ export const courseService = {
       const endpoint = useAdminEndpoint ? '/admin/courses/' : '/content/courses/'
       console.log('[courseService.list]', endpoint)
       const { data } = await api.get(endpoint, { params })
-      if (Array.isArray(data)) {
-        return { items: data, total: data.length }
-      }
+      const rawItems = Array.isArray(data) ? data : data.results || data.items || data.instance || []
+      const items = Array.isArray(rawItems) ? rawItems.map((item: any) => normalizeCourseSummary(item)) : []
       return {
-        items: data.results || data.items || [],
-        total: data.count || data.total || 0,
+        items,
+        total: data.count ?? data.total ?? rawItems.length ?? items.length,
       }
     } catch (error) {
       console.error('courseService.list fallback to mock data:', error)
@@ -216,14 +390,40 @@ export const courseService = {
     
   },
 
+  async listPublicCatalog(): Promise<PageResult<CourseSummary>> {
+    if (COURSE_USE_MOCK) return buildMockList({})
+    try {
+      const { data } = await api.get('/content/courses/')
+      const items = (Array.isArray(data) ? data : data.results || data.items || []).map((item: any) =>
+        normalizeCourseSummary(item),
+      )
+      return { items, total: data.count ?? data.total ?? items.length }
+    } catch (error) {
+      console.error('courseService.listPublicCatalog fallback to mock:', error)
+      return buildMockList({})
+    }
+  },
+
+  async listMyEnrolled(): Promise<CourseSummary[]> {
+    if (COURSE_USE_MOCK) return buildMockList({}).items
+    try {
+      const { data } = await api.get('/content/my-courses/')
+      const rawItems = Array.isArray(data) ? data : data.results || data.items || data.instance || []
+      return rawItems.map((item: any) => normalizeCourseSummary(item))
+    } catch (error) {
+      console.error('courseService.listMyEnrolled fallback to mock:', error)
+      return buildMockList({}).items
+    }
+  },
+
   // DETAIL - Support both admin and student endpoints
   async detail(id: ID, useAdminEndpoint = false): Promise<CourseDetail> {
     if (COURSE_USE_MOCK) return buildMockDetail(id)
     try {
-      const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
+      const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}/`
       console.log('[courseService.detail]', endpoint)
       const { data } = await api.get(endpoint)
-      return data
+      return normalizeCourseDetail(data)
     } catch (error) {
       console.error('courseService.detail fallback to mock data:', error)
       return buildMockDetail(id)
@@ -332,4 +532,23 @@ export const courseService = {
   subjects(): { label: string; value: Subject }[] {
     return SUBJECTS.map((s) => ({ value: s, label: subjectLabel(s) }))
   },
+}
+
+export async function resolveMediaUrl(url?: string | null): Promise<string | null> {
+  if (!url) return null
+  if (typeof window === 'undefined') return url
+  if (!url.startsWith('/api/media/')) return url
+  if (mediaCache.has(url)) return mediaCache.get(url)!
+  const token = window.localStorage?.getItem('accessToken') || window.sessionStorage?.getItem('accessToken')
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(url, {
+    headers,
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error(`resolveMediaUrl failed: ${res.status}`)
+  const blob = await res.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  mediaCache.set(url, objectUrl)
+  return objectUrl
 }

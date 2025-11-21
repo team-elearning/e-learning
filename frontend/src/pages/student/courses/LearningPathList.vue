@@ -28,10 +28,18 @@
           class="lp-card"
           @click="openDetail(c.id)"
         >
-          <img :src="c.thumbnail" :alt="c.title" class="thumb" />
+          <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+            <img
+              :src="thumbSource(c.id, c.thumbnail)"
+              :alt="c.title"
+              loading="lazy"
+              @load="markThumbLoaded(c.id)"
+              @error="(e) => handleThumbError(e, c.id)"
+            />
+          </div>
           <div class="meta">
             <h3 class="title">{{ c.title }}</h3>
-            <p class="sub">Khối {{ c.grade }} • {{ subjectLabel(c.subject) }}</p>
+            <p class="sub">Khối {{ c.grade }} • {{ subjectLabel(c.subject, c.subjectName) }}</p>
             <p class="info">{{ c.lessonsCount }} bài học · GV {{ c.teacherName }}</p>
           </div>
         </article>
@@ -47,7 +55,14 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { courseService, type CourseSummary, type Subject, type Grade } from '@/services/course.service'
+import {
+  courseService,
+  type CourseSummary,
+  type Subject,
+  type Grade,
+  type ID,
+  resolveMediaUrl,
+} from '@/services/course.service'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,16 +76,20 @@ const gradeLabel = computed(() => (grade.value ? grade.value : ''))
 const courses = ref<CourseSummary[]>([])
 const loading = ref(false)
 const err = ref('')
+const thumbLoaded = ref<Record<string, boolean>>({})
+const thumbSrc = ref<Record<string, string>>({})
 
-function subjectLabel(s: Subject) {
-  const map: Record<Subject, string> = {
+function subjectLabel(subject?: Subject | null, subjectName?: string | null) {
+  if (subjectName) return subjectName
+  const map: Record<string, string> = {
     math: 'Toán',
     vietnamese: 'Tiếng Việt',
     english: 'Tiếng Anh',
     science: 'Khoa học',
     history: 'Lịch sử',
   }
-  return map[s] || s
+  if (!subject) return 'Môn khác'
+  return map[String(subject)] || String(subject)
 }
 
 async function load() {
@@ -88,6 +107,7 @@ async function load() {
     courses.value = (items || []).filter((c) =>
       grade.value ? c.grade === grade.value : true,
     )
+    await Promise.all(courses.value.map((c) => ensureThumb(c.id, c.thumbnail)))
   } catch (e: any) {
     err.value = e?.message || 'Không tải được danh sách khoá học'
     courses.value = []
@@ -100,6 +120,31 @@ function openDetail(id: number | string) {
   if (router.hasRoute('student-course-detail'))
     router.push({ name: 'student-course-detail', params: { id } })
   else router.push(`/student/courses/${id}`)
+}
+
+async function ensureThumb(id: ID, url?: string | null) {
+  const key = String(id)
+  if (!url || thumbSrc.value[key]) return
+  try {
+    const resolved = await resolveMediaUrl(url)
+    if (resolved) thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+  } catch (error) {
+    console.warn('Không thể tải ảnh lộ trình', error)
+  }
+}
+function thumbSource(id: ID, fallback?: string | null) {
+  return thumbSrc.value[String(id)] || fallback || ''
+}
+function markThumbLoaded(id: ID) {
+  thumbLoaded.value = { ...thumbLoaded.value, [String(id)]: true }
+}
+function isThumbLoaded(id: ID) {
+  return Boolean(thumbLoaded.value[String(id)])
+}
+function handleThumbError(event: Event, id: ID) {
+  const img = event.target as HTMLImageElement | null
+  if (img) img.style.opacity = '0'
+  markThumbLoaded(id)
 }
 
 onMounted(load)
@@ -191,7 +236,54 @@ h1 {
 .thumb {
   width: 100%;
   height: 140px;
+  overflow: hidden;
+  position: relative;
+  background: #e2e8f0;
+  border-radius: 16px 16px 0 0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.thumb.loaded img {
+  opacity: 1;
+}
+.thumb::before,
+.thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.thumb::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+.thumb::after {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.thumb.loaded::before,
+.thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
+}
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.thumb :deep(.protected-img) {
+  width: 100%;
+  height: 100%;
 }
 .meta {
   padding: 12px;

@@ -1,13 +1,10 @@
 import uuid
 import logging
 from typing import Any, Dict, List
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
-from django.db.models import Prefetch
-from django.db import IntegrityError
+from django.db import transaction, IntegrityError
 from django.utils.text import slugify
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.utils import timezone
 
 from custom_account.models import UserModel 
@@ -59,8 +56,10 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
 
     # 2. Tùy chọn theo chiến lược
     if strategy == CourseFetchStrategy.OVERVIEW:
-        # Chỉ cần metadata, không cần join nặng
-        pass 
+        # [SOLUTION] Dùng annotate để đếm số module.
+        # Database sẽ thực hiện lệnh COUNT và gán vào thuộc tính ảo 'module_count' cho mỗi object.
+        # distinct=True là cần thiết nếu query của bạn có join với bảng khác (ví dụ enrollments) để tránh đếm trùng.
+        query_set = query_set.annotate(module_count=Count('modules', distinct=True))
 
     elif strategy == CourseFetchStrategy.FULL_STRUCTURE:
         # Cần lấy cả cây bài học (Modules -> Lessons)

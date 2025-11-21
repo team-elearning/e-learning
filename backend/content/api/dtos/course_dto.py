@@ -88,6 +88,7 @@ class CoursePublicOutput(BaseModel):
     tags: List[str] = Field(default=[], alias="tag_names")
     
     # --- THÊM CẤU TRÚC LỒNG NHAU ---
+    module_count: int
     modules: List[ModulePublicOutput] = []
 
     def to_dict(self, exclude_none: bool = True) -> dict:
@@ -135,6 +136,7 @@ class CourseAdminOutput(BaseModel):
     
     # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
     # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
+    module_count: int
     modules: List[ModuleAdminOutput] = []
 
     # --- Validator (Rất quan trọng) ---

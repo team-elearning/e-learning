@@ -33,14 +33,20 @@
 
       <div class="grid" v-if="!loading">
         <article v-for="c in filtered" :key="c.id" class="card" @click="openDetail(c.id)">
-          <div class="thumb">
-            <img :src="c.thumbnail" :alt="c.title" />
+          <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+            <img
+              :src="thumbSource(c.id, c.thumbnail)"
+              :alt="c.title"
+              loading="lazy"
+              @load="markThumbLoaded(c.id)"
+              @error="(e) => handleThumbError(e, c.id)"
+            />
           </div>
           <div class="meta">
             <div class="title">{{ c.title }}</div>
             <div class="info">
               <span class="pill">Khối {{ c.grade }}</span>
-              <span class="pill muted">{{ subjectLabel(c.subject) }}</span>
+              <span class="pill muted">{{ subjectLabel(c.subject, c.subjectName) }}</span>
               <span class="pill muted">Bài học: {{ c.lessonsCount }}</span>
             </div>
           </div>
@@ -62,6 +68,8 @@ import {
   type CourseStatus,
   type CourseSummary,
   type Subject,
+  type ID,
+  resolveMediaUrl,
 } from '@/services/course.service'
 
 const router = useRouter()
@@ -73,6 +81,8 @@ const loading = ref(false)
 const err = ref('')
 const all = ref<CourseSummary[]>([])
 const totalCount = ref(0)
+const thumbLoaded = ref<Record<string, boolean>>({})
+const thumbSrc = ref<Record<string, string>>({})
 
 const subjectOptions = [
   { value: 'math', label: 'Toán' },
@@ -82,8 +92,10 @@ const subjectOptions = [
   { value: 'history', label: 'Lịch sử' },
 ]
 
-function subjectLabel(s: Subject) {
-  return subjectOptions.find((x) => x.value === s)?.label || s
+function subjectLabel(subject?: Subject | null, subjectName?: string | null) {
+  if (subjectName) return subjectName
+  if (!subject) return 'Môn khác'
+  return subjectOptions.find((x) => x.value === subject)?.label || subject
 }
 
 function matchesText(c: CourseSummary, k: string) {
@@ -131,6 +143,7 @@ async function load() {
 
     all.value = items
     totalCount.value = total || items.length
+    await Promise.all(items.map((c) => ensureThumb(c.id, c.thumbnail)))
   } catch (e: any) {
     err.value = e?.message || 'Không tải được danh sách khoá học'
   } finally {
@@ -142,6 +155,31 @@ function openDetail(id: number | string) {
   if (router.hasRoute('student-course-detail'))
     router.push({ name: 'student-course-detail', params: { id } })
   else router.push(`/student/courses/${id}`)
+}
+
+async function ensureThumb(id: ID, url?: string | null) {
+  const key = String(id)
+  if (!url || thumbSrc.value[key]) return
+  try {
+    const resolved = await resolveMediaUrl(url)
+    if (resolved) thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+  } catch (error) {
+    console.warn('Không thể tải ảnh khoá học', error)
+  }
+}
+function thumbSource(id: ID, fallback?: string | null) {
+  return thumbSrc.value[String(id)] || fallback || ''
+}
+function markThumbLoaded(id: ID) {
+  thumbLoaded.value = { ...thumbLoaded.value, [String(id)] : true }
+}
+function isThumbLoaded(id: ID) {
+  return Boolean(thumbLoaded.value[String(id)])
+}
+function handleThumbError(event: Event, id: ID) {
+  const img = event.target as HTMLImageElement | null
+  if (img) img.style.opacity = '0'
+  markThumbLoaded(id)
 }
 
 onMounted(load)
@@ -268,11 +306,54 @@ h1 {
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
-.thumb img {
+.thumb {
   width: 100%;
   height: 140px;
+  border-radius: 18px 18px 0 0;
+  overflow: hidden;
+  position: relative;
+  background: #e2e8f0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.thumb.loaded img {
+  opacity: 1;
+}
+.thumb::before,
+.thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.thumb::before {
+  background: rgba(255, 255, 255, 0.35);
+}
+.thumb::after {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #cbd5f5;
+  border-top-color: #16a34a;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.thumb.loaded::before,
+.thumb.loaded::after {
+  opacity: 0;
+  visibility: hidden;
+}
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 .meta {
   padding: 12px;
