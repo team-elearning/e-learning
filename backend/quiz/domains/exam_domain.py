@@ -3,8 +3,7 @@ from datetime import datetime
 from typing import List, Optional, Any
 from django.utils import timezone
 
-# Giả định bạn đã có QuestionDomain (nếu chưa có thì dùng dict tạm)
-# from .question_domain import QuestionDomain 
+from quiz.domains.question_domain import QuestionDomain 
 
 class ExamDomain:
     """
@@ -181,15 +180,13 @@ class ExamDomain:
         """
         data = cls._map_base_attributes(model)
         
-        # Load Questions (Giả định có QuestionDomain)
-        # from .question_domain import QuestionDomain
         questions_data = []
         if hasattr(model, 'questions'):
-            # Sắp xếp theo position
+            # Lưu ý: Nếu model chưa prefetch, lệnh này sẽ bắn query xuống DB
             qs = model.questions.all().order_by('position')
             for q in qs:
-                # questions_data.append(QuestionDomain.from_model_summary(q))
-                pass # Tạm thời pass để code chạy đc
+                # Gọi Domain con để map dữ liệu
+                questions_data.append(QuestionDomain.from_model(q))
                 
         data["questions"] = questions_data
         

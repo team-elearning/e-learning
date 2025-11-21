@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ValidationError as DjangoValidationError
 from pydantic import ValidationError as PydanticValidationError
 import logging
+import uuid
 
 from core.api.mixins import RoleBasedOutputMixin 
 from core.api.permissions import IsInstructor
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class InstructorExamListView(RoleBasedOutputMixin, APIView):
     """
     API quản lý danh sách bài thi (Exam) của giáo viên.
-    ENDPOINT: /api/instructor/exams/
+    ENDPOINT: /instructor/exams/
     """
     permission_classes = [IsAuthenticated, IsInstructor]
     
@@ -35,7 +36,7 @@ class InstructorExamListView(RoleBasedOutputMixin, APIView):
         """ Lấy danh sách các bài thi do giáo viên này tạo """
         try:
             exams = self.exam_service.list_my_exams(user=request.user)
-            return Response({"results": exams}, status=status.HTTP_200_OK)
+            return Response({"instance": exams}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": "Lỗi lấy danh sách bài thi."}, status=500)
 
@@ -61,6 +62,8 @@ class InstructorExamListView(RoleBasedOutputMixin, APIView):
             return Response({"instance": new_exam}, status=status.HTTP_201_CREATED)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 class InstructorExamDetailView(RoleBasedOutputMixin, APIView):
@@ -76,15 +79,15 @@ class InstructorExamDetailView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.exam_service = exam_service
 
-    def get(self, request, quiz_id, *args, **kwargs):
+    def get(self, request, pk: uuid.UUID, *args, **kwargs):
         try:
             # Lấy chi tiết cấu hình (Time limit, Open/Close time...)
-            exam = self.exam_service.get_exam_detail(user=request.user, quiz_id=quiz_id)
+            exam = self.exam_service.get_exam_detail(user=request.user, quiz_id=pk)
             return Response({"instance": exam}, status=status.HTTP_200_OK)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
-    def patch(self, request, quiz_id, *args, **kwargs):
+    def patch(self, request, pk: uuid.UUID, *args, **kwargs):
         """ Cập nhật cấu hình Exam (Không bao gồm list câu hỏi) """
         serializer = ExamInputSerializer(data=request.data, partial=True)
         if not serializer.is_valid():
@@ -94,16 +97,19 @@ class InstructorExamDetailView(RoleBasedOutputMixin, APIView):
             dto = ExamUpdateInput(**serializer.validated_data)
             updated_exam = self.exam_service.update_exam_config(
                 user=request.user,
-                quiz_id=quiz_id,
+                quiz_id=pk,
                 data=dto.model_dump(exclude_unset=True)
             )
             return Response({"instance": updated_exam}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, quiz_id, *args, **kwargs):
+    def delete(self, request, pk: uuid.UUID, *args, **kwargs):
         try:
-            self.exam_service.delete_exam(user=request.user, quiz_id=quiz_id)
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            self.exam_service.delete_exam(user=request.user, quiz_id=pk)
+            return Response(
+                {"message": "Xóa bài kiểm tra thành công."},
+                status=status.HTTP_200_OK
+            )
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
