@@ -5,7 +5,7 @@ from rest_framework import serializers
 from datetime import datetime, timedelta
 
 
-from content.models import Module, Category, Tag, Subject, Course, ContentBlock, Lesson, Exploration, ExplorationState, ExplorationTransition, AnswerGroup, Hint, Solution, RuleSpec, Question
+from content.models import Module, Category, Tag, Subject, Course, ContentBlock, Lesson, Exploration, ExplorationState, ExplorationTransition, AnswerGroup, Hint, Solution, RuleSpec
 from content.domains.subject_domain import SubjectDomain
 from content.domains.course_domain import CourseDomain
 from content.domains.lesson_domain import LessonDomain
@@ -13,6 +13,7 @@ from content.domains.lesson_version_domain import LessonVersionDomain
 from content.domains.content_block_domain import ContentBlockDomain
 from content.domains.exploration_domain import ExplorationDomain, ExplorationTransitionDomain, ExplorationStateDomain
 from content.domains.commands import ChangeVersionStatusCommand, ReorderContentBlocksCommand, ReorderLessonsCommand, ReorderModulesCommand
+from quiz.models import Question
 User = get_user_model()
 
 
@@ -44,30 +45,15 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "slug"]
         read_only_fields = ["id"]
 
-class SubjectSerializer(serializers.ModelSerializer):
+class SubjectSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     title = serializers.CharField(max_length=255)
-    slug = serializers.SlugField(max_length=255)
+    slug = serializers.SlugField(max_length=255, required = False)
 
     class Meta:
         model = Subject
         fields = ["id", "title", "slug"]
         read_only_fields = ["id"]
-
-    def to_domain(self) -> SubjectDomain:
-        """
-        Convert serializer validated_data -> SubjectDomain.
-        Caller should call is_valid() before.
-        """
-        data = self.validated_data
-        domain = SubjectDomain(title=data["title"], slug=data["slug"])
-        domain.validate()
-        return domain
-
-    @staticmethod
-    def from_domain(domain: SubjectDomain) -> Dict[str, Any]:
-        """Convert SubjectDomain -> primitive dict for API response."""
-        return domain.to_dict()
 
 
 class CourseSerializer(serializers.ModelSerializer):
@@ -974,7 +960,7 @@ class CoursePatchInputSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True)
     
     # Thêm trường 'subject' (dạng UUID) mà service 'patch_course' cần
-    subject = serializers.UUIDField(required=False, allow_null=True)
+    subject = serializers.CharField(required=False, allow_null=True)
 
     # List các string (tên)
     categories = serializers.ListField(

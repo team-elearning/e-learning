@@ -3,9 +3,9 @@ from typing import Dict, Any, List, Optional
 from django.db import transaction
 from django.conf import settings
 
-from content.models import Quiz, Question
 from content.domains.question_domain import QuestionDomain
 from core.exceptions import DomainError
+from quiz.models import Quiz, Question
 
 
 

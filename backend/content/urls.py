@@ -7,7 +7,7 @@ from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDet
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
 from content.api.views.content_block_view import PublicLessonBlockListView, AdminContentBlockDetailView, AdminContentBlockReorderView, AdminLessonVersionContentBlockListView, InstructorContentBlockDetailView, InstructorContentBlockReorderView, InstructorLessonVersionContentBlockListView
-from content.api.views.quiz_view import AdminQuizListView, IntructorQuizDetailView, AdminQuizDetailView
+from quiz.api.views.quiz_view import AdminQuizListView, IntructorQuizDetailView, AdminQuizDetailView
 
 
 
@@ -76,6 +76,7 @@ urlpatterns = [
     path('admin/quizzes/', AdminQuizListView.as_view(), name='admin-quiz-list'),
     path('admin/quizzes/<uuid:pk>/', AdminQuizDetailView.as_view(), name='admin-quiz-detail'),
 
+    path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
 
     # # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),

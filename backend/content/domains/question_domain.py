@@ -1,7 +1,6 @@
-import uuid
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
-from content.models import Question # Import model
+from typing import Dict, Any
+from quiz.models import Question 
 
 @dataclass(frozen=True)
 class QuestionDomain:

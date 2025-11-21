@@ -4,10 +4,11 @@ from django.db import transaction, models
 from django.db.models import F, Max
 
 from custom_account.models import UserModel
-from content.models import ContentBlock, Enrollment, Lesson, Course, Module, Quiz
+from content.models import ContentBlock, Enrollment, Lesson
 from content.domains.content_block_domain import ContentBlockDomain 
-from content.services import quiz_service
+from quiz.services import quiz_service
 from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
+from quiz.models import Quiz
 
 
 
