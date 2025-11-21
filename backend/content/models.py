@@ -178,6 +178,13 @@ class Quiz(models.Model):
         verbose_name="Thời gian đóng (hạn chót)"
     )
 
+    # questions_count = models.IntegerField(
+    #     default=0, 
+    #     help_text="Số lượng câu hỏi hiển thị cho mỗi lần làm bài. 0 = Hiển thị tất cả câu hỏi hiện có."
+    # )
+
+    # shuffle_questions = models.BooleanField(default=True, verbose_name="Đảo câu hỏi")
+
     def __str__(self):
         return self.title
 
