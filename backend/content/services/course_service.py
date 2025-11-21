@@ -294,17 +294,17 @@ def patch_course(
             has_simple_changes = True
 
     # 4. Xử lý Subject (Foreign Key)
-    if 'subject' in data or 'subject_id' in data:
+    if 'subject' in data:
         # Chấp nhận cả key 'subject' hoặc 'subject_id'
-        sid = data.get('subject') or data.get('subject_id')
+        subject_title = data.get('subject') 
         
-        if sid is None:
+        if subject_title is None:
             course.subject = None
         else:
             try:
-                course.subject = Subject.objects.get(id=sid)
+                course.subject = Subject.objects.get(title=subject_title)
             except (Subject.DoesNotExist, ValueError):
-                raise ValueError(f"Subject ID '{sid}' không hợp lệ.")
+                raise ValueError(f"Subject '{subject_title}' không hợp lệ.")
         
         update_fields_for_save.append('subject')
         has_simple_changes = True

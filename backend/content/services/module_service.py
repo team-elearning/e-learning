@@ -117,7 +117,7 @@ def patch_module(module_id: uuid.UUID, data: dict) -> Tuple[Module, List[uuid.UU
                 # --- UPDATE LESSON ---
                 lesson_id = uuid.UUID(str(lesson_id_str))
                 if lesson_id not in existing_lesson_ids:
-                    raise ValueError(f"Lesson {lesson_id} does not belong to this module.")
+                    raise ValueError(f"Lesson {lesson_id} không thuộc về module này.")
                 
                 # Ủy quyền cho lesson_service.patch_lesson
                 updated_lesson, lesson_files = lesson_service.patch_lesson(

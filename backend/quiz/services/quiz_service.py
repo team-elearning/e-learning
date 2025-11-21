@@ -1,27 +1,17 @@
 # --- File mới: quiz_service.py ---
 import uuid
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, List
 from django.db import transaction
-from datetime import timedelta
-
-from content.models import Quiz, Question
-from content.domains.quiz_domain import QuizDomain
-
-from typing import Dict, Any, Tuple, List, Optional
-from datetime import timedelta
-from django.db import transaction
-from django.db.models import Prefetch
-
-# (Giả sử) UserModel của bạn
 from django.conf import settings
-UserModel = settings.AUTH_USER_MODEL
 
-from content.models import Quiz, Question
-from content.domains.quiz_domain import QuizDomain
+from content.models import Quiz
+from quiz.domains.quiz_domain import QuizDomain
 from core.exceptions import DomainError
 from content.services import question_service
 
 
+
+UserModel = settings.AUTH_USER_MODEL
 
 @transaction.atomic
 def create_quiz(data: Dict[str, Any]) -> QuizDomain:

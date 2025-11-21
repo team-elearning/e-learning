@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'ai_personalization',
     'events',
     'payments',
+    'quiz',
 
     # Allauth                                                                                                            
     'allauth',                                                                                                                  

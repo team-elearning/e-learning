@@ -8,8 +8,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 from core.exceptions import DomainError
 from content.serializers import QuizPatchInputSerializer
-from content.api.dtos.quiz_dto import QuizUpdateInput, QuizPublicOutput, QuizAdminOutput
-from content.services import quiz_service
+from quiz.api.dtos.quiz_dto import QuizUpdateInput, QuizPublicOutput, QuizAdminOutput
+from quiz.services import quiz_service
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin 
 

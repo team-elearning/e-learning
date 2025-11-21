@@ -54,7 +54,7 @@ class CourseUpdateInput(BaseModel):
     description: Optional[str] = None
     
     # Thêm trường 'subject'
-    subject: Optional[uuid.UUID] = None
+    subject: Optional[str] = None
 
     categories: Optional[List[str]] = None
     tags: Optional[List[str]] = None

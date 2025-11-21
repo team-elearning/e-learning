@@ -162,7 +162,7 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
     cond_owned_by_object = Q(content_type=content_type, object_id=object_id)
     
     # Điều kiện 2: HOẶC File mới (Pending) VÀ phải do chính người này upload
-    cond_pending_and_my_file = Q(status=FileStatus.STAGING)
+    staging_files_condition = Q(status=FileStatus.STAGING)
     
     # --- LOGIC PHÂN QUYỀN QUAN TRỌNG ---
     if not is_admin:
@@ -170,11 +170,11 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
         # Chỉ được commit file staging nếu file đó do CHÍNH CHỦ sở hữu object upload
         # (Hoặc do chính actor upload - tùy nghiệp vụ bạn muốn chặt đến đâu)
         if owner:
-            cond_pending &= Q(uploaded_by=owner)
+            staging_files_condition &= Q(uploaded_by=owner)
         else:
             # Nếu object không có owner (trường hợp hiếm), bắt buộc file phải do actor upload
             if actor:
-                cond_pending &= Q(uploaded_by=actor)
+                staging_files_condition &= Q(uploaded_by=actor)
     else:
         # ADMIN:
         # Được phép commit BẤT KỲ file staging nào (miễn là có ID).
@@ -183,7 +183,7 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
 
     # Combine
     files_qs = UploadedFile.objects.filter(
-        filters & (cond_pending_and_my_file | cond_owned_by_object)
+        filters & (staging_files_condition | cond_owned_by_object)
     )
     
     # Lấy ra danh sách các ID thực sự tìm thấy trong DB

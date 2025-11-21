@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class AdminSubjectListView(RoleBasedOutputMixin, APIView):
     """
-    GET /api/v1/subjects/     (admin) - List all subjects
-    POST /api/v1/subjects/    (admin) - Create a new subject
+    GET /api/subjects/     (admin) - List all subjects
+    POST /api/subjects/    (admin) - Create a new subject
     """
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
 
