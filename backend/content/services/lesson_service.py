@@ -42,8 +42,6 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
 
     # 2. Xử lý logic Lesson (Lấy từ code mới của bạn)
     title = data.get('title')
-    if Lesson.objects.filter(module=module, title=title).exists():
-        raise DomainError(f"Bài học với tiêu đề '{title}' đã tồn tại.")
 
     # (Sử dụng 'position' thay vì 'order' cho nhất quán)
     position = data.get('position')
@@ -102,16 +100,8 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
         if field in data:
             setattr(lesson, field, data[field])
             update_fields_for_save.append(field)
-    
-    if update_fields_for_save:
-        # Kiểm tra logic nghiệp vụ (giống hàm create)
-        if 'title' in update_fields_for_save:
-            if Lesson.objects.filter(
-                module=lesson.module, title=data['title']
-            ).exclude(id=lesson.id).exists():
-                raise DomainError(f"Bài học với tiêu đề '{data['title']}' đã tồn tại.")
         
-        lesson.save(update_fields=update_fields_for_save)
+    lesson.save(update_fields=update_fields_for_save)
 
     # 4. Xử lý ContentBlocks lồng nhau (LOGIC MOODLE)
     if content_blocks_data is not None: # Chỉ chạy nếu key 'content_blocks' tồn tại
