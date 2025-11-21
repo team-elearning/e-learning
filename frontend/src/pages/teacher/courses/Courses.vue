@@ -151,7 +151,7 @@
               </span>
             </div>
 
-            <div class="mt-2 text-xs text-slate-500">{{ c.modules?.length || 0 }} chương học</div>
+            <div class="mt-2 text-xs text-slate-500">{{ c.module_count || 0 }} chương học</div>
           </div>
 
           <!-- Actions -->
@@ -314,6 +314,7 @@ interface CourseItem {
   categories: string[]
   tags: string[]
   modules: any[]
+  module_count?: number // Added this property
 }
 
 const courses = ref<CourseItem[]>([])

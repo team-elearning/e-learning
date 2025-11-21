@@ -180,11 +180,11 @@
                     >
                       <div class="mb-2 flex items-center justify-between">
                         <div class="flex items-center gap-2 text-[11px] uppercase tracking-wide">
-                          <span class="font-semibold text-slate-500"> Phần {{ bIndex + 1 }} </span>
+                          <span class="font-semibold text-slate-500">Phần {{ bIndex + 1 }}</span>
                           <span class="text-slate-400">•</span>
-                          <span class="font-medium text-slate-500">
-                            {{ blockTypeLabel(b.type) }}
-                          </span>
+                          <span class="font-medium text-slate-500">{{
+                            blockTypeLabel(b.type)
+                          }}</span>
                         </div>
                       </div>
 
@@ -235,21 +235,16 @@
                           class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
                         >
                           <div class="flex items-center gap-2">
-                            <span class="text-lg">
-                              {{ b.type === 'pdf' ? '📄' : '📘' }}
-                            </span>
+                            <span class="text-lg">{{ b.type === 'pdf' ? '📄' : '📘' }}</span>
                             <div>
                               <p class="font-medium text-slate-800">
                                 {{ b.payload?.filename || 'Tài liệu' }}
                               </p>
-                              <p class="text-[11px] text-slate-500">
-                                {{ b.type.toUpperCase() }}
-                              </p>
+                              <p class="text-[11px] text-slate-500">{{ b.type.toUpperCase() }}</p>
                             </div>
                           </div>
 
                           <div class="flex items-center gap-2">
-                            <!-- Xem trực tiếp (PDF: iframe, DOCX: note + tải) -->
                             <button
                               v-if="b.payload?._file_blob_url || b.payload?.file_url"
                               type="button"
@@ -259,7 +254,6 @@
                               Xem trực tiếp
                             </button>
 
-                            <!-- Mở tab mới / tải về thô -->
                             <a
                               v-if="b.payload?.file_url"
                               :href="b.payload.file_url"
@@ -270,40 +264,27 @@
                               Mở tài liệu
                               <span>↗</span>
                             </a>
-                            <span v-else class="text-[11px] text-slate-400"> Không có file </span>
+                            <span v-else class="text-[11px] text-slate-400">Không có file</span>
                           </div>
                         </div>
                       </div>
 
-                      <!-- QUIZ -->
-                      <div v-else-if="b.type === 'quiz'" class="space-y-3">
-                        <p class="text-sm font-semibold text-slate-800">
-                          {{ b.payload?.title || 'Bài kiểm tra' }}
+                      <!-- QUIZ (dùng quiz_id) -->
+                      <div v-else-if="b.type === 'quiz'" class="space-y-2">
+                        <p class="text-sm font-semibold text-slate-800">Bài kiểm tra</p>
+                        <p class="text-xs text-slate-500">
+                          Mã bài kiểm tra:
+                          <span class="font-mono text-slate-700">{{
+                            b.payload?.quiz_id || '(không có)'
+                          }}</span>
                         </p>
-                        <p v-if="b.payload?.time_limit" class="text-xs text-slate-500">
-                          Thời gian làm bài: {{ b.payload.time_limit }}
-                        </p>
-
-                        <div
-                          v-if="b.payload?.questions && b.payload.questions.length"
-                          class="space-y-2"
+                        <button
+                          type="button"
+                          class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+                          @click="openQuiz(b.payload?.quiz_id)"
                         >
-                          <div
-                            v-for="(q, qIndex) in b.payload.questions"
-                            :key="qIndex"
-                            class="rounded-md bg-white p-2 text-xs"
-                          >
-                            <p class="font-medium text-slate-800">
-                              Câu {{ qIndex + 1 }}.
-                              {{ q.prompt?.text }}
-                            </p>
-                            <p class="mt-1 text-[11px] text-slate-500">
-                              Loại: {{ questionTypeLabel(q.type) }}
-                            </p>
-                          </div>
-                        </div>
-
-                        <p v-else class="text-xs text-slate-500">Chưa có câu hỏi.</p>
+                          Xem bài kiểm tra
+                        </button>
                       </div>
 
                       <!-- OTHER / UNKNOWN -->
@@ -340,6 +321,8 @@
               type="button"
               class="rounded-full p-1 text-slate-500 hover:bg-slate-100"
               @click="closeDocViewer"
+              aria-label="Đóng"
+              title="Đóng"
             >
               ✕
             </button>
@@ -373,6 +356,380 @@
         </div>
       </div>
       <!-- ========= END DOC VIEWER MODAL ========= -->
+
+      <!-- ========= QUIZ MODAL ========= -->
+      <transition
+        enter-active-class="transition-opacity duration-150 ease-out"
+        leave-active-class="transition-opacity duration-150 ease-in"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="quizModal.open"
+          class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          @click.self="closeQuiz"
+        >
+          <div
+            class="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+              <div class="flex flex-col gap-1">
+                <p class="text-xs uppercase tracking-wide text-slate-400">Bài kiểm tra</p>
+
+                <!-- Title: view / edit -->
+                <div v-if="quizEditMode">
+                  <input
+                    v-model="quizModal.data!.title"
+                    type="text"
+                    class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                    placeholder="Tiêu đề bài kiểm tra"
+                  />
+                </div>
+                <h3 v-else class="text-lg font-semibold text-slate-800">
+                  {{ quizModal.data?.title || 'Đang tải…' }}
+                </h3>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div v-if="quizModal.data" class="text-right">
+                  <p class="text-[11px] text-slate-500">
+                    Thời gian:
+                    <span v-if="quizEditMode">
+                      <input
+                        v-model.number="quizTimeLimitMinutes"
+                        type="number"
+                        min="0"
+                        class="w-16 rounded border border-slate-300 px-1 py-0.5 text-[11px] outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                      />
+                      <span class="ml-1 text-slate-500">phút</span>
+                    </span>
+                    <span v-else class="font-medium text-slate-700">
+                      {{ formatTimeLimit(quizModal.data.time_limit) }}
+                    </span>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  class="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  @click="closeQuiz"
+                  aria-label="Đóng"
+                  title="Đóng"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Body -->
+            <div class="max-h-[70vh] overflow-y-auto px-5 py-4 text-sm">
+              <!-- Loading -->
+              <div v-if="quizModal.loading" class="space-y-3">
+                <div class="h-4 w-2/3 rounded bg-slate-200 animate-pulse" />
+                <div class="h-4 w-1/2 rounded bg-slate-200 animate-pulse" />
+                <div class="mt-3 space-y-2">
+                  <div class="h-3 w-full rounded bg-slate-200 animate-pulse" />
+                  <div class="h-3 w-5/6 rounded bg-slate-200 animate-pulse" />
+                  <div class="h-3 w-3/4 rounded bg-slate-200 animate-pulse" />
+                </div>
+              </div>
+
+              <!-- Error -->
+              <div
+                v-else-if="quizModal.error"
+                class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700"
+              >
+                {{ quizModal.error }}
+              </div>
+
+              <!-- Questions -->
+              <div v-else-if="quizModal.data" class="space-y-4">
+                <p class="text-xs text-slate-500">
+                  Tổng số câu hỏi:
+                  <span class="font-semibold text-slate-700">{{
+                    quizModal.data.questions.length
+                  }}</span>
+                </p>
+
+                <div
+                  v-for="(q, qIndex) in quizModal.data.questions"
+                  :key="q.id || qIndex"
+                  class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                >
+                  <div class="mb-2 flex items-start justify-between gap-2">
+                    <div class="flex-1">
+                      <p class="text-xs font-semibold text-slate-500">Câu {{ qIndex + 1 }}</p>
+
+                      <!-- prompt: view / edit -->
+                      <div v-if="quizEditMode">
+                        <textarea
+                          v-model="q.prompt.text"
+                          rows="2"
+                          class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                          placeholder="Nội dung câu hỏi..."
+                        ></textarea>
+                      </div>
+                      <p v-else class="text-sm font-medium text-slate-800">
+                        {{ q.prompt?.text }}
+                      </p>
+                    </div>
+
+                    <span
+                      class="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
+                    >
+                      {{ questionTypeLabel(q.type) }}
+                    </span>
+                  </div>
+
+                  <!-- multiple choice -->
+                  <!-- multiple choice -->
+                  <div
+                    v-if="q.type === 'multiple_choice_single' || q.type === 'multiple_choice_multi'"
+                    class="space-y-1.5 text-xs"
+                  >
+                    <!-- EDIT MODE -->
+                    <template v-if="quizEditMode">
+                      <div
+                        v-for="(choice, cIndex) in q.answer_payload?.choices || []"
+                        :key="choice.id || cIndex"
+                        class="flex items-center gap-2 rounded-md bg-white px-2 py-1"
+                      >
+                        <!-- ID cố định a/b/c/d... -->
+                        <div
+                          class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
+                        >
+                          {{ String.fromCharCode(65 + cIndex) }}
+                        </div>
+
+                        <!-- Nội dung đáp án -->
+                        <input
+                          v-model="choice.text"
+                          class="input-field flex-1 !px-2 !py-1 text-xs"
+                          placeholder="Nội dung lựa chọn"
+                        />
+
+                        <!-- Đánh dấu đúng -->
+                        <label class="flex items-center gap-1 text-[11px] text-slate-700">
+                          <!-- single: chỉ 1 đúng -->
+                          <input
+                            v-if="q.type === 'multiple_choice_single'"
+                            type="radio"
+                            :name="`quiz-q-${qIndex}`"
+                            :checked="choice.is_correct"
+                            @change="setQuizSingleCorrect(q, cIndex)"
+                          />
+                          <!-- multi: nhiều đúng -->
+                          <input
+                            v-else
+                            type="checkbox"
+                            :checked="choice.is_correct"
+                            @change="toggleQuizMultiCorrect(choice)"
+                          />
+                          <span>Đúng</span>
+                        </label>
+
+                        <!-- Xoá lựa chọn -->
+                        <button
+                          type="button"
+                          class="px-1 text-sm text-rose-600 hover:text-rose-700"
+                          @click="removeQuizChoice(q, cIndex)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="btn-secondary text-xs mt-1"
+                        @click="addQuizChoice(q)"
+                      >
+                        + Thêm lựa chọn
+                      </button>
+                    </template>
+
+                    <!-- VIEW MODE -->
+                    <template v-else>
+                      <div
+                        v-for="choice in q.answer_payload?.choices || []"
+                        :key="choice.id"
+                        class="flex items-start gap-2 rounded-md px-2 py-1"
+                        :class="
+                          choice.is_correct ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700'
+                        "
+                      >
+                        <span class="mt-0.5 min-w-[1.5rem] font-mono">{{ choice.id }}</span>
+                        <div class="flex-1">
+                          <p>{{ choice.text || '(Không có nội dung)' }}</p>
+                          <p
+                            v-if="choice.is_correct"
+                            class="text-[10px] font-semibold uppercase tracking-wide"
+                          >
+                            Đáp án đúng
+                          </p>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+
+                  <!-- true/false -->
+                  <!-- true/false -->
+                  <div v-else-if="q.type === 'true_false'" class="space-y-1 text-xs">
+                    <template v-if="quizEditMode">
+                      <p class="font-medium text-slate-700 mb-1">Chọn đáp án đúng:</p>
+                      <label class="flex items-center gap-2">
+                        <input type="radio" :value="true" v-model="q.answer_payload.answer" />
+                        <span>Đúng</span>
+                      </label>
+                      <label class="flex items-center gap-2">
+                        <input type="radio" :value="false" v-model="q.answer_payload.answer" />
+                        <span>Sai</span>
+                      </label>
+                    </template>
+
+                    <template v-else>
+                      <p class="font-medium text-slate-700">Đáp án đúng:</p>
+                      <p
+                        class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                      >
+                        {{ q.answer_payload?.answer ? 'Đúng' : 'Sai' }}
+                      </p>
+                    </template>
+                  </div>
+
+                  <!-- fill in the blank -->
+                  <!-- fill in the blank -->
+                  <div v-else-if="q.type === 'fill_in_the_blank'" class="space-y-1 text-xs">
+                    <template v-if="quizEditMode">
+                      <p class="font-medium text-slate-700 mb-1">Đáp án cho các chỗ trống:</p>
+                      <div
+                        v-for="(blank, bIndex) in q.answer_payload?.blanks || []"
+                        :key="blank.id || bIndex"
+                        class="flex items-center gap-2 mb-1"
+                      >
+                        <input
+                          v-model="blank.id"
+                          class="input-field w-28 !px-2 !py-1 text-[11px]"
+                          placeholder="BLANK_1"
+                        />
+                        <input
+                          v-model="blank.answer"
+                          class="input-field flex-1 !px-2 !py-1 text-[11px]"
+                          placeholder="Đáp án"
+                        />
+                        <button
+                          type="button"
+                          class="px-1 text-xs text-rose-600 hover:text-rose-700"
+                          @click="removeQuizBlank(q, bIndex)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn-secondary text-xs mt-1"
+                        @click="addQuizBlank(q)"
+                      >
+                        + Thêm chỗ trống
+                      </button>
+                    </template>
+
+                    <template v-else>
+                      <p class="font-medium text-slate-700">Đáp án đúng:</p>
+                      <ul class="list-disc pl-5">
+                        <li
+                          v-for="blank in q.answer_payload?.blanks || []"
+                          :key="blank.id"
+                          class="text-slate-700"
+                        >
+                          <span class="font-mono text-[11px]">{{ blank.id }}:</span>
+                          <span class="ml-1 font-semibold">{{ blank.answer }}</span>
+                        </li>
+                      </ul>
+                    </template>
+                  </div>
+
+                  <!-- fallback -->
+                  <div v-else class="text-xs text-slate-500">
+                    Chưa hỗ trợ hiển thị chi tiết cho loại câu hỏi này.
+                  </div>
+
+                  <!-- Hint -->
+                  <!-- Hint -->
+                  <div class="mt-2">
+                    <label v-if="quizEditMode" class="block text-[11px] text-slate-600">
+                      Gợi ý (tuỳ chọn)
+                      <input
+                        v-model="q.hint.text"
+                        class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                        placeholder="Gợi ý cho học sinh..."
+                      />
+                    </label>
+                    <p v-else-if="q.hint?.text" class="text-[11px] text-slate-500">
+                      Gợi ý: {{ q.hint.text }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="text-xs text-slate-500">Không có dữ liệu bài kiểm tra.</div>
+            </div>
+
+            <!-- Footer -->
+            <div
+              class="flex items-center justify-between gap-2 border-t border-slate-200 px-5 py-3 text-xs"
+            >
+              <p v-if="quizSaveError" class="text-rose-600">
+                {{ quizSaveError }}
+              </p>
+              <span v-else />
+
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="quizModal.data && !quizEditMode"
+                  type="button"
+                  class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  @click="enterQuizEditMode"
+                >
+                  Sửa bài kiểm tra
+                </button>
+
+                <button
+                  v-if="quizEditMode"
+                  type="button"
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  @click="cancelQuizEdit"
+                  :disabled="quizSaving"
+                >
+                  Hủy
+                </button>
+
+                <button
+                  v-if="quizEditMode"
+                  type="button"
+                  class="rounded-xl bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+                  @click="saveQuiz"
+                  :disabled="quizSaving"
+                >
+                  {{ quizSaving ? 'Đang lưu…' : 'Lưu thay đổi' }}
+                </button>
+
+                <button
+                  type="button"
+                  class="rounded-xl bg-slate-800 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
+                  @click="closeQuiz"
+                  :disabled="quizSaving"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+      <!-- ========= END QUIZ MODAL ========= -->
     </main>
   </div>
 </template>
@@ -385,24 +742,19 @@ import axios from 'axios'
 const route = useRoute()
 const router = useRouter()
 
-// ================== AUTH HEADER ==================
+/* ========== AUTH HEADER ========== */
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access')
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-      }
-    : {}
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-// ================== TYPES ==================
+/* ========== TYPES ========== */
 interface ContentBlock {
   id?: string
   type: string
   position: number
   payload: any
 }
-
 interface Lesson {
   id?: string
   title: string
@@ -411,14 +763,12 @@ interface Lesson {
   published?: boolean
   content_blocks: ContentBlock[]
 }
-
 interface Module {
   id?: string
   title: string
   position: number
   lessons: Lesson[]
 }
-
 interface CourseDetail {
   id: string
   title: string
@@ -432,22 +782,63 @@ interface CourseDetail {
   modules: Module[]
 }
 
-// ================== STATE ==================
+/* Quiz types */
+interface QuizChoice {
+  id: string
+  text: string
+  is_correct: boolean
+}
+interface QuizQuestion {
+  id: string
+  position: number
+  type: string
+  prompt: { text: string }
+  answer_payload: any
+  hint: { text: string }
+}
+interface QuizDetail {
+  id: string
+  title: string
+  time_limit: number | string | null
+  time_open: string | null
+  time_close: string | null
+  questions: QuizQuestion[]
+}
+
+/* ========== STATE ========== */
 const course = ref<CourseDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
 
 const coverBlobUrl = ref<string | null>(null)
+const blobUrls = new Set<string>() // track blob URLs to revoke
 
-// lưu tất cả blob urls để revoke khi unmount
-const blobUrls = new Set<string>()
-
-// Viewer tài liệu (PDF / DOCX)
+/* Doc viewer */
 const docViewerOpen = ref(false)
 const docViewerUrl = ref<string | null>(null)
 const docViewerType = ref<'pdf' | 'docx' | null>(null)
 
-// ================== HELPERS ==================
+/* Quiz modal */
+const quizModal = ref<{
+  open: boolean
+  loading: boolean
+  error: string
+  data: QuizDetail | null
+}>({
+  open: false,
+  loading: false,
+  error: '',
+  data: null,
+})
+
+/* Quiz edit state */
+const quizEditMode = ref(false)
+const quizSaving = ref(false)
+const quizSaveError = ref('')
+const quizTimeLimitMinutes = ref<number | null>(null)
+let quizSnapshot: QuizDetail | null = null // dùng để rollback khi Hủy
+
+/* ========== HELPERS ========== */
 function blockTypeLabel(type: string) {
   switch (type) {
     case 'text':
@@ -466,7 +857,6 @@ function blockTypeLabel(type: string) {
       return type
   }
 }
-
 function questionTypeLabel(type: string) {
   switch (type) {
     case 'multiple_choice_single':
@@ -482,14 +872,45 @@ function questionTypeLabel(type: string) {
   }
 }
 
-// giống list khoá học: call API lấy blob + Authorization
+/** time_limit có thể là số giây (GET) hoặc chuỗi HH:MM:SS (PATCH response) */
+function toSecondsFromTimeLimit(val: number | string | null | undefined): number | null {
+  if (val == null) return null
+  if (typeof val === 'number') return val
+  const parts = val.split(':').map((p) => parseInt(p, 10))
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null
+  const [h, m, s] = parts
+  return h * 3600 + m * 60 + s
+}
+
+function formatTimeLimit(val: number | string | null | undefined) {
+  const total = toSecondsFromTimeLimit(val)
+  if (!total || total <= 0) return 'Không giới hạn'
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  if (m >= 60) {
+    const h = Math.floor(m / 60)
+    const mm = m % 60
+    return `${h}h ${mm}m`
+  }
+  return `${m} phút${s ? ` ${s} giây` : ''}`
+}
+
+function minutesToHHMMSS(minutes: number | null): string | null {
+  if (minutes == null || minutes < 0) return null
+  const total = minutes * 60
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
+}
+
+/* blob fetch with auth (image/video/file) */
 async function fetchBlobUrl(path: string): Promise<string | null> {
   try {
     const res = await axios.get(path, {
       responseType: 'blob',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: { ...getAuthHeaders() },
     })
     const url = URL.createObjectURL(res.data)
     blobUrls.add(url)
@@ -500,36 +921,144 @@ async function fetchBlobUrl(path: string): Promise<string | null> {
   }
 }
 
-// mở viewer tài liệu
+/* Doc viewer */
 function openDocViewer(block: ContentBlock) {
   const blobUrl = block.payload?._file_blob_url
   const rawUrl = block.payload?.file_url
-
-  if (blobUrl) {
-    docViewerUrl.value = blobUrl
-  } else if (rawUrl) {
-    docViewerUrl.value = rawUrl
-  } else {
-    docViewerUrl.value = null
-  }
-
+  docViewerUrl.value = blobUrl || rawUrl || null
   docViewerType.value = (block.type === 'pdf' || block.type === 'docx' ? block.type : null) as
     | 'pdf'
     | 'docx'
     | null
-
-  if (docViewerUrl.value && docViewerType.value) {
-    docViewerOpen.value = true
-  }
+  if (docViewerUrl.value && docViewerType.value) docViewerOpen.value = true
 }
-
 function closeDocViewer() {
   docViewerOpen.value = false
   docViewerUrl.value = null
   docViewerType.value = null
 }
 
-// ================== FETCH ==================
+/* Quiz */
+async function openQuiz(quizId?: string) {
+  quizModal.value.open = true
+  quizModal.value.loading = true
+  quizModal.value.error = ''
+  quizModal.value.data = null
+  quizEditMode.value = false
+  quizSaveError.value = ''
+  quizTimeLimitMinutes.value = null
+  quizSnapshot = null
+
+  if (!quizId) {
+    quizModal.value.loading = false
+    quizModal.value.error = 'Không tìm thấy quiz_id trong payload.'
+    return
+  }
+
+  try {
+    const { data } = await axios.get<QuizDetail>(`/api/content/instructor/quizzes/${quizId}/`, {
+      headers: { ...getAuthHeaders() },
+    })
+    quizModal.value.data = data
+
+    const secs = toSecondsFromTimeLimit(data.time_limit)
+    quizTimeLimitMinutes.value = secs != null ? Math.floor(secs / 60) : null
+  } catch (e: any) {
+    console.error('❌ Lỗi tải bài kiểm tra:', e)
+    quizModal.value.error =
+      e?.response?.data?.detail || e?.message || 'Không thể tải bài kiểm tra. Vui lòng thử lại.'
+  } finally {
+    quizModal.value.loading = false
+  }
+}
+function closeQuiz() {
+  if (quizSaving.value) return
+  quizModal.value.open = false
+  quizEditMode.value = false
+  quizSaveError.value = ''
+}
+
+/* Quiz edit mode */
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+function enterQuizEditMode() {
+  if (!quizModal.value.data) return
+  quizEditMode.value = true
+  quizSaveError.value = ''
+  quizSnapshot = deepClone(quizModal.value.data)
+}
+
+function cancelQuizEdit() {
+  if (!quizModal.value.data || !quizSnapshot) {
+    quizEditMode.value = false
+    quizSaveError.value = ''
+    return
+  }
+  quizModal.value.data = deepClone(quizSnapshot)
+  const secs = toSecondsFromTimeLimit(quizModal.value.data.time_limit)
+  quizTimeLimitMinutes.value = secs != null ? Math.floor(secs / 60) : null
+  quizEditMode.value = false
+  quizSaveError.value = ''
+}
+
+/* PATCH quiz */
+async function saveQuiz() {
+  if (!quizModal.value.data) return
+  quizSaveError.value = ''
+  quizSaving.value = true
+
+  try {
+    const qz = quizModal.value.data
+    const timeStr = minutesToHHMMSS(quizTimeLimitMinutes.value)
+
+    const payload: any = {
+      title: qz.title,
+      // nếu muốn giữ nguyên time_limit khi input null, có thể bỏ trường này đi:
+      time_limit: timeStr,
+      questions: qz.questions.map((q, idx) => ({
+        id: q.id,
+        position: idx,
+        type: q.type,
+        prompt: { text: q.prompt?.text || '' },
+        answer_payload: q.answer_payload,
+        hint: q.hint,
+      })),
+    }
+
+    const { data } = await axios.patch(`/api/content/instructor/quizzes/${qz.id}/`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
+
+    // data.time_limit có thể là chuỗi "HH:MM:SS"
+    const merged: QuizDetail = {
+      ...qz,
+      ...data,
+      questions: data.questions ?? qz.questions,
+    }
+    quizModal.value.data = merged
+
+    const secs = toSecondsFromTimeLimit(merged.time_limit)
+    quizTimeLimitMinutes.value = secs != null ? Math.floor(secs / 60) : null
+
+    quizEditMode.value = false
+    quizSnapshot = deepClone(merged)
+  } catch (e: any) {
+    console.error('❌ Lỗi khi cập nhật bài kiểm tra:', e)
+    quizSaveError.value =
+      e?.response?.data?.detail ||
+      e?.message ||
+      'Có lỗi xảy ra khi lưu bài kiểm tra. Vui lòng thử lại.'
+  } finally {
+    quizSaving.value = false
+  }
+}
+
+/* ========== FETCH COURSE ========== */
 async function fetchCourse() {
   const id = route.params.id
   if (!id) {
@@ -541,21 +1070,17 @@ async function fetchCourse() {
   error.value = ''
   try {
     const { data } = await axios.get<CourseDetail>(`/api/content/instructor/courses/${id}/`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: { ...getAuthHeaders() },
     })
-
     course.value = data
 
-    // cover
     if (course.value.image_url) {
       fetchBlobUrl(course.value.image_url).then((url) => {
         if (url) coverBlobUrl.value = url
       })
     }
 
-    // images, videos, pdf, docx trong content blocks
+    // fetch blobs for content blocks
     course.value.modules.forEach((m) => {
       m.lessons.forEach((lesson) => {
         lesson.content_blocks.forEach((b) => {
@@ -588,29 +1113,87 @@ async function fetchCourse() {
   }
 }
 
-// ================== NAV ==================
+/* ========== NAV ========== */
 function goBack() {
   router.back()
 }
-
 function goToList() {
   router.push({ path: '/teacher/courses' })
 }
-
 function editCourse() {
   if (!course.value) return
   router.push({ path: `/teacher/courses/${course.value.id}/edit` })
 }
 
-// ================== INIT & CLEANUP ==================
+/* ========== INIT & CLEANUP ========== */
 onMounted(() => {
   fetchCourse()
 })
-
 onBeforeUnmount(() => {
   blobUrls.forEach((u) => URL.revokeObjectURL(u))
   blobUrls.clear()
 })
+
+/* ===== Helper chỉnh đáp án trong modal quiz ===== */
+
+function ensureChoicesArray(q: QuizQuestion) {
+  if (!q.answer_payload) q.answer_payload = {}
+  if (!Array.isArray(q.answer_payload.choices)) {
+    q.answer_payload.choices = []
+  }
+}
+
+function addQuizChoice(q: QuizQuestion) {
+  ensureChoicesArray(q)
+  const idx = q.answer_payload.choices.length
+  const id = String.fromCharCode(97 + idx) // a, b, c, ...
+  q.answer_payload.choices.push({
+    id,
+    text: '',
+    is_correct: false,
+  } as QuizChoice)
+}
+
+function removeQuizChoice(q: QuizQuestion, index: number) {
+  if (!q.answer_payload?.choices) return
+  q.answer_payload.choices.splice(index, 1)
+  // đánh lại id a, b, c,...
+  q.answer_payload.choices.forEach((choice: QuizChoice, i: number) => {
+    choice.id = String.fromCharCode(97 + i)
+  })
+}
+
+function setQuizSingleCorrect(q: QuizQuestion, index: number) {
+  if (!q.answer_payload?.choices) return
+  q.answer_payload.choices.forEach((choice: QuizChoice, i: number) => {
+    choice.is_correct = i === index
+  })
+}
+
+function toggleQuizMultiCorrect(choice: QuizChoice) {
+  choice.is_correct = !choice.is_correct
+}
+
+function ensureBlanksArray(q: QuizQuestion) {
+  if (!q.answer_payload) q.answer_payload = {}
+  if (!Array.isArray(q.answer_payload.blanks)) {
+    q.answer_payload.blanks = []
+  }
+}
+
+function addQuizBlank(q: QuizQuestion) {
+  ensureBlanksArray(q)
+  const idx = q.answer_payload.blanks.length
+  q.answer_payload.blanks.push({
+    id: `BLANK_${idx + 1}`,
+    answer: '',
+  })
+}
+
+function removeQuizBlank(q: QuizQuestion, index: number) {
+  if (!q.answer_payload?.blanks) return
+  q.answer_payload.blanks.splice(index, 1)
+}
 </script>
 
 <style scoped>
