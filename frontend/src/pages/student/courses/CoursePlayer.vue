@@ -13,6 +13,7 @@
         <div class="left">
           <div class="video-shell">
             <video
+              v-if="currentSrc"
               ref="videoRef"
               class="video"
               :src="currentSrc"
@@ -20,6 +21,11 @@
               playsinline
               @ended="markDone(currentLesson?.id)"
             ></video>
+            <div v-else class="video-empty">
+              <p v-if="videoLoading">Đang tải video…</p>
+              <p v-else-if="videoError">{{ videoError }}</p>
+              <p v-else>Chưa có video cho bài học này.</p>
+            </div>
 
             <div class="video-title">
               <h2>{{ course.title }}</h2>
@@ -98,9 +104,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { courseService, type CourseDetail, type Lesson as ApiLesson } from '@/services/course.service'
+import { courseService, resolveMediaUrl, type CourseDetail, type Lesson as ApiLesson, type LessonContentBlock } from '@/services/course.service'
 
 const router = useRouter()
 const route = useRoute()
@@ -127,7 +133,7 @@ async function load() {
 }
 
 /* ====== UI sections ====== */
-type UiLesson = { id: string|number; title: string; durationMinutes?: number; type: ApiLesson['type']; done?: boolean }
+type UiLesson = { id: string|number; title: string; durationMinutes?: number; type: ApiLesson['type']; done?: boolean; videoUrl?: string | null; contentBlocks?: LessonContentBlock[] }
 type UiSection = { id: string|number; title: string; items: UiLesson[] }
 const uiSections = ref<UiSection[]>([])
 
@@ -143,7 +149,9 @@ function buildUiSections() {
         title: l.title,
         durationMinutes: l.durationMinutes,
         type: l.type,
-        done: doneSet.has(String(l.id))
+        done: doneSet.has(String(l.id)),
+        videoUrl: l.videoUrl ?? null,
+        contentBlocks: l.contentBlocks,
       }))
   }))
 }
@@ -188,10 +196,10 @@ const nextLesson = computed<UiLesson | null>(() => {
   return (idx >= 0 && idx < flat.value.length - 1) ? flat.value[idx + 1] : null
 })
 
-/* Demo src: thay bằng URL thật của bạn */
-const currentSrc = computed(() =>
-  'https://pub-52a4bc53687a4601ac29f7d454bef601.r2.dev/test2.mp4'
-)
+const currentSrc = ref<string>('')
+const videoLoading = ref(false)
+const videoError = ref('')
+let lastVideoKey = ''
 
 /* ====== METHODS ====== */
 function formatDuration(min?: number){
@@ -242,6 +250,27 @@ function markDone(id?: string|number|null){
   rebuildAndKeepCursor(id)
 }
 
+async function setVideoSrc(lesson: UiLesson | null){
+  const rawUrl = lesson?.videoUrl || null
+  const key = rawUrl ? `${lesson?.id}:${rawUrl}` : `none:${lesson?.id ?? 'no-lesson'}`
+  if (key === lastVideoKey) return
+  lastVideoKey = key
+
+  currentSrc.value = ''
+  videoError.value = ''
+  if (!rawUrl) return
+
+  videoLoading.value = true
+  try {
+    const resolved = await resolveMediaUrl(rawUrl)
+    currentSrc.value = resolved || rawUrl
+  } catch (e: any) {
+    videoError.value = e?.message || 'Không thể tải video.'
+  } finally {
+    videoLoading.value = false
+  }
+}
+
 /* Nếu dữ liệu/sections đổi bất chợt (reset), vẫn đảm bảo con trỏ hợp lệ */
 watchEffect(() => {
   if (!uiSections.value.length) return
@@ -252,6 +281,8 @@ watchEffect(() => {
     cur.value = { si: 0, li: 0 }
   }
 })
+
+watch(() => currentLesson.value?.id, () => setVideoSrc(currentLesson.value), { immediate: true })
 
 /* ====== MOUNT ====== */
 onMounted(load)
@@ -280,6 +311,17 @@ onMounted(load)
 .left{ background:#000; border-radius:12px; overflow:hidden; border:6px solid #000; }
 .video-shell{ background:#000; position:relative; }
 .video{ width:100%; aspect-ratio:16/9; display:block; background:#000; }
+.video-empty{
+  width:100%; aspect-ratio:16/9;
+  background:linear-gradient(135deg,#0f172a,#111827);
+  color:#e5e7eb;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  text-align:center;
+  font-weight:700;
+  border:1px dashed rgba(255,255,255,.2);
+}
 
 .video-title{
   display:flex; justify-content:space-between; align-items:flex-end;

@@ -14,8 +14,7 @@ class ExamCreateInput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     title: str = Field(..., min_length=3, max_length=255)
-    description: Optional[str] = None
-    course_id: Optional[str] = None # Link tới Course nếu cần
+    description: Optional[str] = None    
 
     # --- Time Config ---
     # Pydantic tự parse chuỗi "00:45:00" thành timedelta
@@ -82,7 +81,7 @@ class ExamPublicOutput(BaseModel):
     # --- Rules ---
     max_attempts: Optional[int]
     pass_score: Optional[float]
-    questions_count: int
+    actual_question_count: int
 
     # --- Danh sách câu hỏi ---
     # Lưu ý: Thường Exam chưa bắt đầu thì chưa hiện câu hỏi.
@@ -132,7 +131,7 @@ class ExamAdminOutput(BaseModel):
     show_correct_answer: bool
     
     # --- Stats & Config ---
-    questions_count: int # Số câu cấu hình
+    config_question_count: int # Số câu cấu hình
     actual_question_count: int = 0 # Số câu thực tế (Từ annotate)
 
     # --- Questions Full (Kèm đáp án) ---

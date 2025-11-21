@@ -51,7 +51,6 @@ class ExamInputSerializer(serializers.Serializer):
     # --- 1. Thông tin chung ---
     title = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
-    course_id = serializers.CharField(max_length=255, required=False) # Để link vào course nếu cần
 
     # --- 2. Cấu hình Thời gian ---
     # DurationField nhận chuỗi dạng "HH:MM:SS" (vd: "00:45:00") hoặc số giây

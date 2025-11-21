@@ -35,6 +35,15 @@ export interface Lesson {
   type: 'video' | 'pdf' | 'quiz'
   durationMinutes?: number
   isPreview?: boolean
+  contentBlocks?: LessonContentBlock[]
+  videoUrl?: string | null
+}
+
+export interface LessonContentBlock {
+  id: ID
+  type: string
+  position?: number
+  payload?: Record<string, any> | null
 }
 
 export interface Section {
@@ -202,7 +211,22 @@ function buildMockDetail(id: ID): CourseDetail {
 }
 
 type RawSubject = { id?: ID; title?: string; slug?: string } | string | null | undefined
-type RawLesson = { id?: ID; title?: string; content_type?: string; type?: string; durationMinutes?: number; duration?: number; duration_minutes?: number; is_preview?: boolean; isPreview?: boolean }
+type RawContentBlock = { id?: ID; type?: string; position?: number; payload?: Record<string, any> | null }
+type RawLesson = {
+  id?: ID
+  title?: string
+  content_type?: string
+  type?: string
+  durationMinutes?: number
+  duration?: number
+  duration_minutes?: number
+  is_preview?: boolean
+  isPreview?: boolean
+  content_blocks?: RawContentBlock[]
+  contentBlocks?: RawContentBlock[]
+  blocks?: RawContentBlock[]
+  content?: { content_blocks?: RawContentBlock[] }
+}
 type RawModule = { id?: ID; title?: string; position?: number; order?: number; lessons?: RawLesson[] }
 
 const DEFAULT_THUMBNAIL =
@@ -242,6 +266,30 @@ function normalizeLessonType(contentType?: string, fallback?: string): Lesson['t
   return 'pdf'
 }
 
+function normalizeContentBlocks(rawBlocks?: RawContentBlock[]): LessonContentBlock[] {
+  if (!Array.isArray(rawBlocks)) return []
+  return rawBlocks.map((block, idx): LessonContentBlock => ({
+    id: block.id ?? `block-${idx}`,
+    type: block.type || 'text',
+    position: typeof block.position === 'number' ? block.position : idx,
+    payload: block.payload ?? null,
+  }))
+}
+
+function extractVideoUrl(blocks: LessonContentBlock[]): string | null {
+  for (const block of blocks) {
+    if (block.type !== 'video') continue
+    const payload = block.payload || {}
+    const url =
+      (payload as any).video_url ||
+      (payload as any).videoUrl ||
+      (payload as any).file_url ||
+      (payload as any).url
+    if (typeof url === 'string' && url) return url
+  }
+  return null
+}
+
 function normalizeLessons(rawLessons?: RawLesson[]): Lesson[] {
   if (!Array.isArray(rawLessons)) return []
   return rawLessons
@@ -250,12 +298,20 @@ function normalizeLessons(rawLessons?: RawLesson[]): Lesson[] {
         lesson.durationMinutes ??
         lesson.duration ??
         lesson.duration_minutes
+      const contentBlocks = normalizeContentBlocks(
+        lesson.content_blocks ??
+        lesson.contentBlocks ??
+        lesson.blocks ??
+        lesson.content?.content_blocks,
+      )
       return {
         id: lesson.id ?? `lesson-${idx}`,
         title: lesson.title || `Bài học ${idx + 1}`,
         type: normalizeLessonType(lesson.content_type, lesson.type),
         durationMinutes: typeof duration === 'number' ? duration : undefined,
         isPreview: Boolean(lesson.is_preview ?? lesson.isPreview),
+        contentBlocks,
+        videoUrl: extractVideoUrl(contentBlocks),
       }
     })
     .filter(Boolean)

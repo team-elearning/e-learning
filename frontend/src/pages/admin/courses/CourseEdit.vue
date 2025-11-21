@@ -14,7 +14,7 @@
             ‹
           </button>
           <div>
-            <p class="text-xs uppercase tracking-wide text-slate-400">Sửa khoá học</p>
+            <p class="text-xs uppercase tracking-wide text-slate-400">Sửa khoá học (Admin)</p>
             <h1 class="text-xl font-semibold sm:text-2xl">
               {{ course?.title || 'Đang tải…' }}
             </h1>
@@ -122,13 +122,33 @@
               <p class="mt-1 text-slate-500">
                 Môn:
                 <span class="font-medium text-slate-700">
-                  {{ f.subject || course.categories[0] || 'Chưa rõ' }}
+                  {{
+                    f.subject ||
+                    course.categories[0]?.name ||
+                    course.categories[0]?.slug ||
+                    'Chưa rõ'
+                  }}
                 </span>
               </p>
               <p class="mt-1 text-slate-500">
                 Số chương:
                 <span class="font-medium text-slate-700">
                   {{ f.modules.length }}
+                </span>
+              </p>
+              <p class="mt-1 text-slate-500">
+                Trạng thái:
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                  v-if="f.published"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Đã xuất bản
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-slate-400" /> Bản nháp
                 </span>
               </p>
             </div>
@@ -154,9 +174,9 @@
               </p>
             </div>
 
-            <!-- Môn & khối -->
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
+            <!-- Môn & khối + Published -->
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div class="sm:col-span-1">
                 <label class="mb-1 block text-sm font-semibold text-slate-800"> Môn học </label>
                 <select
                   v-model="f.subject"
@@ -171,7 +191,7 @@
                 </select>
               </div>
 
-              <div>
+              <div class="sm:col-span-1">
                 <label class="mb-1 block text-sm font-semibold text-slate-800"> Khối lớp </label>
                 <select
                   v-model="f.grade"
@@ -183,6 +203,17 @@
                   <option value="4">Lớp 4</option>
                   <option value="5">Lớp 5</option>
                 </select>
+              </div>
+
+              <div class="sm:col-span-1 flex items-end">
+                <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <input
+                    v-model="f.published"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <span>Xuất bản khoá học</span>
+                </label>
               </div>
             </div>
 
@@ -538,6 +569,9 @@
                                     class="video-preview-small"
                                   ></video>
                                   <p class="hint-text">Hỗ trợ: MP4, WebM, MOV. Tối đa 200MB.</p>
+                                  <div v-if="block.payload.uploading" class="text-sm text-gray-600">
+                                    Đang upload video... {{ block.payload.progress || 0 }}%
+                                  </div>
                                 </div>
 
                                 <!-- PDF / DOCX -->
@@ -610,13 +644,12 @@
                                   </p>
                                 </div>
 
-                                <!-- QUIZ – em có thể dán nguyên block quiz nâng cao vào đây nếu đã dùng bên trang tạo -->
+                                <!-- QUIZ -->
                                 <div v-else-if="block.type === 'quiz'" class="space-y-2 text-xs">
                                   <p class="text-slate-600">
                                     Phần bài kiểm tra: hiện đang chỉ lưu
-                                    <span class="font-mono">block.payload</span>. Em có thể dán
-                                    nguyên UI quiz chi tiết (có addQuestion, ...) vào đây nếu muốn
-                                    chỉnh tất cả câu hỏi như trang tạo.
+                                    <span class="font-mono">block.payload</span>. Admin có thể dán
+                                    payload quiz chi tiết (nếu có UI riêng) vào đây.
                                   </p>
                                 </div>
                               </div>
@@ -756,6 +789,18 @@ interface Module {
   lessons: Lesson[]
 }
 
+interface CategoryObj {
+  id: string
+  name: string
+  slug: string
+}
+
+interface TagObj {
+  id: string
+  name: string
+  slug: string
+}
+
 interface CourseDetail {
   id: string
   title: string
@@ -764,9 +809,10 @@ interface CourseDetail {
   image_url: string | null
   subject: string | null
   slug: string
-  categories: string[]
-  tags: string[]
+  categories: CategoryObj[]
+  tags: TagObj[]
   modules: Module[]
+  published: boolean
 }
 
 // ================== STATE ==================
@@ -784,6 +830,7 @@ const f = reactive<{
   subject: string
   tags: string[]
   modules: Module[]
+  published: boolean
 }>({
   title: '',
   description: '',
@@ -791,6 +838,7 @@ const f = reactive<{
   subject: '',
   tags: [],
   modules: [],
+  published: false,
 })
 
 const titleErr = ref('')
@@ -883,7 +931,7 @@ async function uploadMedia(
   return data
 }
 
-// ================== FETCH COURSE ==================
+// ================== FETCH COURSE (ADMIN) ==================
 async function fetchCourse() {
   const id = route.params.id
   if (!id) {
@@ -895,7 +943,7 @@ async function fetchCourse() {
   error.value = ''
 
   try {
-    const { data } = await axios.get<CourseDetail>(`/api/content/instructor/courses/${id}/`, {
+    const { data } = await axios.get<CourseDetail>(`/api/content/admin/courses/${id}/`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -907,9 +955,12 @@ async function fetchCourse() {
     f.title = data.title || ''
     f.description = data.description || ''
     f.grade = data.grade || '5'
-    f.subject = data.subject || data.categories[0] || ''
-    f.tags = data.tags || []
+    // Subject: lấy từ subject nếu có, không thì từ category name
+    f.subject = data.subject || data.categories[0]?.name || data.categories[0]?.slug || ''
+    f.published = !!data.published
 
+    // tags: từ object -> name
+    f.tags = Array.isArray(data.tags) ? data.tags.map((t) => t.name) : []
     tagsInput.value = f.tags.join(', ')
 
     // clone sâu modules để chỉnh sửa mà không đụng vào course gốc
@@ -937,7 +988,7 @@ async function fetchCourse() {
       }
     }
   } catch (e: any) {
-    console.error('❌ Lỗi tải chi tiết khoá học:', e)
+    console.error('❌ Lỗi tải chi tiết khoá học (admin):', e)
     error.value =
       e?.response?.data?.detail ||
       e?.message ||
@@ -1019,13 +1070,18 @@ function removeLesson(mIndex: number, lIndex: number) {
 }
 
 // ================== CONTENT BLOCKS ==================
-
 function makeDefaultPayloadForType(type: string) {
   switch (type) {
     case 'text':
       return { text: '' }
     case 'image':
-      return { caption: '', image_file: null, image_preview: null, image_id: null, image_url: null }
+      return {
+        caption: '',
+        image_file: null,
+        image_preview: null,
+        image_id: null,
+        image_url: null,
+      }
     case 'video':
       return {
         video_file: null,
@@ -1160,134 +1216,6 @@ async function handleFileUpload(
   }
 }
 
-// ================== (OPTIONAL) QUIZ HELPERS ==================
-// Các hàm này em dùng nếu sau này dán full UI quiz vào block.type === 'quiz'
-
-function addQuestion(block: any) {
-  if (!block.payload.questions) block.payload.questions = []
-  block.payload.questions.push({
-    type: 'multiple_choice_single',
-    prompt: { text: '' },
-    answer_payload: {
-      choices: [
-        { id: 'A', text: '', is_correct: false },
-        { id: 'B', text: '', is_correct: false },
-      ],
-    },
-    hint: { text: '' },
-  })
-}
-
-function removeQuestion(block: any, qIndex: number) {
-  block.payload.questions.splice(qIndex, 1)
-}
-
-function resetQuestionPayload(question: any) {
-  switch (question.type) {
-    case 'multiple_choice_single':
-    case 'multiple_choice_multi':
-      question.answer_payload = {
-        choices: [
-          { id: 'A', text: '', is_correct: false },
-          { id: 'B', text: '', is_correct: false },
-        ],
-      }
-      break
-    case 'true_false':
-      question.answer_payload = { answer: true }
-      break
-    case 'fill_in_the_blank':
-      question.answer_payload = { blanks: [] }
-      break
-    case 'short_answer':
-      question.answer_payload = { valid_answers: [] }
-      break
-    case 'matching':
-      question.answer_payload = {
-        column_a: [],
-        column_b: [],
-        correct_matches: [],
-      }
-      break
-    case 'essay':
-      question.answer_payload = { grading_instructions: '' }
-      break
-    default:
-      question.answer_payload = {}
-  }
-}
-
-function renumberChoices(question: any) {
-  if (!question.answer_payload?.choices) return
-  question.answer_payload.choices.forEach((c: any, idx: number) => {
-    c.id = String.fromCharCode(65 + idx)
-  })
-}
-
-function setCorrectChoice(question: any, choiceIndex: number) {
-  question.answer_payload.choices.forEach((c: any, idx: number) => {
-    c.is_correct = idx === choiceIndex
-  })
-}
-
-function toggleMultiCorrect(choice: any) {
-  choice.is_correct = !choice.is_correct
-}
-
-function addChoice(question: any) {
-  if (!question.answer_payload.choices) question.answer_payload.choices = []
-  const idx = question.answer_payload.choices.length
-  question.answer_payload.choices.push({
-    id: String.fromCharCode(65 + idx),
-    text: '',
-    is_correct: false,
-  })
-}
-
-function removeChoice(question: any, idx: number) {
-  question.answer_payload.choices.splice(idx, 1)
-  renumberChoices(question)
-}
-
-function addBlank(question: any) {
-  if (!question.answer_payload.blanks) question.answer_payload.blanks = []
-  const id = `BLANK_${question.answer_payload.blanks.length + 1}`
-  question.answer_payload.blanks.push({ id, answer: '' })
-}
-
-function removeBlank(question: any, idx: number) {
-  question.answer_payload.blanks.splice(idx, 1)
-}
-
-function addShortAnswer(question: any) {
-  if (!question.answer_payload.valid_answers) question.answer_payload.valid_answers = []
-  question.answer_payload.valid_answers.push({ answer: '', case_sensitive: false })
-}
-
-function removeShortAnswer(question: any, idx: number) {
-  question.answer_payload.valid_answers.splice(idx, 1)
-}
-
-function addMatchItem(question: any, column: 'column_a' | 'column_b') {
-  if (!question.answer_payload[column]) question.answer_payload[column] = []
-  const prefix = column === 'column_a' ? 'a' : 'b'
-  const id = `${prefix}${question.answer_payload[column].length + 1}`
-  question.answer_payload[column].push({ id, text: '' })
-}
-
-function removeMatchItem(question: any, column: 'column_a' | 'column_b', idx: number) {
-  question.answer_payload[column].splice(idx, 1)
-}
-
-function addMatchRow(question: any) {
-  if (!question.answer_payload.correct_matches) question.answer_payload.correct_matches = []
-  question.answer_payload.correct_matches.push({ a_id: '', b_id: '' })
-}
-
-function removeMatchRow(question: any, idx: number) {
-  question.answer_payload.correct_matches.splice(idx, 1)
-}
-
 // Chuẩn hoá position cho modules/lessons/blocks trước khi gửi
 function normalizePositions() {
   f.modules.forEach((m, mIndex) => {
@@ -1303,7 +1231,7 @@ function normalizePositions() {
   })
 }
 
-// ================== SUBMIT (PATCH FULL STRUCTURE) ==================
+// ================== SUBMIT (PATCH FULL STRUCTURE, ADMIN) ==================
 async function submit() {
   titleErr.value = ''
   if (!f.title || !f.title.trim()) {
@@ -1313,7 +1241,7 @@ async function submit() {
 
   if (!course.value) return
 
-  // chuẩn hoá position để backend xử lý update/delete/create đúng thứ tự
+  // chuẩn hoá position
   normalizePositions()
 
   submitting.value = true
@@ -1321,18 +1249,19 @@ async function submit() {
     const payload: any = {
       title: f.title,
       description: f.description,
-      grade: f.grade ? Number(f.grade) : null,
+      grade: f.grade || null,
       subject: f.subject || null,
       categories: f.subject ? [f.subject] : [],
       tags: f.tags,
       modules: f.modules,
+      published: f.published,
     }
 
     if (coverImageId.value) {
       payload.image_id = coverImageId.value
     }
 
-    await axios.patch(`/api/content/instructor/courses/${course.value.id}/`, payload, {
+    await axios.patch(`/api/content/admin/courses/${course.value.id}/`, payload, {
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders(),
@@ -1341,19 +1270,19 @@ async function submit() {
 
     showNotification('success', 'Thành công', 'Đã lưu thay đổi khoá học.')
 
-    // sync lại course local
+    // Cập nhật local
     course.value = {
       ...course.value,
-      title: f.title,
-      description: f.description,
-      grade: f.grade,
-      subject: f.subject || null,
-      categories: payload.categories,
-      tags: [...f.tags],
-      modules: JSON.parse(JSON.stringify(f.modules)),
+      ...payload,
     }
+
+    // 👉 CHUYỂN HƯỚNG SAU 0.8S
+    setTimeout(() => {
+      notification.open = false
+      router.push('/admin/courses')
+    }, 800)
   } catch (e: any) {
-    console.error('❌ Lỗi khi cập nhật khoá học:', e)
+    console.error('❌ Lỗi khi cập nhật khoá học (admin):', e)
     showNotification(
       'error',
       'Lỗi',
@@ -1372,7 +1301,7 @@ function goBack() {
 }
 
 function goToList() {
-  router.push({ path: '/teacher/courses' })
+  router.push({ path: '/admin/courses' })
 }
 
 // ================== INIT & CLEANUP ==================
@@ -1455,7 +1384,6 @@ h1 {
   @apply text-[11px] text-slate-500;
 }
 
-/* Dùng lại style chung */
 .label-text {
   @apply mb-1 block text-sm font-semibold text-gray-700;
 }

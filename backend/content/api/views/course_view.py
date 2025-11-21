@@ -401,7 +401,7 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
         
         try:
-            self.course_service.delete_course_by_id(course_id=pk)
+            self.course_service.delete_course(course_id=pk, actor=request.user)
             return Response(
                 {"detail": f"Đã xóa thành công khóa học (ID: {pk})."}, 
                 status=status.HTTP_200_OK
