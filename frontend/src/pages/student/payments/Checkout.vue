@@ -12,6 +12,24 @@
             hoặc thẻ ngân hàng đã liên kết.
           </p>
 
+          <div class="form-block">
+            <label for="amount-input">Nhập số tiền (VND)</label>
+            <div class="amount-input">
+              <input
+                id="amount-input"
+                v-model="amountInput"
+                type="number"
+                min="1000"
+                step="1000"
+                inputmode="decimal"
+                placeholder="Ví dụ: 200000"
+              />
+              <span class="suffix">đ</span>
+            </div>
+            <p class="input-hint">Số tiền tối thiểu 1.000đ.</p>
+            <p v-if="amountInput && !canPay" class="input-error">Số tiền chưa hợp lệ (>= 1.000đ).</p>
+          </div>
+
           <ol class="steps">
             <li>Kiểm tra lại gói học và số tiền ở khung bên phải.</li>
             <li>Nhấn <strong>Thanh toán bằng MoMo</strong> để tạo yêu cầu thanh toán.</li>
@@ -20,7 +38,7 @@
           </ol>
 
           <p v-if="!canPay" class="note warning">
-            Số tiền không hợp lệ. Vui lòng quay lại giỏ hàng để chọn gói học.
+            Nhập số tiền muốn thanh toán (tối thiểu 1.000đ) ở trên để tiếp tục.
           </p>
           <p v-else-if="errorMessage" class="note error">{{ errorMessage }}</p>
           <p v-else class="note muted">
@@ -41,7 +59,7 @@
         <section class="card summary-card">
           <h2 class="section-title">Tóm tắt</h2>
           <div class="summary">
-            <div class="line"><span>Gói học</span><b>{{ plan }}</b></div>
+            <div class="line"><span>Gói học</span><b>{{ planName }}</b></div>
             <div class="line"><span>Số tiền</span><b>{{ vnd(amountNumber) }}</b></div>
             <div class="line"><span>Phương thức</span><b>MoMo</b></div>
             <div class="divider"></div>
@@ -63,23 +81,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { paymentService } from '@/services/payment.service'
 
 const route = useRoute()
 
-const plan = computed(() => String(route.query.plan || 'Khoá học Standard'))
+const MIN_AMOUNT = 1000
+
+const planName = computed(() => {
+  const q = route.query.plan
+  const value = Array.isArray(q) ? q[0] : q
+  return value || 'Khoá học Standard'
+})
+
+const routeAmount = computed(() => {
+  const q = route.query.amount
+  return Array.isArray(q) ? q[0] : q
+})
+const amountInput = ref(routeAmount.value ? String(routeAmount.value) : '')
 const amountNumber = computed(() => {
-  const value = Number(route.query.amount)
-  return Number.isFinite(value) && value > 0 ? Math.round(value) : 0
+  const value = Number(amountInput.value)
+  return Number.isFinite(value) && value >= MIN_AMOUNT ? Math.round(value) : 0
+})
+
+watch(routeAmount, (val) => {
+  amountInput.value = val ? String(val) : ''
 })
 
 const status = ref<'idle' | 'processing' | 'error'>('idle')
 const errorMessage = ref('')
 const lastOrderId = ref('')
 
-const canPay = computed(() => amountNumber.value > 0)
+const canPay = computed(() => amountNumber.value >= MIN_AMOUNT)
 const isProcessing = computed(() => status.value === 'processing')
 const statusClass = computed(() => ({
   idle: 'chip-idle',
@@ -108,9 +142,9 @@ async function payWithMomo() {
   try {
     const response = await paymentService.createMomoPayment({
       amount: amountNumber.value,
-      planName: plan.value,
+      planName: planName.value,
       redirectUrl: buildReturnUrl(),
-      orderInfo: `Thanh toán ${plan.value}`,
+      orderInfo: `Thanh toán ${planName.value}`,
     })
     lastOrderId.value = response.orderId
 
@@ -149,6 +183,38 @@ async function payWithMomo() {
 
 .flow-card h2{ margin:0 0 8px; font-size:20px; font-weight:800; }
 .flow-card p{ margin-bottom:10px; color:var(--muted); }
+
+.form-block{ margin:14px 0 12px; }
+.form-block label{ display:block; font-weight:700; margin-bottom:6px; color:#0f172a; }
+.amount-input{
+  display:flex;
+  align-items:center;
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+}
+.amount-input:focus-within{
+  border-color:var(--focus-border);
+  box-shadow:0 0 0 3px var(--focus-ring);
+}
+.amount-input input{
+  flex:1;
+  padding:12px 14px;
+  border:0;
+  outline:none;
+  font-weight:700;
+  font-size:16px;
+}
+.amount-input input:focus{ box-shadow:none; }
+.amount-input .suffix{
+  padding:0 12px;
+  color:var(--muted);
+  font-weight:700;
+  border-left:1px solid var(--line);
+}
+.input-hint{ color:var(--muted); font-size:13px; margin:6px 0 0; }
+.input-error{ color:#b91c1c; font-weight:700; margin:6px 0 0; }
 
 .status-chip{
   display:inline-flex;
