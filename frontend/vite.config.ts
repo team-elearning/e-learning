@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
   base: "/", // 🔹 đảm bảo build ra đường dẫn tuyệt đối
   plugins: [
     vue(),
-    // vueDevTools(),
+    vueDevTools(),
     vueJsx(),
     sitemap({ hostname: "https://eduriot.fit" }),
   ],
