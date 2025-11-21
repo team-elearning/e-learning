@@ -1,120 +1,93 @@
 <template>
   <div class="space-y-4">
-    <!-- Header -->
+    <!-- HEADER -->
     <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <!-- Left -->
         <div class="flex min-w-0 items-center gap-4">
-          <img :src="detail.thumbnail" class="h-16 w-28 rounded object-cover" />
+          <img :src="thumbnail" class="h-16 w-28 rounded object-cover bg-gray-100 border" />
+
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="truncate text-xl font-semibold text-gray-800">{{ detail.title }}</h2>
-              <el-tag size="small">Lớp {{ detail.grade }}</el-tag>
-              <el-tag size="small" type="info">{{ detail.subjectName || subjectName(detail.subject) }}</el-tag>
-              <el-tag size="small" :type="statusTagType(detail.status)">{{
-                statusLabel(detail.status)
-              }}</el-tag>
+              <h2 class="truncate text-xl font-semibold text-gray-800">
+                {{ detail?.title || 'Đang tải...' }}
+              </h2>
+
+              <el-tag size="small">Lớp {{ detail?.grade }}</el-tag>
+
+              <el-tag size="small" type="info">
+                {{ categoryName }}
+              </el-tag>
+
+              <el-tag size="small" :type="detail?.published ? 'success' : 'info'">
+                {{ detail?.published ? 'Đã xuất bản' : 'Nháp' }}
+              </el-tag>
             </div>
+
             <div class="mt-1 text-sm text-gray-500">
-              GV: {{ detail.teacherName }} • {{ detail.lessonsCount }} bài •
-              {{ detail.enrollments }} HV
-            </div>
-            <div class="mt-1 text-xs text-gray-500">
-              Cập nhật: <b>{{ fmtDate(detail.updatedAt) }}</b>
+              {{ detail?.lessonsCount || 0 }} bài học • {{ detail?.module_count }} chương
             </div>
           </div>
         </div>
 
+        <!-- Right: Actions -->
         <div class="flex flex-wrap items-center gap-2">
-          <el-button v-if="detail.status === 'pending_review'" type="success" plain @click="approve"
-            >Duyệt</el-button
-          >
-          <el-button v-if="detail.status === 'pending_review'" type="danger" plain @click="reject"
-            >Từ chối</el-button
-          >
+          <el-button type="primary" @click="goEdit">Sửa</el-button>
 
-          <el-button
-            v-if="detail.status !== 'published' && detail.status !== 'archived'"
-            type="success"
-            @click="publish"
-            >Xuất bản</el-button
-          >
-          <el-button v-if="detail.status === 'published'" @click="unpublish">Gỡ</el-button>
+          <el-button v-if="detail?.published" @click="unpublish">Gỡ</el-button>
 
-          <el-button v-if="detail.status !== 'archived'" type="warning" plain @click="archive"
-            >Lưu trữ</el-button
-          >
-          <el-button v-else type="info" plain @click="restore">Khôi phục</el-button>
+          <el-button v-else type="success" @click="publish">Xuất bản</el-button>
         </div>
       </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- TABS -->
     <el-tabs v-model="activeTab">
+      <!-- ======================= OVERVIEW ======================= -->
       <el-tab-pane label="Tổng quan" name="overview">
-        <div
-          class="rounded-lg bg-white p-4 ring-1 ring-black/5 grid grid-cols-1 gap-4 md:grid-cols-3"
-        >
-          <div class="md:col-span-2 space-y-3">
-            <div class="text-gray-700 whitespace-pre-line" v-if="detail.description">
-              {{ detail.description }}
-            </div>
-            <div class="grid grid-cols-3 gap-3">
-              <div class="rounded border p-3">
-                <div class="text-xs text-gray-500">Trình độ</div>
-                <div class="mt-1 font-medium">{{ levelLabel(detail.level) }}</div>
-              </div>
-              <div class="rounded border p-3">
-                <div class="text-xs text-gray-500">Thời lượng</div>
-                <div class="mt-1 font-medium">{{ minutes(detail.durationMinutes) }}</div>
-              </div>
-              <div class="rounded border p-3">
-                <div class="text-xs text-gray-500">Bài học</div>
-                <div class="mt-1 font-medium">{{ detail.lessonsCount }}</div>
-              </div>
+        <div class="rounded-lg bg-white p-4 ring-1 ring-black/5 space-y-4">
+          <div>
+            <h3 class="font-semibold mb-2 text-gray-700">Mô tả</h3>
+            <div class="whitespace-pre-line text-gray-700">
+              {{ detail?.description || '—' }}
             </div>
           </div>
-          <div class="space-y-3">
-            <div class="rounded border p-3">
-              <div class="text-xs text-gray-500">Giáo viên</div>
-              <div class="mt-1 font-medium">{{ detail.teacherName }}</div>
-            </div>
-            <div class="rounded border p-3">
-              <div class="text-xs text-gray-500">Trạng thái</div>
-              <div class="mt-1">
-                <el-tag :type="statusTagType(detail.status)">{{
-                  statusLabel(detail.status)
-                }}</el-tag>
-              </div>
-            </div>
-            <div class="rounded border p-3">
-              <div class="text-xs text-gray-500">Ngày tạo</div>
-              <div class="mt-1 font-medium">{{ fmtDate(detail.createdAt) }}</div>
+
+          <div>
+            <h3 class="font-semibold mb-2 text-gray-700">Tags</h3>
+            <div class="flex flex-wrap gap-2">
+              <el-tag v-for="t in detail?.tags" :key="t.id" type="info" size="small">
+                {{ t.name }}
+              </el-tag>
+
+              <span v-if="!detail?.tags?.length" class="text-gray-500 text-sm">Không có</span>
             </div>
           </div>
         </div>
       </el-tab-pane>
 
+      <!-- ======================= CURRICULUM ======================= -->
       <el-tab-pane label="Chương trình học" name="curriculum">
         <div class="rounded-lg bg-white p-4 ring-1 ring-black/5 space-y-4">
-          <div v-for="sec in detail.sections" :key="sec.id" class="rounded border p-3">
+          <div v-for="mod in detail?.modules" :key="mod.id" class="rounded border p-3">
             <div class="mb-2 flex items-center justify-between">
-              <div class="font-semibold">Chương {{ sec.order }}: {{ sec.title }}</div>
-              <div class="text-xs text-gray-500">{{ sec.lessons.length }} bài</div>
+              <div class="font-semibold">Chương {{ mod.position + 1 }}: {{ mod.title }}</div>
+              <div class="text-xs text-gray-500">{{ mod.lessons.length }} bài học</div>
             </div>
-            <el-table :data="sec.lessons" size="small">
+
+            <el-table :data="mod.lessons" size="small" border>
               <el-table-column type="index" label="#" width="50" />
-              <el-table-column prop="title" label="Bài học" min-width="220" />
-              <el-table-column prop="type" label="Loại" width="120">
-                <template #default="{ row }">{{ typeLabel(row.type) }}</template>
-              </el-table-column>
-              <el-table-column prop="durationMinutes" label="Thời lượng" width="120">
-                <template #default="{ row }">{{ minutes(row.durationMinutes) }}</template>
-              </el-table-column>
-              <el-table-column prop="isPreview" label="Học thử" width="110" align="center">
+
+              <el-table-column prop="title" label="Bài học" min-width="240" />
+
+              <el-table-column prop="content_type" label="Loại" width="120">
                 <template #default="{ row }">
-                  <el-tag v-if="row.isPreview" type="success" size="small">Có</el-tag>
-                  <span v-else>—</span>
+                  <span class="capitalize">{{ lessonTypeLabel(row.content_type) }}</span>
                 </template>
+              </el-table-column>
+
+              <el-table-column label="Nội dung" min-width="120">
+                <template #default="{ row }"> {{ row.content_blocks.length }} phần </template>
               </el-table-column>
             </el-table>
           </div>
@@ -124,113 +97,93 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+<script setup>
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  courseService,
-  type CourseDetail,
-  type CourseStatus,
-  type Subject,
-  type Level,
-} from '@/services/course.service'
 
 const route = useRoute()
-const id = computed(() => route.params.id as string)
+const router = useRouter()
 
-const activeTab = ref<'overview' | 'curriculum'>('overview')
-const detail = reactive<CourseDetail>({
-  id: id.value,
-  title: '',
-  grade: 1,
-  subject: 'math',
-  teacherId: 0,
-  teacherName: '',
-  lessonsCount: 0,
-  enrollments: 0,
-  status: 'draft',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  sections: [],
+const activeTab = ref('overview')
+const detail = reactive({})
+const loading = ref(false)
+
+const getAuth = () => ({
+  Authorization: `Bearer ${localStorage.getItem('access')}`,
 })
 
-const subjects = courseService.subjects()
-function subjectName(s: Subject) {
-  return subjects.find((x) => x.value === s)?.label || s
-}
-function statusLabel(s: CourseStatus) {
-  return s === 'draft'
-    ? 'Bản nháp'
-    : s === 'pending_review'
-      ? 'Chờ duyệt'
-      : s === 'published'
-        ? 'Đã xuất bản'
-        : s === 'rejected'
-          ? 'Từ chối'
-          : 'Lưu trữ'
-}
-function statusTagType(s: CourseStatus) {
-  return s === 'draft'
-    ? 'info'
-    : s === 'pending_review'
-      ? 'warning'
-      : s === 'published'
-        ? 'success'
-        : s === 'rejected'
-          ? 'danger'
-          : 'info'
-}
-const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleString('vi-VN') : '')
-const typeLabel = (t: 'video' | 'pdf' | 'quiz') =>
-  t === 'video' ? 'Video' : t === 'pdf' ? 'Tài liệu' : 'Quiz'
-const levelLabel = (l?: Level) => (l === 'advanced' ? 'Nâng cao' : 'Cơ bản')
-const minutes = (m?: number) => (m ? `${m} phút` : '—')
+/* ========================= FETCH DETAIL ========================= */
 
 async function load() {
-  const d = await courseService.detail(id.value)
-  Object.assign(detail, d)
-}
+  loading.value = true
+  try {
+    const { data } = await axios.get(`/api/content/admin/courses/${route.params.id}/`, {
+      headers: getAuth(),
+    })
 
-// Actions
-async function approve() {
-  await ElMessageBox.confirm('Duyệt khoá học này?', 'Xác nhận', { type: 'success' })
-  await courseService.approve(detail.id)
-  detail.status = 'published' // tuỳ quy trình: duyệt có thể vẫn ở trạng thái “đã duyệt, chưa xuất bản”
-  ElMessage.success('Đã duyệt (mock)')
-}
-async function reject() {
-  const { value, action } = await ElMessageBox.prompt('Lý do từ chối', 'Từ chối', {
-    inputPlaceholder: 'Thiếu tài liệu, video mờ…',
-  })
-  if (action === 'confirm') {
-    await courseService.reject(detail.id, value)
-    detail.status = 'rejected'
-    ElMessage.success('Đã từ chối (mock)')
+    Object.assign(detail, data)
+
+    // lấy thumbnail nếu có
+    if (data.image_url) {
+      thumbnail.value = await fetchImage(data.image_url)
+    }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('Không tải được dữ liệu khóa học.')
+  } finally {
+    loading.value = false
   }
 }
+
+/* ========================= IMAGE FETCH ========================= */
+
+const thumbnail = ref('/no-image.png')
+
+async function fetchImage(apiPath) {
+  try {
+    const res = await axios.get(apiPath, {
+      headers: getAuth(),
+      responseType: 'blob',
+    })
+    return URL.createObjectURL(res.data)
+  } catch {
+    return '/no-image.png'
+  }
+}
+
+const categoryName = computed(() => {
+  if (!detail.categories?.length) return '—'
+  return detail.categories[0].name
+})
+
+function lessonTypeLabel(t) {
+  if (t === 'lesson') return 'Bài học'
+  if (t === 'video') return 'Video'
+  if (t === 'exercise') return 'Bài tập'
+  if (t === 'quiz') return 'Quiz'
+  return t
+}
+
+/* ========================= ACTIONS ========================= */
+
 async function publish() {
-  await courseService.publish(detail.id)
-  detail.status = 'published'
-  ElMessage.success('Đã xuất bản (mock)')
+  await axios.post(`/api/content/admin/courses/${detail.id}/publish/`, {}, { headers: getAuth() })
+  ElMessage.success('Đã xuất bản')
+  detail.published = true
 }
+
 async function unpublish() {
-  await courseService.unpublish(detail.id)
-  detail.status = 'draft'
-  ElMessage.success('Đã gỡ (mock)')
+  await axios.post(`/api/content/admin/courses/${detail.id}/unpublish/`, {}, { headers: getAuth() })
+  ElMessage.success('Đã gỡ')
+  detail.published = false
 }
-async function archive() {
-  await ElMessageBox.confirm('Lưu trữ khoá học này?', 'Xác nhận', { type: 'warning' })
-  await courseService.archive(detail.id)
-  detail.status = 'archived'
-  ElMessage.success('Đã lưu trữ (mock)')
-}
-async function restore() {
-  await courseService.restore(detail.id)
-  detail.status = 'draft'
-  ElMessage.success('Đã khôi phục (mock)')
+
+function goEdit() {
+  router.push(`/admin/courses/${detail.id}/edit`)
 }
 
 onMounted(load)
-watch(() => route.params.id, load)
 </script>
+<style scoped></style>

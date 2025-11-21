@@ -87,6 +87,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Quản lý khóa học' },
       },
       {
+        path: 'courses/create',
+        component: () => import('@/pages/admin/courses/CoursesCreate.vue'),
+        meta: { title: 'Tạo khóa học' },
+      },
+      {
+        path: 'courses/:id/edit',
+        component: () => import('@/pages/admin/courses/CourseEdit.vue'),
+        meta: { title: 'Chỉnh sửa khóa học' },
+      },
+      {
         path: 'courses/approval',
         component: () => import('@/pages/admin/courses/CourseApproval.vue'),
         meta: { title: 'Duyệt khóa học' },

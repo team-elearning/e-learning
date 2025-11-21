@@ -72,6 +72,8 @@
         <div class="flex items-center gap-2">
           <el-button @click="goApproval">Hàng chờ duyệt</el-button>
           <el-button type="primary" @click="refresh" :loading="loading">Tải lại</el-button>
+          <!-- Create Course Button -->
+          <el-button type="primary" @click="goCreate">Tạo khoá học</el-button>
         </div>
       </div>
 
@@ -97,7 +99,7 @@
         <el-table-column label="Lớp/Môn" width="140">
           <template #default="{ row }">
             <div class="text-sm">Lớp {{ row.grade }}</div>
-            <div class="text-xs text-gray-500">{{ row.subjectName || subjectName(row.subject) }}</div>
+            <div class="text-xs text-gray-500">{{ subjectName(row.subject) }}</div>
           </template>
         </el-table-column>
 
@@ -128,9 +130,10 @@
                 @click="publish(row)"
                 >Xuất bản</el-button
               >
-              <el-button v-if="row.status === 'published'" size="small" @click="unpublish(row)"
-                >Gỡ</el-button
-              >
+              <el-button size="small" type="danger" plain @click="removeCourse(row)">
+                Xoá
+              </el-button>
+
               <el-button
                 v-if="row.status !== 'archived'"
                 size="small"
@@ -170,6 +173,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import axios from 'axios'
+
 import {
   courseService,
   type CourseSummary,
@@ -273,6 +278,10 @@ function goApproval() {
   router.push('/admin/courses/approval')
 }
 
+function goCreate() {
+  router.push('/admin/courses/create')
+}
+
 // Actions
 async function publish(row: CourseSummary) {
   await ElMessageBox.confirm(`Xuất bản khoá “${row.title}”?`, 'Xác nhận')
@@ -280,12 +289,7 @@ async function publish(row: CourseSummary) {
   ElMessage.success('Đã xuất bản (mock)')
   fetch()
 }
-async function unpublish(row: CourseSummary) {
-  await ElMessageBox.confirm(`Gỡ xuất bản khoá “${row.title}”?`, 'Xác nhận')
-  await courseService.unpublish(row.id)
-  ElMessage.success('Đã gỡ (mock)')
-  fetch()
-}
+
 async function archive(row: CourseSummary) {
   await ElMessageBox.confirm(`Lưu trữ khoá “${row.title}”?`, 'Xác nhận', { type: 'warning' })
   await courseService.archive(row.id)
@@ -302,4 +306,40 @@ onMounted(async () => {
   teachers.value = await courseService.listTeachers()
   fetch()
 })
+
+// xóa khóa học
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function removeCourse(row: CourseSummary) {
+  try {
+    await ElMessageBox.confirm(`Bạn có chắc muốn xoá khoá học “${row.title}”?`, 'Xác nhận xoá', {
+      type: 'warning',
+    })
+
+    await axios.delete(`/api/content/admin/courses/${row.id}/`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    ElMessage.success('Đã xoá khoá học')
+    fetch()
+  } catch (err: any) {
+    // Nếu user bấm cancel confirm → không hiện lỗi
+    if (err === 'cancel' || err === 'close') return
+
+    console.error('❌ Lỗi xoá khoá học:', err)
+
+    const msg =
+      err?.response?.data?.detail ||
+      err?.response?.data?.message ||
+      err?.message ||
+      'Không thể xoá khoá học. Vui lòng thử lại.'
+
+    ElMessage.error(msg)
+  }
+}
 </script>
