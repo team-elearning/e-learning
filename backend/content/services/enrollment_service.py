@@ -10,7 +10,7 @@ from content.models import Course, Enrollment
 
 
 @transaction.atomic
-def enroll_user_in_course(self, course_id: uuid.UUID, user: UserModel) -> EnrollmentDomain:
+def enroll_user_in_course(course_id: uuid.UUID, user: UserModel) -> EnrollmentDomain:
     """
     Ghi danh user.
     Refactor: Thêm select_related để tối ưu query nếu cần dùng data course sau này.
@@ -48,7 +48,7 @@ def enroll_user_in_course(self, course_id: uuid.UUID, user: UserModel) -> Enroll
         raise DomainError("Lỗi hệ thống khi ghi danh.")
 
 
-def unenroll_user_from_course(self, course_id: uuid.UUID, user: UserModel) -> None:
+def unenroll_user_from_course(course_id: uuid.UUID, user: UserModel) -> None:
     """
     Hủy ghi danh.
     Refactor: Dùng filter().delete() để tiết kiệm 1 query SELECT.
