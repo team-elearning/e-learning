@@ -13,6 +13,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponseForbidden, FileResponse, Http404
+from rest_framework.renderers import BaseRenderer
+from django.db import DatabaseError
 
 from content.models import Course
 from media.models import UploadedFile, FileStatus
@@ -81,64 +83,79 @@ class FileUploadView(RoleBasedOutputMixin, APIView):
             )
 
 
+class BinaryFileRenderer(BaseRenderer):
+    media_type = 'application/octet-stream'
+    format = 'binary'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
+    
+
 class PublicDownloadFileView(APIView):
     """
     View này "gác cổng" tất cả các file đã commit.
     """
     permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
 
+    # 2. QUAN TRỌNG: Khai báo renderer này để DRF không bọc HTML/JSON vào file
+    renderer_classes = [BinaryFileRenderer]
+
     def get(self, request, file_id):
-        # 1. Lấy bản ghi UploadedFile bằng ID
-        # Chỉ lấy file đã commit, chưa bao giờ trả về file 'staging'
-        file_obj = get_object_or_404(
-            UploadedFile, 
-            id=file_id, 
-            status=FileStatus.COMMITTED
-        )
-
-        # 2. KIỂM TRA QUYỀN (Bước quan trọng nhất)
-        if not file_service.user_has_access_to_file(request.user, file_obj):
-            # Nếu không có quyền, trả về lỗi 403 Forbidden
-            return HttpResponseForbidden("Bạn không có quyền truy cập file này.")
-
-        # 3. TRẢ FILE VỀ (Nếu đã có quyền)
         try:
-            # Dòng này OK
-            file_handle = file_obj.file.open('rb')
-
-            # --- SỬA LỖI BẰNG PYTHON-MAGIC ---
+            return file_service.serve_file(request, file_id, request.user)
             
-            # 1. Đọc một vài byte đầu tiên của file
-            #    (đủ để "nếm" file mà không cần đọc hết file lớn)
-            file_buffer = file_handle.read(2048) # Đọc 2KB đầu tiên
-            
-            # 2. Rất quan trọng: Quay lại đầu file
-            #    để FileResponse có thể đọc lại từ đầu để gửi đi
-            file_handle.seek(0) 
-
-            # 3. Dùng magic để "sniff" (nếm) buffer
-            #    mime=True sẽ trả về chuỗi MIME (ví dụ: 'image/jpeg')
-            content_type = magic.from_buffer(file_buffer, mime=True)
-            
-            # --- HẾT PHẦN SỬA ---
-
-            # Dùng content_type vừa "nếm" được
-            response = FileResponse(
-                file_handle, 
-                content_type=content_type # (Ví dụ: 'image/jpeg')
+        except ValidationError as e:
+            # Lỗi 400: ID sai định dạng
+            return Response(
+                {"error": "BAD_REQUEST", "detail": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
-            
-            # (Tùy chọn) Thêm tên file gốc để trình duyệt hiển thị
-            # response['Content-Disposition'] = f'inline; filename="{file_obj.original_filename}"'
-            
-            return response
-            
-        except FileNotFoundError:
-            raise Http404("Không tìm thấy file trên server.")
+
+        except PermissionError as e:
+            # Lỗi 403: Không có quyền (Code service raise PermissionError)
+            # Hoặc lỗi OS Permission
+            if "Server" in str(e): # Lỗi OS
+                 print(f"SYSTEM ERROR: {e}")
+                 return Response({"detail": "Lỗi hệ thống tập tin."}, status=500)
+            return Response(
+                {"error": "FORBIDDEN", "detail": str(e)}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        except (FileNotFoundError, Http404) as e:
+            # Lỗi 404: Không tìm thấy file
+            return Response(
+                {"error": "NOT_FOUND", "detail": str(e)}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        except DatabaseError as e:
+            # Lỗi 503/500: Database sập
+            print(f"DB ERROR: {e}")
+            return Response(
+                {"error": "SERVICE_UNAVAILABLE", "detail": "Lỗi kết nối cơ sở dữ liệu."}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        except OSError as e:
+            # Lỗi 500: Ổ cứng lỗi, file bị lock, v.v.
+            print(f"OS ERROR khi mở file {file_id}: {e}")
+            return Response(
+                {"error": "INTERNAL_SERVER_ERROR", "detail": "Lỗi đọc ghi file trên server."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         except Exception as e:
-            # In lỗi ra để debug
-            print(f"LỖI THỰC TẾ KHI MỞ FILE {file_obj.id}: {repr(e)}")
-            return Response({"detail": "Lỗi khi đọc file."}, status=500)
+            # Lỗi 500: Các lỗi không tên khác (Lỗi code, logic...)
+            # NÊN DÙNG LOGGING thay vì print trong thực tế
+            import traceback
+            traceback.print_exc() 
+            print(f"UNEXPECTED ERROR với file {file_id}: {repr(e)}")
+            
+            return Response(
+                {"error": "INTERNAL_SERVER_ERROR", "detail": "Đã có lỗi không xác định xảy ra."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 
 # --------------------------------------- ADMIN ----------------------------------------

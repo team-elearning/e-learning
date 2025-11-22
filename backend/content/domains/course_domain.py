@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
+from django.db.models import Q, Case, When, IntegerField
 
 from custom_account.domains.user_domain import UserDomain
 from core.exceptions import DomainValidationError, InvalidOperation, ModuleNotFoundError
@@ -183,11 +184,43 @@ class CourseDomain:
         """
         Trích xuất các trường Primitive (Cơ bản) dùng chung cho mọi Strategy.
         """
-        # Logic lấy ảnh bìa
         image_url = None
-        first_file = model.files.first()
-        if first_file:
-            image_url = first_file.url
+
+        # Logic lấy ảnh bìa
+        # 1. Định nghĩa điều kiện là Ảnh (Cách 2 - Check extension)
+        img_exts = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+        q_is_image = Q()
+        for ext in img_exts:
+            q_is_image |= Q(file__iendswith=ext)
+
+        # 2. Query kết hợp (Cách 3 - Component)
+        # Logic: Lấy ra tất cả file thuộc course này
+        # Sắp xếp ưu tiên:
+        #   - Component là 'course_thumbnail' lên đầu (Priority cao nhất)
+        #   - Sau đó đến sort_order (User sắp xếp)
+        #   - Sau đó đến created_at
+        
+        files_qs = model.files.filter(
+            # Chỉ lấy những file LÀ ẢNH (để tránh lấy nhầm PDF làm thumbnail)
+            q_is_image
+        ).annotate(
+            # Tạo field tạm 'is_thumbnail' để sort
+            is_explicit_thumbnail=Case(
+                When(component='course_thumbnail', then=1), # Là thumbnail -> 1
+                default=0,                                  # Không phải -> 0
+                output_field=IntegerField(),
+            )
+        ).order_by(
+            '-is_explicit_thumbnail', # Số 1 lên trước (DESC)
+            'sort_order',             # Thứ tự user chỉnh
+            'uploaded_at'              # Mới nhất
+        )
+
+        # Lấy file đầu tiên sau khi đã sort theo ưu tiên
+        first_valid_image = files_qs.first()
+
+        if first_valid_image:
+            image_url = first_valid_image.url
 
         # --- [UPDATE 4] Logic lấy module_count ---
         # Ưu tiên lấy từ annotate (tối ưu hiệu năng) nếu có,

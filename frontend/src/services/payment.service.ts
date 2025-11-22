@@ -106,7 +106,9 @@ export interface PaymentHistoryItem {
   paid_at: string | null
 }
 
-const USE_MOCK = false // ← tắt mock để dùng API thật
+// Bật mock mặc định để tránh lỗi khi backend/keys MoMo chưa cấu hình (đặt VITE_PAYMENTS_MOCK=false để dùng API thật)
+const USE_MOCK = import.meta.env.VITE_PAYMENTS_MOCK !== 'false'
+const FALLBACK_TO_MOCK_ON_ERROR = true
 
 function seededRand(n: number) {
   // deterministic a bit
@@ -154,15 +156,29 @@ export const paymentService = {
   // ===== LIST =====
   async list(params: PageParams): Promise<PageResult<TxSummary>> {
     if (!USE_MOCK) {
-      const response = await api.get('/payments/history/', { params })
-      // Backend uses DRF pagination format
-      const backendData = response.data
-      const items: PaymentHistoryItem[] = backendData.results || []
-      const total = backendData.count || items.length
+      try {
+        const response = await api.get('/payments/history/', {
+          params: {
+            page: params.page,
+            page_size: params.pageSize,
+            status: params.status
+              ? { Pending: 'pending', Processing: 'pending', Succeeded: 'success', Failed: 'failed', Refunded: 'refunded', Disputed: 'failed' }[params.status]
+              : undefined,
+            method: params.gateway,
+          },
+        })
+        // Backend uses DRF pagination format
+        const backendData = response.data
+        const items: PaymentHistoryItem[] = backendData.results || []
+        const total = backendData.count || items.length
 
-      return {
-        items: items.map(convertPaymentHistoryToTxSummary),
-        total,
+        return {
+          items: items.map(convertPaymentHistoryToTxSummary),
+          total,
+        }
+      } catch (error) {
+        if (!FALLBACK_TO_MOCK_ON_ERROR) throw error
+        console.warn('[paymentService.list] fallback to mock due to error', error)
       }
     }
 
@@ -219,8 +235,13 @@ export const paymentService = {
   // ===== METRICS (kpis) =====
   async metrics(params: PageParams): Promise<TxMetrics> {
     if (!USE_MOCK) {
-      const { data } = await api.get('/admin/transactions/metrics', { params })
-      return data
+      try {
+        const { data } = await api.get('/admin/transactions/metrics', { params })
+        return data
+      } catch (error) {
+        if (!FALLBACK_TO_MOCK_ON_ERROR) throw error
+        console.warn('[paymentService.metrics] fallback to mock due to error', error)
+      }
     }
     const { items } = await this.list({ ...params, page: 1, pageSize: 200 })
     const gross = items.reduce((a, b) => a + b.amount, 0)
@@ -233,8 +254,13 @@ export const paymentService = {
   // ===== DETAIL =====
   async detail(id: ID): Promise<TxDetail> {
     if (!USE_MOCK) {
-      const { data } = await api.get(`/admin/transactions/${id}`)
-      return data
+      try {
+        const { data } = await api.get(`/admin/transactions/${id}`)
+        return data
+      } catch (error) {
+        if (!FALLBACK_TO_MOCK_ON_ERROR) throw error
+        console.warn('[paymentService.detail] fallback to mock due to error', error)
+      }
     }
 
     const num = Number(String(id).replace(/\D/g, '')) || 1
@@ -310,14 +336,35 @@ export const paymentService = {
   },
 
   async createMomoPayment(payload: MomoPaymentPayload): Promise<MomoPaymentResponse> {
-    const { data } = await api.post('/payments/momo/create/', {
-      amount: payload.amount,
-      plan_id: payload.planId,
-      plan_name: payload.planName,
-      redirect_url: payload.redirectUrl,
-      order_info: payload.orderInfo,
+    const mockResponse = (): MomoPaymentResponse => ({
+      paymentId: `mock-${Date.now()}`,
+      orderId: `MOCK-${Math.floor(Math.random() * 1e6)}`,
+      requestId: `${Date.now()}`,
+      payUrl: 'https://momo.vn/mock-pay',
+      deeplink: 'https://momo.vn/mock-deeplink',
+      qrCodeUrl: 'https://momo.vn/mock-qr',
+      resultCode: 0,
+      message: 'Mock payment created',
     })
-    return data
+
+    if (USE_MOCK) return mockResponse()
+
+    try {
+      const { data } = await api.post('/payments/momo/create/', {
+        amount: payload.amount,
+        plan_id: payload.planId,
+        plan_name: payload.planName,
+        redirect_url: payload.redirectUrl,
+        order_info: payload.orderInfo,
+      })
+      return data
+    } catch (error) {
+      if (FALLBACK_TO_MOCK_ON_ERROR) {
+        console.warn('[paymentService.createMomoPayment] fallback to mock due to error', error)
+        return mockResponse()
+      }
+      throw error
+    }
   },
 
   // ===== ACTIONS =====

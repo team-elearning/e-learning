@@ -22,7 +22,8 @@ class FileDomain:
                  component: Optional[str] = None, 
                  id: Optional[int] = None, 
                  uploaded_at: Optional[Any] = None,
-                 url: Optional[str] = None):
+                 url: Optional[str] = None,
+                 mime_type: Optional[str] = None):
         
         self.id = id
         self.file = file
@@ -37,6 +38,7 @@ class FileDomain:
 
         self.status = status
         self.url = url
+        self.mime_type = mime_type
 
     @classmethod
     def from_model(cls, model: UploadedFile) -> 'FileDomain':
@@ -51,7 +53,8 @@ class FileDomain:
             content_type=model.content_type,
             object_id=model.object_id,
             status=model.status,
-            url=model.url
+            url=model.url,
+            mime_type=model.mime_type
         )
 
     def to_model(self) -> UploadedFile:
@@ -68,5 +71,6 @@ class FileDomain:
             object_id=self.object_id,
             # id và uploaded_at sẽ được tự động gán khi save
 
-            status=self.status
+            status=self.status,
+            mime_type=self.mime_type
         )

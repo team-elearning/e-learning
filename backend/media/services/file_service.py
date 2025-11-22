@@ -1,13 +1,22 @@
 import logging
 import uuid
-from django.contrib.contenttypes.models import ContentType
-from django.contrib.auth import get_user_model
-from django.db import transaction
+import os
+import mimetypes
+import magic
 from datetime import timedelta
+from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.core.files.storage import default_storage
-from django.db.models import Q
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.contenttypes.models import ContentType
+from django.conf import settings
+from django.http import Http404, HttpResponse, HttpResponseForbidden, FileResponse
+from django.shortcuts import get_object_or_404
+from django.utils.encoding import escape_uri_path # Cần cái này để xử lý tiếng Việt
+from django.core.exceptions import ValidationError
+from django.db import DatabaseError
 
 from core.exceptions import DomainError, UserNotFoundError
 from custom_account.models import UserModel
@@ -54,6 +63,19 @@ def create_file_upload(user: UserModel, data: dict) -> FileDomain:
     else:
         content_type = None
 
+    # --- NEW: LOGIC TÍNH MIME TYPE ---
+    # 1. Ưu tiên lấy từ header file mà trình duyệt gửi lên (file_data.content_type)
+    #    Đây là cách nhanh nhất vì file đang nằm trong RAM/Temp
+    mime_type = getattr(file_data, 'content_type', None)
+
+    # 2. Nếu không có, dùng mimetypes đoán qua tên file (fallback an toàn)
+    if not mime_type:
+        mime_type, _ = mimetypes.guess_type(file_data.name)
+    
+    # 3. Nếu vẫn không ra, đặt mặc định
+    if not mime_type:
+        mime_type = 'application/octet-stream'
+
     saved_file_model = UploadedFile.objects.create(
         file=file_data,
         original_filename=file_data.name,
@@ -61,60 +83,12 @@ def create_file_upload(user: UserModel, data: dict) -> FileDomain:
         content_type=content_type,
         object_id=object_id,
         component=component,
-        status=FileStatus.STAGING
+        status=FileStatus.STAGING,
+
+        mime_type=mime_type
     )
     
     return FileDomain.from_model(saved_file_model)
-
-
-@transaction.atomic
-def commit_files_for_object(file_paths: list[str], related_object) -> int:
-    """
-    Tìm các file 'staging' bằng đường dẫn (path) và "commit" chúng,
-    gán chúng vào một đối tượng (Course, Lesson, v.v.).
-    
-    Hàm này được gọi bởi các service khác (ví dụ: create_course).
-    """
-    logger.info(f"Bắt đầu commit file cho đối tượng {related_object}...")
-    
-    if not file_paths:
-        logger.warning("Không có file path nào được cung cấp để commit.")
-        return 0
-
-    # 1. Tìm ContentType của đối tượng (Course, Lesson, etc.)
-    try:
-        content_type = ContentType.objects.get_for_model(related_object)
-        object_id = related_object.pk
-    except Exception as e:
-        logger.error(f"Lỗi khi lấy ContentType cho {related_object}: {e}", exc_info=True)
-        # Ném lỗi để transaction bên ngoài (create_course) có thể ROLLBACK
-        raise DomainError(f"Không thể lấy ContentType cho {related_object}")
-
-    # 2. Tìm các bản ghi UploadedFile khớp với các đường dẫn
-    #    Chúng ta giả định file_paths là các đường dẫn chính xác
-    #    được lưu trong trường `file` của model UploadedFile.
-    files_to_commit = UploadedFile.objects.filter(
-        file__in=file_paths,
-        status=FileStatus.STAGING
-    )
-    
-    count = files_to_commit.count()
-    if count == 0:
-        # Điều này có thể xảy ra nếu file không tồn tại hoặc đã được commit
-        logger.warning(f"Không tìm thấy file STAGING nào khớp với: {file_paths}")
-        return 0
-
-    # 3. Cập nhật (commit) tất cả các file tìm thấy
-    files_to_commit.update(
-        status=FileStatus.COMMITTED,
-        content_type=content_type,
-        object_id=object_id,
-        expires_at=None  # Xóa ngày hết hạn (nếu có)
-    )
-    
-    logger.info(f"Đã commit thành công {count} file cho {content_type}:{object_id}.")
-    
-    return count
 
 
 @transaction.atomic
@@ -186,9 +160,16 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
         filters & (staging_files_condition | cond_owned_by_object)
     )
     
+    # Lấy ra các object thực tế từ DB
+    files_in_db = list(files_qs) # Query 1 lần ra list object
+    
+    # Tạo dict để map ID -> Object cho dễ truy xuất
+    files_map = {str(f.id): f for f in files_in_db}
+    
     # Lấy ra danh sách các ID thực sự tìm thấy trong DB
     # values_list trả về UUID object, nên cần ép kiểu str để so sánh với target_ids
     found_ids = set(str(uid) for uid in files_qs.values_list('id', flat=True))
+    
 
     # 4. KIỂM TRA THIẾU (MISSING OR FORBIDDEN)
     # missing_ids ở đây bao gồm cả: File không tồn tại VÀ File tồn tại nhưng của người khác
@@ -203,16 +184,34 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
         # Bắn lỗi ngay lập tức, transaction sẽ rollback
         raise DomainError(error_msg)
 
-    # 5. Nếu không thiếu gì, tiến hành Update
-    updated_count = files_qs.update(
-        status=FileStatus.COMMITTED,
-        content_type=content_type,
-        object_id=object_id,
-    )
-
-    logger.info(f"Đã commit thành công {updated_count} file cho {content_type}:{object_id}.")
+    update_list = []
     
-    return updated_count
+    # Lặp theo danh sách file_ids GỐC (để giữ thứ tự)
+    for index, fid_str in enumerate(file_ids):
+        if fid_str in files_map:
+            file_obj = files_map[fid_str]
+            
+            # Cập nhật thông tin commit
+            file_obj.status = FileStatus.COMMITTED
+            file_obj.content_type = content_type
+            file_obj.object_id = object_id
+            
+            # QUAN TRỌNG: Lưu thứ tự từ input vào DB
+            file_obj.sort_order = index 
+            
+            update_list.append(file_obj)
+    
+    if update_list:
+        # Dùng bulk_update để tối ưu (chỉ 1 query update thay vì N query)
+        # Cập nhật cả status, thông tin relation và sort_order
+        UploadedFile.objects.bulk_update(
+            update_list, 
+            ['status', 'content_type', 'object_id', 'sort_order']
+        )
+
+    logger.info(f"Đã commit và sắp xếp thành công {len(update_list)} file.")
+    
+    return len(update_list)
 
 
 logger = logging.getLogger(__name__)
@@ -456,3 +455,103 @@ def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
         # Ghi log lỗi nếu cần
         # logger.error(f"Lỗi nghiêm trọng khi kiểm tra quyền file {file_object.id} cho user {user.id}: {e}")
         return False
+    
+
+def _get_best_mime_type(file_obj):
+    """
+    Hàm ưu tiên lấy từ DB, nếu không có thì đoán.
+    """
+    # Ưu tiên 1: Lấy từ DB (Nhanh nhất - O(1))
+    # Vì bạn mới thêm trường này, nên các file cũ có thể là Null/None
+    if file_obj.mime_type:
+        return str(file_obj.mime_type)
+
+    # Ưu tiên 2: Đoán từ tên file gốc (Nhanh nhì)
+    # VD: 'bai_giang.mp4' -> 'video/mp4'
+    guessed_type, _ = mimetypes.guess_type(file_obj.original_filename or file_obj.file.name)
+    if guessed_type:
+        return guessed_type
+
+    # Ưu tiên 3: Mặc định an toàn (Binary)
+    return 'application/octet-stream'
+
+def _is_browser_viewable(mime_type):
+    """
+    Danh sách các loại file trình duyệt có thể mở được ngay
+    """
+    if not mime_type: return False
+    
+    viewable_types = [
+        'application/pdf',
+        'video/mp4', 'video/webm', 'video/ogg',
+        'audio/mpeg', 'audio/ogg', 'audio/wav',
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+        'text/plain'
+    ]
+    return mime_type in viewable_types
+
+
+def serve_file(request, file_id, user):
+    """
+    Xử lý logic check quyền và trả về file response.
+    """
+    # 1. Lấy object (Nên cache nhẹ chỗ này nếu lượng truy cập lớn)
+    try:
+        file_obj = get_object_or_404(UploadedFile, id=file_id)
+    except ValidationError:
+        raise ValidationError("File ID không đúng định dạng UUID.")
+    except DatabaseError:
+        # Lỗi mất kết nối DB
+        raise DatabaseError("Lỗi kết nối cơ sở dữ liệu.")
+
+    # 2. Check quyền (Logic nghiệp vụ)
+    # Giả sử bạn có service check quyền riêng
+    if not user_has_access_to_file(user=user, file_object=file_obj):
+        return PermissionError("Bạn không có quyền truy cập tài nguyên này.")
+
+    # 3. BẮT LỖI FILE VẬT LÝ (IO Error)
+    if not file_obj.file:
+        # Trường hợp DB có record nhưng trường file bị null
+        raise FileNotFoundError(f"Dữ liệu file bị thiếu trong Database (ID: {file_id}).")
+        
+    if not os.path.exists(file_obj.file.path):
+        # Trường hợp file bị xóa khỏi ổ cứng
+        raise FileNotFoundError(f"File gốc không tồn tại trên ổ đĩa: {file_obj.file.path}")
+
+    # 4. XÁC ĐỊNH MIME TYPE (Logic quan trọng nhất)
+    real_mime_type = _get_best_mime_type(file_obj=file_obj)
+
+    # 5. Xử lý hiển thị (Inline vs Attachment)
+    # Inline: Xem trực tiếp trên trình duyệt (Video, Ảnh, PDF)
+    # Attachment: Tải về (Zip, Docx, Exe)
+    disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
+
+    # 5. XỬ LÝ TÊN FILE TIẾNG VIỆT (Chống lỗi UnicodeEncodeError)
+    # Cách chuẩn RFC 5987: filename*=UTF-8''ten_file_ma_hoa
+    safe_filename = escape_uri_path(file_obj.original_filename)
+
+    # --- TRẢ VỀ RESPONSE ---
+
+    # A. DEV MODE
+    if settings.DEBUG:
+        try:
+            f = open(file_obj.file.path, 'rb')
+            response = FileResponse(f, content_type=real_mime_type)
+        except PermissionError:
+            raise PermissionError("Server không có quyền đọc file này (Permission Denied từ OS).")
+        except OSError as e:
+            raise OSError(f"Lỗi IO khi mở file: {str(e)}")
+
+    # B. PRODUCTION MODE (Nginx)
+    else:
+        response = HttpResponse()
+        nginx_path = f"/protected_media/{file_obj.file.name}"
+        response['X-Accel-Redirect'] = nginx_path
+        response['Content-Type'] = real_mime_type
+
+    # Thiết lập Header an toàn cho tiếng Việt
+    # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)
+    # Dùng: filename*=UTF-8''t%C3%AAn%20ti%E1%BA%BFng%20vi%E1%BB%87t.mp4
+    response['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{safe_filename}"
+    
+    return response
