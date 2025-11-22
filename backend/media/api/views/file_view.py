@@ -1,23 +1,18 @@
 import logging
 import uuid
-import magic
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework import permissions
-from media.models import UploadedFile
-from django.utils import timezone
-from datetime import timedelta
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponseForbidden, FileResponse, Http404
+from django.http import Http404
 from rest_framework.renderers import BaseRenderer
 from django.db import DatabaseError
+from rest_framework.renderers import JSONRenderer
+import json
 
-from content.models import Course
-from media.models import UploadedFile, FileStatus
 from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
 from core.api.mixins import RoleBasedOutputMixin
 from core.exceptions import DomainError, UserNotFoundError
@@ -87,7 +82,12 @@ class BinaryFileRenderer(BaseRenderer):
     media_type = 'application/octet-stream'
     format = 'binary'
 
-    def render(self, data, accepted_media_type=None, renderer_context=None):
+    def render(self, data, media_type=None, renderer_context=None):
+        # NẾU DATA LÀ TỪ ĐIỂN (LỖI) -> Trả về JSON string
+        if isinstance(data, (dict, list)):
+            return json.dumps(data).encode('utf-8')
+            
+        # NẾU LÀ FILE -> Trả về nguyên gốc
         return data
     
 
@@ -98,7 +98,7 @@ class PublicDownloadFileView(APIView):
     permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
 
     # 2. QUAN TRỌNG: Khai báo renderer này để DRF không bọc HTML/JSON vào file
-    renderer_classes = [BinaryFileRenderer]
+    renderer_classes = [BinaryFileRenderer, JSONRenderer]
 
     def get(self, request, file_id):
         try:

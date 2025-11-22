@@ -161,7 +161,7 @@ def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetc
         data['slug'] = slugify(data['title'])
 
     if Course.objects.filter(slug=data['slug']).exists():
-        raise ValueError(f"Slug '{data['slug']}' đã tồn tại. Vui lòng đổi tên.")
+        raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
 
     # 3. Tạo Course (Core Logic)
     try:

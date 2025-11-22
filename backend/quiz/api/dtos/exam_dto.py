@@ -122,14 +122,14 @@ class ExamAdminOutput(BaseModel):
     mode: str # Giáo viên cần biết nó là exam hay practice
     
     # --- Time Config Full ---
-    time_limit: Optional[timedelta] # Giáo viên cần xem dạng gốc để edit
-    time_open: Optional[datetime]
-    time_close: Optional[datetime]
+    time_limit: Optional[timedelta] = None # Giáo viên cần xem dạng gốc để edit
+    time_open: Optional[datetime] = None
+    time_close: Optional[datetime] = None
     status_label: str = "closed"
 
     # --- Rules Full ---
-    max_attempts: Optional[int]
-    pass_score: Optional[float]
+    max_attempts: Optional[int] = None
+    pass_score: Optional[float] =None
     grading_method: str
     shuffle_questions: bool
     show_correct_answer: bool
