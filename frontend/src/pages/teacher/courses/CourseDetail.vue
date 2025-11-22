@@ -16,7 +16,14 @@
           <div>
             <p class="text-xs uppercase tracking-wide text-slate-400">Chi tiết khoá học</p>
             <h1 class="text-xl font-semibold sm:text-2xl">
-              {{ course?.title || 'Đang tải…' }}
+              <!-- course title states -->
+              <span v-if="loading" class="block mt-1">
+                <div class="w-28 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-emerald-400 animate-loading-bar origin-right"></div>
+                </div>
+              </span>
+              <span v-else-if="error">Lỗi tải khoá học</span>
+              <span v-else>{{ course?.title || 'Không có tiêu đề' }}</span>
             </h1>
           </div>
         </div>
@@ -64,18 +71,40 @@
           <div
             class="h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 sm:h-56"
           >
-            <img
-              v-if="coverBlobUrl"
-              :src="coverBlobUrl"
-              :alt="course.title"
-              class="h-full w-full object-cover"
-            />
-            <div
-              v-else
-              class="flex h-full w-full items-center justify-center text-5xl text-slate-300"
-            >
-              🎓
-            </div>
+            <!-- Có image_url -->
+            <template v-if="course.image_url">
+              <div
+                v-if="coverLoading"
+                class="flex h-full w-full items-center justify-center text-xs text-slate-400"
+              >
+                Đang tải ảnh bìa…
+              </div>
+              <div
+                v-else-if="coverError"
+                class="flex h-full w-full items-center justify-center px-3 text-center text-xs text-rose-600"
+              >
+                {{ coverError }}
+              </div>
+              <img
+                v-else-if="coverBlobUrl"
+                :src="coverBlobUrl"
+                :alt="course.title"
+                class="h-full w-full object-cover"
+              />
+              <div
+                v-else
+                class="flex h-full w-full items-center justify-center text-5xl text-slate-300"
+              >
+                🎓
+              </div>
+            </template>
+
+            <!-- Không có image_url -->
+            <template v-else>
+              <div class="flex h-full w-full items-center justify-center text-5xl text-slate-300">
+                🎓
+              </div>
+            </template>
           </div>
 
           <!-- Meta -->
@@ -200,8 +229,25 @@
                         <div
                           class="flex max-h-72 w-full items-center justify-center overflow-hidden rounded-lg bg-slate-100"
                         >
+                          <!-- Loading -->
+                          <div
+                            v-if="b._loading"
+                            class="flex h-32 w-full items-center justify-center text-xs text-slate-400"
+                          >
+                            Đang tải hình ảnh…
+                          </div>
+
+                          <!-- Error -->
+                          <div
+                            v-else-if="b._error"
+                            class="flex h-32 w-full items-center justify-center px-3 text-center text-xs text-rose-600"
+                          >
+                            {{ b._error }}
+                          </div>
+
+                          <!-- Loaded -->
                           <img
-                            v-if="b.payload?._image_blob_url"
+                            v-else-if="b.payload?._image_blob_url"
                             :src="b.payload._image_blob_url"
                             :alt="b.payload?.caption || 'Hình ảnh bài học'"
                             class="h-full w-full object-contain"
@@ -220,13 +266,27 @@
 
                       <!-- VIDEO -->
                       <div v-else-if="b.type === 'video'" class="space-y-2">
-                        <video
-                          v-if="b.payload?._video_blob_url"
-                          :src="b.payload._video_blob_url"
-                          controls
-                          class="w-full max-h-72 rounded-lg bg-black"
-                        ></video>
-                        <p v-else class="text-xs text-slate-500">Không tìm thấy video.</p>
+                        <div
+                          class="w-full max-h-72 rounded-lg bg-black flex items-center justify-center"
+                        >
+                          <!-- Loading -->
+                          <p v-if="b._loading" class="text-xs text-slate-300">Đang tải video…</p>
+
+                          <!-- Error -->
+                          <p v-else-if="b._error" class="px-3 text-center text-xs text-rose-300">
+                            {{ b._error }}
+                          </p>
+
+                          <!-- Loaded -->
+                          <video
+                            v-else-if="b.payload?._video_blob_url"
+                            :src="b.payload._video_blob_url"
+                            controls
+                            class="w-full max-h-72 rounded-lg bg-black"
+                          ></video>
+
+                          <p v-else class="text-xs text-slate-300">Không tìm thấy video.</p>
+                        </div>
                       </div>
 
                       <!-- PDF / DOCX -->
@@ -241,12 +301,24 @@
                                 {{ b.payload?.filename || 'Tài liệu' }}
                               </p>
                               <p class="text-[11px] text-slate-500">{{ b.type.toUpperCase() }}</p>
+
+                              <!-- Loading / Error trạng thái file -->
+                              <p v-if="b._loading" class="mt-1 text-[11px] text-slate-400">
+                                Đang tải file…
+                              </p>
+                              <p v-else-if="b._error" class="mt-1 text-[11px] text-rose-600">
+                                {{ b._error }}
+                              </p>
                             </div>
                           </div>
 
                           <div class="flex items-center gap-2">
                             <button
-                              v-if="b.payload?._file_blob_url || b.payload?.file_url"
+                              v-if="
+                                (b.payload?._file_blob_url || b.payload?.file_url) &&
+                                !b._loading &&
+                                !b._error
+                              "
                               type="button"
                               class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
                               @click="openDocViewer(b)"
@@ -254,16 +326,14 @@
                               Xem trực tiếp
                             </button>
 
-                            <a
-                              v-if="b.payload?.file_url"
-                              :href="b.payload.file_url"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:underline"
-                            >
-                              Mở tài liệu
-                              <span>↗</span>
-                            </a>
+                            <span v-else-if="b._loading" class="text-[11px] text-slate-400">
+                              Đang chuẩn bị file…
+                            </span>
+
+                            <span v-else-if="b._error" class="text-[11px] text-rose-500">
+                              Lỗi tải file
+                            </span>
+
                             <span v-else class="text-[11px] text-slate-400">Không có file</span>
                           </div>
                         </div>
@@ -389,7 +459,8 @@
                   />
                 </div>
                 <h3 v-else class="text-lg font-semibold text-slate-800">
-                  {{ quizModal.data?.title || 'Đang tải…' }}
+                  <span v-if="quizModal.loading">Đang tải…</span>
+                  <span v-else>{{ quizModal.data?.title || 'Đang tải…' }}</span>
                 </h3>
               </div>
 
@@ -485,7 +556,6 @@
                   </div>
 
                   <!-- multiple choice -->
-                  <!-- multiple choice -->
                   <div
                     v-if="q.type === 'multiple_choice_single' || q.type === 'multiple_choice_multi'"
                     class="space-y-1.5 text-xs"
@@ -575,7 +645,6 @@
                   </div>
 
                   <!-- true/false -->
-                  <!-- true/false -->
                   <div v-else-if="q.type === 'true_false'" class="space-y-1 text-xs">
                     <template v-if="quizEditMode">
                       <p class="font-medium text-slate-700 mb-1">Chọn đáp án đúng:</p>
@@ -599,7 +668,6 @@
                     </template>
                   </div>
 
-                  <!-- fill in the blank -->
                   <!-- fill in the blank -->
                   <div v-else-if="q.type === 'fill_in_the_blank'" class="space-y-1 text-xs">
                     <template v-if="quizEditMode">
@@ -656,7 +724,6 @@
                     Chưa hỗ trợ hiển thị chi tiết cho loại câu hỏi này.
                   </div>
 
-                  <!-- Hint -->
                   <!-- Hint -->
                   <div class="mt-2">
                     <label v-if="quizEditMode" class="block text-[11px] text-slate-600">
@@ -754,7 +821,11 @@ interface ContentBlock {
   type: string
   position: number
   payload: any
+  // trạng thái media (thêm dynamic)
+  _loading?: boolean
+  _error?: string
 }
+
 interface Lesson {
   id?: string
   title: string
@@ -811,6 +882,9 @@ const loading = ref(false)
 const error = ref('')
 
 const coverBlobUrl = ref<string | null>(null)
+const coverLoading = ref(false)
+const coverError = ref('')
+
 const blobUrls = new Set<string>() // track blob URLs to revoke
 
 /* Doc viewer */
@@ -1074,30 +1148,72 @@ async function fetchCourse() {
     })
     course.value = data
 
+    /* Cover image */
     if (course.value.image_url) {
-      fetchBlobUrl(course.value.image_url).then((url) => {
-        if (url) coverBlobUrl.value = url
-      })
+      coverLoading.value = true
+      coverError.value = ''
+      fetchBlobUrl(course.value.image_url)
+        .then((url) => {
+          if (url) coverBlobUrl.value = url
+          else coverError.value = 'Không thể tải ảnh bìa.'
+        })
+        .finally(() => {
+          coverLoading.value = false
+        })
     }
 
-    // fetch blobs for content blocks
+    // fetch blobs cho content blocks
     course.value.modules.forEach((m) => {
       m.lessons.forEach((lesson) => {
         lesson.content_blocks.forEach((b) => {
-          if (b.type === 'image' && b.payload?.image_url) {
-            fetchBlobUrl(b.payload.image_url).then((url) => {
-              if (url) b.payload._image_blob_url = url
-            })
+          const block = b as ContentBlock
+
+          if (block.type === 'image' && block.payload?.image_url) {
+            block._loading = true
+            block._error = ''
+            fetchBlobUrl(block.payload.image_url)
+              .then((url) => {
+                if (url) {
+                  block.payload._image_blob_url = url
+                } else {
+                  block._error = 'Không thể tải hình ảnh.'
+                }
+              })
+              .finally(() => {
+                block._loading = false
+              })
           }
-          if (b.type === 'video' && b.payload?.video_url) {
-            fetchBlobUrl(b.payload.video_url).then((url) => {
-              if (url) b.payload._video_blob_url = url
-            })
+
+          if (block.type === 'video' && block.payload?.video_url) {
+            block._loading = true
+            block._error = ''
+            fetchBlobUrl(block.payload.video_url)
+              .then((url) => {
+                if (url) {
+                  block.payload._video_blob_url = url
+                } else {
+                  block._error = 'Không thể tải video.'
+                }
+              })
+              .finally(() => {
+                block._loading = false
+              })
           }
-          if ((b.type === 'pdf' || b.type === 'docx') && b.payload?.file_url) {
-            fetchBlobUrl(b.payload.file_url).then((url) => {
-              if (url) b.payload._file_blob_url = url
-            })
+
+          if ((block.type === 'pdf' || block.type === 'docx') && block.payload?.file_url) {
+            block._loading = true
+            block._error = ''
+            fetchBlobUrl(block.payload.file_url)
+              .then((url) => {
+                if (url) {
+                  block.payload._file_blob_url = url
+                } else {
+                  block._error = 'Không thể tải file tài liệu.'
+                }
+              })
+              .finally(() => {
+                block._loading = false
+              })
           }
         })
       })
@@ -1199,5 +1315,13 @@ function removeQuizBlank(q: QuizQuestion, index: number) {
 <style scoped>
 h1 {
   word-break: break-word;
+}
+@keyframes loading-bar {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
 }
 </style>

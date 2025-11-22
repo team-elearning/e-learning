@@ -112,11 +112,11 @@
         <el-table-column label="Người dùng" min-width="260">
           <template #default="{ row }">
             <div class="flex items-center gap-3">
-              <img
+              <!-- <img
                 :src="row.avatar || 'https://i.pravatar.cc/80?img=8'"
                 class="h-9 w-9 rounded-full object-cover"
                 alt="avatar"
-              />
+              /> -->
               <div class="min-w-0">
                 <div class="truncate font-medium text-gray-800">{{ row.name }}</div>
                 <div class="truncate text-xs text-gray-500">{{ row.email }}</div>
