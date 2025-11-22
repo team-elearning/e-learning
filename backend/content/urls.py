@@ -2,12 +2,13 @@
 from django.urls import path
 
 from content.api.views.category_view import PublicCategoryListView, PublicCategoryDetailView, AdminCategoryListView, AdminCategoryDetailView
-from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, CourseEnrollView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView, MyEnrolledCourseListView, AdminCoursePublishView, AdminCourseUnpublishView, InstructorCoursePublishView, InstructorCourseUnpublishView
+from content.api.views.course_view import PublicCourseListView, PublicCourseDetailView, AdminCourseListCreateView, AdminCourseDetailView, InstructorCourseListCreateView, InstructorCourseDetailView, AdminCoursePublishView, AdminCourseUnpublishView, InstructorCoursePublishView, InstructorCourseUnpublishView
 from content.api.views.subject_view import AdminSubjectListView, AdminSubjectDetailView
 from content.api.views.module_view import PublicModuleDetailView, PublicModuleListView, InstructorModuleDetailView, InstructorModuleListCreateView, InstructorModuleReorderView, AdminModuleDetailView, AdminModuleListCreateView, AdminModuleReorderView
 from content.api.views.lesson_view import PublicLessonListView, PublicLessonDetailView, InstructorLessonDetailView, InstructorLessonListView, InstructorLessonReorderView, AdminLessonDetailView, AdminLessonListView, AdminModuleLessonView, LessonContentView, InstructorLessonPreviewView, AdminLessonPreviewView
 from content.api.views.content_block_view import PublicLessonBlockListView, AdminContentBlockDetailView, AdminContentBlockReorderView, AdminLessonVersionContentBlockListView, InstructorContentBlockDetailView, InstructorContentBlockReorderView, InstructorLessonVersionContentBlockListView
 from quiz.api.views.quiz_view import AdminQuizListView, IntructorQuizDetailView, AdminQuizDetailView
+from content.api.views.enrollment_view import CourseEnrollView, MyEnrolledCourseListView, InstructorCourseParticipantListView, InstructorCourseParticipantDetailView, AdminCourseParticipantListView, AdminCourseParticipantDetailView
 
 
 
@@ -78,6 +79,9 @@ urlpatterns = [
 
     path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
 
+    path('admin/courses/<uuid:pk>/users/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
+    path('admin/courses/<uuid:pk>/users/<uuid:user_id>/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
+
     # # ---------------------------- INSTRUCTOR ---------------------------------------
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
@@ -85,6 +89,9 @@ urlpatterns = [
     path('instructor/courses/<uuid:pk>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublic'),
     
     path('instructor/quizzes/<uuid:pk>/', IntructorQuizDetailView.as_view(), name='instructor-quiz-detail'),
+
+    path('instructor/courses/<uuid:pk>/users/', InstructorCourseParticipantListView.as_view(), name='instructor-course-participant'),
+    path('instructor/courses/<uuid:pk>/users/<uuid:user_id>/', AdminCourseParticipantDetailView.as_view(), name='instructor-course-participant'),
 
 
     # path('instructor/courses/<uuid:course_id>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-publish'),
