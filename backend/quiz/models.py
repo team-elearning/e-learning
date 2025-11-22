@@ -2,6 +2,7 @@ from django.db import models
 import uuid
 from django.core.validators import MinValueValidator
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericRelation
 
 from custom_account.models import UserModel
 
@@ -9,7 +10,7 @@ from custom_account.models import UserModel
 
 class Quiz(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    title = models.CharField(max_length=255, verbose_name="Tiêu đề")
+    title = models.CharField(max_length=255, verbose_name="Tiêu đề", null=True, blank=True)
     
     # === CẤU HÌNH THỜI GIAN ===
     time_limit = models.DurationField(null=True, blank=True, verbose_name="Thời lượng làm bài", help_text="Thời gian tối đa cho phép (ví dụ: '00:30:00' cho 30 phút, '01:00:00' cho 1 tiếng)") # null, blank -> cho phép không có giới hạn thời gian
@@ -42,6 +43,10 @@ class Quiz(models.Model):
     description = models.TextField(blank=True, verbose_name="Mô tả / Hướng dẫn")
     
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='quiz_owned')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    files = GenericRelation('media.UploadedFile')
 
     def __str__(self):
         return self.title
@@ -77,6 +82,7 @@ class Question(models.Model):
     # Cấu trúc: { "correct_ids": ["A"], "explanation": "..." }
     answer_payload = models.JSONField(default=dict, blank=True, help_text="Cấu hình đáp án, tùy thuộc vào 'type'")
     hint = models.JSONField(default=dict, blank=True, help_text="Gợi ý hoặc giải thích đáp án")
+    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = "Câu hỏi"

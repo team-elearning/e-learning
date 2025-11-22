@@ -2,6 +2,7 @@ from django.urls import path
 
 from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetailView, AdminExamDetailView, AdminExamListView
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
+from quiz.api.views.parse_view import QuizParseToolView
 
 
 
@@ -12,6 +13,8 @@ urlpatterns = [
 
     path('instructor/practices/', InstructorPracticeListView.as_view(), name='instructor-practice-list-create'),
     path('instructor/practices/<uuid:pk>/', InstructorPracticeDetailView.as_view(), name='instructor-practice-detail'),
+
+    path('tools/quiz-parser/', QuizParseToolView.as_view(), name='quiz-parse'),
 
 
     # ADMIN

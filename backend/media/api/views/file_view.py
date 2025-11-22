@@ -116,7 +116,7 @@ class PublicDownloadFileView(APIView):
             # Hoặc lỗi OS Permission
             if "Server" in str(e): # Lỗi OS
                  print(f"SYSTEM ERROR: {e}")
-                 return Response({"detail": "Lỗi hệ thống tập tin."}, status=500)
+                 return Response({"detail": f"Lỗi hệ thống tập tin - {str(e)}"}, status=500)
             return Response(
                 {"error": "FORBIDDEN", "detail": str(e)}, 
                 status=status.HTTP_403_FORBIDDEN
@@ -133,7 +133,7 @@ class PublicDownloadFileView(APIView):
             # Lỗi 503/500: Database sập
             print(f"DB ERROR: {e}")
             return Response(
-                {"error": "SERVICE_UNAVAILABLE", "detail": "Lỗi kết nối cơ sở dữ liệu."}, 
+                {"error": "SERVICE_UNAVAILABLE", "detail": f"Lỗi kết nối cơ sở dữ liệu - {str(e)}"}, 
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
@@ -141,7 +141,7 @@ class PublicDownloadFileView(APIView):
             # Lỗi 500: Ổ cứng lỗi, file bị lock, v.v.
             print(f"OS ERROR khi mở file {file_id}: {e}")
             return Response(
-                {"error": "INTERNAL_SERVER_ERROR", "detail": "Lỗi đọc ghi file trên server."}, 
+                {"error": "INTERNAL_SERVER_ERROR", "detail": f"Lỗi đọc ghi file trên server - {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

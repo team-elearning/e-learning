@@ -23,9 +23,9 @@ def create_quiz(data: Dict[str, Any]) -> QuizDomain:
     # 1. Tạo Quiz (object gốc)
     new_quiz = Quiz.objects.create(
         title=data.get('title', 'Bài tập không tiêu đề'),
-        time_limit=data.get('time_limit'),
-        time_open=data.get('time_open'),
-        time_close=data.get('time_close')
+        time_limit=data.get('time_limit') or None,
+        time_open=data.get('time_open') or None,
+        time_close=data.get('time_close') or None
     )
     
     # 2. Tạo Questions (con)
