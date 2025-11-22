@@ -27,7 +27,6 @@ class QuizParseToolView(APIView):
  
         try:
             if file_type == 'excel':
-                print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 data = parse_excel(file_obj)
             elif file_type in ['csv']:
                 data = parse_csv(file_obj)

@@ -417,6 +417,24 @@ def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
         app_label = ct.app_label  # VD: 'quiz', 'course'
         model_name = ct.model     # VD: 'question', 'quiz', 'lesson'
 
+        # --- DEBUG LOG (Rất quan trọng để biết tại sao sai) ---
+        # print(f"DEBUG: Checking File {file_object.id}")
+        # print(f"DEBUG: App: {app_label} | Model: {model_name}")
+        # print(f"DEBUG: User: {user.id} | Obj ID: {related_object.id}")
+        # ------------------------------------------------------
+
+        # === LOGIC TỔNG QUÁT (Dùng cho mọi Model có field 'owner') ===
+        # Thay vì if app_label == '...', ta check thuộc tính owner trước
+        # Cách này giúp code chạy đúng dù app tên là 'content', 'course' hay 'education'
+
+        owner_id = None
+        if hasattr(related_object, 'owner_id'):
+            owner_id = related_object.owner_id
+
+        if owner_id:
+            if str(owner_id) == str(user.id):
+                return True
+
         if app_label == 'quiz':
             quiz_to_check = None
 

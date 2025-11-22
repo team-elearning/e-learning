@@ -23,19 +23,23 @@ def parse_excel(file_obj) -> list:
 
 
 def parse_csv(file_obj) -> list:
-    """ Chuyên trị file .csv """
-    try:
-        # Đọc CSV (Lưu ý encoding utf-8 cho tiếng Việt)
-        # dtype=str để tránh việc '09' bị biến thành số 9
-        df = pd.read_csv(file_obj, encoding='utf-8', dtype=str)
-        
-        # Chuẩn hóa tên cột
-        df.columns = [str(c).lower().strip() for c in df.columns]
-        return _process_dataframe(df)
-    except UnicodeDecodeError:
-        raise ValueError("Lỗi font chữ CSV. Vui lòng lưu file CSV với encoding UTF-8.")
-    except Exception as e:
-        raise ValueError(f"Lỗi đọc file CSV: {str(e)}")
+        """ Chuyên trị file .csv """
+        try:
+            # [FIX 1] on_bad_lines='skip': Gặp dòng lỗi thì bỏ qua, không crash
+            df = pd.read_csv(
+                file_obj, 
+                encoding='utf-8', 
+                dtype=str,
+                on_bad_lines='skip' 
+            )
+            
+            df.columns = [str(c).lower().strip() for c in df.columns]
+            return _process_dataframe(df)
+            
+        except UnicodeDecodeError:
+            raise ValueError("Lỗi font chữ CSV. Vui lòng lưu file CSV với encoding UTF-8.")
+        except Exception as e:
+            raise ValueError(f"Lỗi đọc file CSV: {str(e)}")
 
 
 def _process_dataframe(df: pd.DataFrame) -> list:
