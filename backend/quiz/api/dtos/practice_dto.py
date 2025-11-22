@@ -7,9 +7,9 @@ from quiz.api.dtos.question_dto import QuestionInput, QuestionPublicOutput, Ques
 
 
 
-class ExamCreateInput(BaseModel):
+class PracticeCreateInput(BaseModel):
     """
-    DTO Input để tạo Exam kèm danh sách câu hỏi.
+    DTO Input để tạo Practice kèm danh sách câu hỏi.
     """
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,7 +31,7 @@ class ExamCreateInput(BaseModel):
     
     # Grading method thường là 'first' hoặc 'highest'
     grading_method: str = "first"
-    questions_count: int = 0
+    questions_count: int = 10
 
     # --- Nested Questions ---
     questions: List[QuestionInput] = []
@@ -40,7 +40,7 @@ class ExamCreateInput(BaseModel):
         return self.model_dump(exclude_none=exclude_none)
 
 
-class ExamUpdateInput(BaseModel):
+class PracticeUpdateInput(BaseModel):
     """
     DTO cho PATCH, mọi trường đều Optional.
     """
@@ -63,7 +63,7 @@ class ExamUpdateInput(BaseModel):
         return self.model_dump(exclude_none=exclude_none)
 
 
-class ExamPublicOutput(BaseModel):
+class PracticePublicOutput(BaseModel):
     """
     DTO Output cho Học viên (Xem thông tin bài thi).
     """
@@ -109,7 +109,7 @@ class ExamPublicOutput(BaseModel):
         return v
 
 
-class ExamAdminOutput(BaseModel):
+class PracticeAdminOutput(BaseModel):
     """
     DTO Output cho Giáo viên (Soạn thảo & Quản lý).
     """

@@ -75,6 +75,9 @@ class UploadedFile(models.Model):
     )
     object_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     content_object = GenericForeignKey('content_type', 'object_id')
+    mime_type = models.CharField(max_length=255, blank=True, null=True)
+
+    sort_order = models.IntegerField(default=0)
 
     def __str__(self):
         return self.original_filename or self.file.name
