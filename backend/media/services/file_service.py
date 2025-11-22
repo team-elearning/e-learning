@@ -119,7 +119,7 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
         object_id = str(related_object.pk)
     except Exception as e:
         logger.error(f"Lỗi khi lấy ContentType: {e}", exc_info=True)
-        raise DomainError(f"Không thể lấy ContentType cho {related_object}")
+        raise DomainError(f"Không thể lấy ContentType cho {related_object}: {e}")
 
     # 3. TRUY VẤN DB (AN TOÀN CẤP ĐỘ CAO)
     # Lấy owner của related_object (nếu có) để đảm bảo chính chủ

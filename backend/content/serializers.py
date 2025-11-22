@@ -975,3 +975,10 @@ class CoursePatchInputSerializer(serializers.Serializer):
     
     # Sử dụng Serializer lồng nhau (PATCH)
     modules = ModulePatchSerializer(many=True, required=False)
+
+
+class EnrollmentCreateSerializer(serializers.Serializer):
+    """
+    Validate JSON input thô từ client: { "user_id": "..." }
+    """
+    user_id = serializers.UUIDField(required=True)

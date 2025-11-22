@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
+from typing import List
 
 from content.models import Enrollment 
 
@@ -42,3 +43,15 @@ class EnrollmentDomain(BaseModel):
         Trong Pydantic, đây chính là hàm .model_dump()
         """
         return self.model_dump()
+    
+
+class EnrollmentCollectionDomain(BaseModel):
+    """
+    Domain Model (Pydantic) đại diện cho một Enrollment.
+    Đây là "DTO" sạch mà service sẽ trả về.
+    """
+    instance: List[EnrollmentDomain]
+    total_count: int
+
+    # Cho Pydantic v2: cho phép đọc từ attributes của model
+    model_config = ConfigDict(from_attributes=True)
