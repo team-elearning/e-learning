@@ -417,7 +417,7 @@
                                     <option value="multiple_choice_single">Chọn một đáp án</option>
                                     <option value="multiple_choice_multi">Chọn nhiều đáp án</option>
                                     <option value="true_false">Đúng / Sai</option>
-                                    <option value="fill_in_the_blank">Điền vào chỗ trống</option>
+                                    <!-- <option value="fill_in_the_blank">Điền vào chỗ trống</option> -->
                                     <option value="short_answer">Tự luận ngắn (điền đáp án)</option>
                                     <!-- <option value="matching">Nối cột (matching)</option> -->
                                     <!-- <option value="essay">Tự luận dài (chấm tay)</option> -->

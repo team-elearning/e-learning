@@ -126,7 +126,11 @@ class ContentBlockDomain:
             elif model.type == 'quiz':
                 # Lấy ID từ trường tham chiếu (ForeignKey)
                 if model.quiz_ref_id:
-                    processed_payload['quiz_id'] = str(model.quiz_ref_id)
+                    if not getattr(model, 'quiz_ref_id', None):
+                        # Chủ động ném lỗi để nhảy xuống except Exception bên dưới
+                        raise ValueError(f"Quiz Block ID {model.id} missing 'quiz_ref_id'")
+                
+                processed_payload['quiz_id'] = str(model.quiz_ref_id)
             
         except KeyError:
             # Bỏ qua nếu cấu trúc payload bị sai
