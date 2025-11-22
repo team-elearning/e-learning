@@ -2,8 +2,11 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Any
 from django.utils import timezone
+from datetime import timedelta
 
 from quiz.domains.question_domain import QuestionDomain 
+
+
 
 class ExamDomain:
     """
@@ -38,7 +41,9 @@ class ExamDomain:
                  
                  description: str = "",
                  owner_id: Optional[int] = None,
-                 course_id: Optional[str] = None):
+                 course_id: Optional[str] = None,
+                 time_limit: Optional[timedelta] = None, # Thêm cái này cho Admin
+                 show_correct_answer: bool = False):
         
         self.id = id
         self.title = title
@@ -52,12 +57,14 @@ class ExamDomain:
         self.time_open = time_open
         self.time_close = time_close
         self.status_label = status_label
+        self.time_limit = time_limit 
 
         # Config
         self.pass_score = pass_score
         self.max_attempts = max_attempts
         self.grading_method = grading_method
         self.shuffle_questions = shuffle_questions
+        self.show_correct_answer = show_correct_answer
         
         # Question Data
         self.config_question_count = config_question_count
@@ -140,6 +147,7 @@ class ExamDomain:
             "mode": model.mode,
             "owner_id": model.owner_id,
             
+            "time_limit": model.time_limit, 
             "time_limit_seconds": limit_sec,
             "time_open": model.time_open,
             "time_close": model.time_close,
@@ -149,6 +157,7 @@ class ExamDomain:
             "max_attempts": model.max_attempts,
             "grading_method": model.grading_method,
             "shuffle_questions": model.shuffle_questions,
+            "show_correct_answer": model.show_correct_answer,
             
             "config_question_count": model.questions_count,
             "actual_question_count": actual_count,

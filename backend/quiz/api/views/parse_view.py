@@ -36,7 +36,10 @@ class QuizParseToolView(APIView):
                 return Response({"detail": "Loại file không hỗ trợ."}, status=400)
             
             # Trả về JSON để Frontend tự xử
-            return Response({"results": data}, status=200)
+            return Response({
+                "questions": data,
+                "total_parsed": len(data) # Optional: Trả thêm cái này để FE tiện hiển thị thông báo
+            }, status=200)
 
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
