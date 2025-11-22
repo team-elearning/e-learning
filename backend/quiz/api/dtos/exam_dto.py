@@ -72,6 +72,7 @@ class ExamPublicOutput(BaseModel):
     id: uuid.UUID
     title: str
     description: Optional[str]
+    mode: str
     
     # --- Time Infos ---
     time_limit_seconds: Optional[int] = None # Frontend thích giây hơn timedelta object

@@ -137,9 +137,8 @@ class ExamDomain:
             "title": model.title,
             "mode": model.mode,
             "description": model.description,
+            "mode": model.mode,
             "owner_id": model.owner_id,
-            # Giả sử model Quiz có field course_id
-            "course_id": str(model.course_id) if hasattr(model, 'course_id') and model.course_id else None,
             
             "time_limit_seconds": limit_sec,
             "time_open": model.time_open,

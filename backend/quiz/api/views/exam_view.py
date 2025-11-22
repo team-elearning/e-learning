@@ -47,7 +47,7 @@ class InstructorExamListView(RoleBasedOutputMixin, APIView):
             )
             return Response({"instance": exams}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"detail": "Lỗi lấy danh sách bài thi."}, status=500)
+            return Response({"detail": f"Lỗi lấy danh sách bài thi - {str(e)}"}, status=500)
 
     def post(self, request, *args, **kwargs):
         """ 
