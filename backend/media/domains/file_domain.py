@@ -1,6 +1,7 @@
 from typing import Optional, Any
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth import get_user_model
+from uuid import UUID
 
 from custom_account.models import UserModel
 from media.models import UploadedFile  
@@ -16,11 +17,12 @@ class FileDomain:
                  file: Any, 
                  original_filename: str, 
                  uploaded_by: UserModel, 
+                 owner_id: UUID,
                  content_type: Optional[ContentType] = None,
                  status: Optional[str] = None, 
-                 object_id: Optional[int] = None, 
+                 object_id: Optional[UUID] = None, 
                  component: Optional[str] = None, 
-                 id: Optional[int] = None, 
+                 id: Optional[UUID] = None, 
                  uploaded_at: Optional[Any] = None,
                  url: Optional[str] = None,
                  mime_type: Optional[str] = None):
@@ -30,6 +32,7 @@ class FileDomain:
         self.original_filename = original_filename
         self.uploaded_by = uploaded_by  
         self.uploaded_at = uploaded_at
+        self.owner_id = owner_id
         self.component = component
         
         # Context
@@ -54,7 +57,8 @@ class FileDomain:
             object_id=model.object_id,
             status=model.status,
             url=model.url,
-            mime_type=model.mime_type
+            mime_type=model.mime_type,
+            owner_id=model.uploaded_by.id,
         )
 
     def to_model(self) -> UploadedFile:

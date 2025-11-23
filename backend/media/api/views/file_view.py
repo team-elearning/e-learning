@@ -15,7 +15,7 @@ import json
 
 from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
 from core.api.mixins import RoleBasedOutputMixin
-from core.exceptions import DomainError, UserNotFoundError
+from core.exceptions import DomainError, UserNotFoundError, AccessDeniedError
 from media.api.dtos.file_dto import FileInputDTO, FileOutputDTO, FileUpdateInputDTO
 from media.services import file_service
 
@@ -73,7 +73,7 @@ class FileUploadView(RoleBasedOutputMixin, APIView):
         except Exception as e:
             logger.error(f"Lỗi upload file không xác định: {e}", exc_info=True)
             return Response(
-                {"error": "Đã xảy ra lỗi hệ thống."},
+                {"error": f"Đã xảy ra lỗi hệ thống - {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -111,7 +111,7 @@ class PublicDownloadFileView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        except PermissionError as e:
+        except AccessDeniedError as e:
             # Lỗi 403: Không có quyền (Code service raise PermissionError)
             # Hoặc lỗi OS Permission
             if "Server" in str(e): # Lỗi OS
@@ -259,7 +259,7 @@ class ListAllFilesView(RoleBasedOutputMixin, APIView):
         except Exception as e:
             logger.error(f"Lỗi khi lấy danh sách file: {e}", exc_info=True)
             return Response(
-                {"error": "Đã xảy ra lỗi hệ thống khi tải danh sách file."},
+                {"error": f"Đã xảy ra lỗi hệ thống khi tải danh sách file - {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         

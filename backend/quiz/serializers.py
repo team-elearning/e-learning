@@ -22,7 +22,7 @@ class QuestionInputSerializer(serializers.Serializer):
         required=True, 
         help_text="Đáp án đúng: {correct_ids: [...]}"
     )
-    hint = serializers.DictField(required=False, default=dict)
+    hint = serializers.DictField(required=False, allow_null=True, default=dict)
     
     position = serializers.IntegerField(required=False, default=0)
 
@@ -66,12 +66,11 @@ class ExamInputSerializer(serializers.Serializer):
     pass_score = serializers.DecimalField(max_digits=4, decimal_places=2, required=False, allow_null=True)
     
     # Random & Shuffle
-    questions_count = serializers.IntegerField(min_value=0, required=False, default=10)
     shuffle_questions = serializers.BooleanField(default=True)
 
     # Grading & Review
     grading_method = serializers.ChoiceField(choices=Quiz.GRADING_METHOD, default='highest')
-    show_correct_answer = serializers.BooleanField(default=False) # Exam mặc định nên ẩn
+    show_correct_answer = serializers.BooleanField(default=True) # Exam mặc định nên ẩn
 
     # --- 4. Nested Questions (Quan trọng) ---
     # Cho phép tạo bài thi kèm luôn danh sách câu hỏi
@@ -124,12 +123,11 @@ class PracticeInputSerializer(serializers.Serializer):
     pass_score = serializers.DecimalField(max_digits=4, decimal_places=2, required=False, allow_null=True)
     
     # Random & Shuffle
-    questions_count = serializers.IntegerField(min_value=0, required=False, default=10)
     shuffle_questions = serializers.BooleanField(default=True)
 
     # Grading & Review
     grading_method = serializers.ChoiceField(choices=Quiz.GRADING_METHOD, default='highest')
-    show_correct_answer = serializers.BooleanField(default=True)
+    show_correct_answer = serializers.BooleanField(default=True) # Exam mặc định nên ẩn
 
     # --- 4. Nested Questions (Quan trọng) ---
     # Cho phép tạo bài thi kèm luôn danh sách câu hỏi
@@ -195,33 +193,16 @@ class UserAnswerDetailSerializer(serializers.ModelSerializer):
         return None
     
 
-class AccessDecisionSerializer(serializers.Serializer):
-    can_attempt = serializers.BooleanField(source='is_allowed')
-    warning_message = serializers.CharField(source='reason_message')
-    button_action = serializers.CharField(source='action.value') # Lấy value của Enum ('start', 'resume')
-    ongoing_attempt_id = serializers.UUIDField(source='ongoing_attempt.id', allow_null=True)
-    
-    # Logic presentation (Label nút bấm) nên nằm ở Serializer hoặc Frontend
-    button_label = serializers.SerializerMethodField()
-
-    def get_button_label(self, obj):
-        if not obj.is_allowed:
-            return "Không thể làm bài"
-        if obj.action.value == 'resume':
-            return "Tiếp tục làm bài"
-        return "Bắt đầu làm bài"
-
-class QuizPreflightResponseSerializer(serializers.Serializer):
+class QuizAttemptStartSerializer(serializers.Serializer):
     """
-    Serializer chuyên dụng để flatten dữ liệu từ Domain Object ra JSON phẳng
+    Serializer này dùng để validate request body từ Frontend.
+    Hiện tại có thể empty, nhưng sau này thêm password check ở đây.
     """
-    quiz_title = serializers.CharField(source='quiz.title')
-    description = serializers.CharField(source='quiz.description')
-    time_limit_str = serializers.CharField(source='time_limit_display')
-    pass_score = serializers.DecimalField(source='pass_score', max_digits=4, decimal_places=2)
-    
-    attempts_used = serializers.IntegerField(source='attempts_history_count')
-    max_attempts = serializers.IntegerField(source='max_attempts', allow_null=True)
-    
-    # Nhúng serializer con vào để flatten data
-    access_info = AccessDecisionSerializer(source='access_decision')
+    password = serializers.CharField(required=False, allow_blank=True)
+
+
+class SaveAnswerSerializer(serializers.Serializer):
+    question_id = serializers.UUIDField()
+    current_index = serializers.IntegerField(min_value=0)
+    selected_options = serializers.DictField(required=False, allow_null=True)
+    is_flagged = serializers.BooleanField(required=False, allow_null=True)

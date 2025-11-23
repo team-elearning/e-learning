@@ -9,6 +9,7 @@ from core.exceptions import ExamNotFoundError
 from quiz.models import Quiz, QuizAttempt, UserAnswer, Question
 from quiz.domains.quiz_preflight_domain import AccessDecisionDomain, QuizPreflightDomain, AttemptHistoryItemDomain
 from quiz.domains.exam_domain import ExamDomain
+from quiz.domains.quiz_attempt_domain import AttemptCreationResultDomain, QuizAttemptDomain, AttemptTakingDomain, QuestionTakingDomain
 
 
 
@@ -145,7 +146,7 @@ def get_preflight_info(quiz_id, user) -> QuizPreflightDomain:
 
 
 @transaction.atomic
-def start_or_resume_attempt( quiz_id, user):
+def start_or_resume_attempt(quiz_id, user, data: dict):
     """
     Logic:
     1. Tìm xem có attempt nào đang 'in_progress' không? -> Có thì Resume.
@@ -157,8 +158,7 @@ def start_or_resume_attempt( quiz_id, user):
     # 1. Check Resume
     ongoing_attempt = QuizAttempt.objects.filter(
         quiz=quiz, user=user, status='in_progress'
-    ).select_for_update().first()
-    # select_for_update: Khóa dòng này lại, tránh user click 2 lần gây lỗi
+    ).select_for_update().first() # select_for_update: Khóa dòng này lại, tránh user click 2 lần gây lỗi
 
     if ongoing_attempt:
         # Kiểm tra nếu quá hạn giờ làm bài (Real-time check)
@@ -166,7 +166,11 @@ def start_or_resume_attempt( quiz_id, user):
             ongoing_attempt.status = 'overdue'
             ongoing_attempt.save()
             raise ValidationError("Bài làm trước đó đã hết thời gian.")
-        return ongoing_attempt, "resumed"
+        return AttemptCreationResultDomain(
+                attempt=QuizAttemptDomain.from_model(ongoing_attempt),
+                action="resumed",
+                detail="Đã khôi phục bài làm dang dở."
+            )
 
     # 2. Nếu tạo mới -> Validate lại điều kiện (Deep Validate)
     # Tại sao check lại? Vì từ lúc load trang Info đến lúc bấm nút Start,
@@ -174,7 +178,7 @@ def start_or_resume_attempt( quiz_id, user):
     _validate_new_attempt_rules(quiz, user)
 
     # 3. Tạo mới (Random câu hỏi)
-    all_questions_ids = list(quiz.questions.values_list('id', flat=True))
+    all_questions_ids = [str(uid) for uid in quiz.questions.values_list('id', flat=True)]
     
     if quiz.shuffle_questions:
         random.shuffle(all_questions_ids)
@@ -187,34 +191,129 @@ def start_or_resume_attempt( quiz_id, user):
         user=user,
         quiz=quiz,
         questions_order=all_questions_ids, # Snapshot đề thi
-        status='in_progress'
+        status='in_progress',
+        current_question_index=0
     )
-    return new_attempt, "created"
+    
+    # Return Domain: CREATED
+    return AttemptCreationResultDomain(
+        attempt=QuizAttemptDomain.from_model(new_attempt),
+        action="created",
+        detail="Bắt đầu bài làm mới."
+    )
 
 
-# def save_answer(attempt_id, question_id, selected_options, user):
+def get_attempt_taking_context(attempt_id, user) -> AttemptTakingDomain:
+        """
+        Lấy ngữ cảnh làm bài thi (Resume/Start).
+        Logic Moodle: Load 'layout', load 'timelimit', load 'question_usage'.
+        """
+        # 1. Validate Ownership & Status
+        attempt = get_object_or_404(QuizAttempt, pk=attempt_id, user=user)
+        
+        if attempt.status != 'in_progress':
+            # Nếu đã nộp rồi mà cố vào lại -> Nên throw lỗi hoặc redirect sang trang kết quả
+            # Ở đây ta throw lỗi để View xử lý
+            raise PermissionDenied("Bài thi này đã kết thúc.")
+
+        # 2. Tính thời gian còn lại (Server Side Calculation)
+        # Tránh tin tưởng đồng hồ client
+        time_left = None
+        if attempt.quiz.time_limit:
+            elapsed = timezone.now() - attempt.time_start
+            limit_seconds = attempt.quiz.time_limit.total_seconds()
+            # Trừ thêm độ trễ mạng (latency buffer) khoảng 2-3s nếu cần
+            remaining = limit_seconds - elapsed.total_seconds()
+            time_left = max(0, int(remaining))
+
+        # 3. Lấy danh sách câu hỏi theo Snapshot Order
+        # Lưu ý: questions_order là List[str] (ID)
+        question_ids = attempt.questions_order 
+        
+        # Query 1 lần lấy hết câu hỏi (Unordered)
+        questions_qs = Question.objects.filter(id__in=question_ids)
+        questions_map = {str(q.id): q for q in questions_qs}
+
+        # Query 1 lần lấy hết câu trả lời đã lưu (Saved Answers)
+        user_answers_qs = UserAnswer.objects.filter(attempt=attempt)
+        answers_map = {str(ua.question_id): ua for ua in user_answers_qs}
+
+        # 4. MERGE & RE-ORDER (Tái tạo đề thi)
+        # Loop theo đúng thứ tự trong questions_order
+        taking_questions = []
+        
+        for q_id in question_ids:
+            question_obj = questions_map.get(q_id)
+            if not question_obj:
+                continue # Skip nếu câu hỏi bị xóa khỏi DB (Edge case)
+
+            # Tìm câu trả lời cũ (nếu có)
+            user_ans = answers_map.get(q_id)
+            
+            # Map sang Domain
+            taking_q_domain = QuestionTakingDomain(
+                id=question_obj.id,
+                type=question_obj.type,
+                prompt=question_obj.prompt,
+                
+                # Rehydrate State (Khôi phục trạng thái)
+                current_selection=user_ans.selected_options if user_ans else None,
+                is_answered=True if user_ans else False
+            )
+            taking_questions.append(taking_q_domain)
+
+        # 5. Return Context Aggregate
+        return AttemptTakingDomain(
+            attempt_id=attempt.id,
+            quiz_title=attempt.quiz.title,
+            time_remaining_seconds=time_left,
+            current_question_index=attempt.current_question_index,
+            total_questions=len(taking_questions),
+            questions=taking_questions
+        )
+
+
+# def save_answer(self, attempt_id, user, input_dto: SaveAnswerInput) -> SaveAnswerOutput:
 #     """
-#     Auto-save từng câu.
+#     Lưu câu trả lời và trạng thái Flag.
 #     """
+#     # 1. Validate Attempt
+#     # Dùng select_related/only để tối ưu query nếu cần
 #     attempt = get_object_or_404(QuizAttempt, pk=attempt_id, user=user)
     
 #     if attempt.status != 'in_progress':
-#         raise PermissionDenied("Không thể lưu câu trả lời cho bài thi đã kết thúc.")
+#         raise ValidationError("Bài thi đã kết thúc hoặc quá hạn.")
 
-#     # Upsert câu trả lời
+#     # 2. Chuẩn bị dữ liệu update
+#     # Chúng ta dùng update_or_create để xử lý cả case chưa có và đã có
+#     defaults = {}
+    
+#     # Chỉ update nếu client có gửi dữ liệu lên (tránh ghi đè None vào data đang có)
+#     if input_dto.selected_options is not None:
+#         defaults['selected_options'] = input_dto.selected_options
+        
+#     if input_dto.is_flagged is not None:
+#         defaults['is_flagged'] = input_dto.is_flagged
+
+#     # 3. Upsert UserAnswer
+#     # Logic: Tìm theo (attempt, question_id). Nếu thấy -> Update 'defaults'. Chưa -> Create.
 #     UserAnswer.objects.update_or_create(
 #         attempt=attempt,
-#         question_id=question_id,
-#         defaults={'selected_options': selected_options}
+#         question_id=input_dto.question_id,
+#         defaults=defaults
 #     )
-#     # Update vị trí làm bài hiện tại để resume chính xác
-#     # (Cần logic tìm index của question_id trong questions_order)
-#     try:
-#         idx = attempt.questions_order.index(str(question_id)) # JSON list thường lưu string UUID
-#         attempt.current_question_index = idx
+
+#     # 4. Update vị trí hiện tại (Current Index)
+#     # Chỉ save khi có sự thay đổi để giảm tải DB write
+#     if attempt.current_question_index != input_dto.current_index:
+#         attempt.current_question_index = input_dto.current_index
 #         attempt.save(update_fields=['current_question_index'])
-#     except ValueError:
-#         pass
+        
+#     # 5. Return Output DTO
+#     return SaveAnswerOutput(
+#         status="saved",
+#         saved_at=timezone.now()
+#     )
 
 
 # def submit_attempt( attempt_id, user):
