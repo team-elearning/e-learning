@@ -229,7 +229,8 @@ class AdminUserDetailView(RoleBasedOutputMixin, APIView):
             # Delegate the deletion logic to the application service
             self.user_service.delete_user(user_id=instance.id)
             
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response({"detail": "User deleted successfully."},
+                            status=status.HTTP_200_OK)
 
         except ValidationError as e: # Or a specific DomainError
             # e.g., "Cannot delete the last admin user"
