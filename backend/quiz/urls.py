@@ -3,7 +3,7 @@ from django.urls import path
 from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetailView, AdminExamDetailView, AdminExamListView
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
 from quiz.api.views.parse_view import QuizParseToolView
-from quiz.api.views.quiz_user_view import QuizInfoView
+from quiz.api.views.quiz_user_view import QuizInfoView, QuizAttemptStartView, AttemptDetailView
 
 
 
@@ -31,13 +31,13 @@ urlpatterns = [
     # Lấy thông tin bài thi + trạng thái (đã làm bao nhiêu lần, có được thi tiếp không)
     path('exam/<uuid:pk>/info/', QuizInfoView.as_view(), name='student-quiz-info'),
 
-    # # BẮT ĐẦU HOẶC LÀM TIẾP (Start/Resume)
-    # # POST: Tạo lượt làm bài mới hoặc trả về lượt đang dang dở
-    # path('student/quizzes/<uuid:pk>/attempt/', StudentQuizAttemptStartView.as_view(), name='student-quiz-attempt-start'),
+    # BẮT ĐẦU HOẶC LÀM TIẾP (Start/Resume)
+    # POST: Tạo lượt làm bài mới hoặc trả về lượt đang dang dở
+    path('exam/<uuid:pk>/attempt/', QuizAttemptStartView.as_view(), name='quiz-attempt-start'),
 
-    # # STUDENT - LÀM BÀI (TEST TAKING)
-    # # GET: Lấy chi tiết đề thi (câu hỏi, thời gian còn lại, các câu trả lời đã lưu)
-    # path('student/attempts/<uuid:pk>/', StudentAttemptDetailView.as_view(), name='student-attempt-detail'),
+    # STUDENT - LÀM BÀI (TEST TAKING)
+    # GET: Lấy chi tiết đề thi (câu hỏi, thời gian còn lại, các câu trả lời đã lưu)
+    path('attempts/<uuid:pk>/', AttemptDetailView.as_view(), name='student-attempt-detail'),
 
     # # POST: Lưu câu trả lời (Auto-save) & Đánh dấu (Flag)
     # path('student/attempts/<uuid:pk>/save-answer/', StudentAttemptSaveAnswerView.as_view(), name='student-attempt-save-answer'),

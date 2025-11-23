@@ -43,6 +43,7 @@ class FileOutputDTO(BaseModel):
     uploaded_at: datetime
     status: str # 'staging' hoặc 'committed'
     component: Optional[str] = None
+    owner_id: uuid.UUID 
     
     # 'url' sẽ được đọc từ @property 'url' trên Model 'UploadedFile'
     url: str

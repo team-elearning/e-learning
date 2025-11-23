@@ -56,7 +56,7 @@ class UserProfileView(RoleBasedOutputMixin, APIView):
         # Call the service with the DTO's data
         updated_profile_domain = profile_service.update_profile(
             user_id=request.user.id, 
-            data=profile_input_dto.to_dict()
+            updates=profile_input_dto.to_dict()
         )
 
         # Return the updated domain object for the mixin to serialize

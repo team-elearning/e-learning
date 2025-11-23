@@ -17,8 +17,9 @@ from django.shortcuts import get_object_or_404
 from django.utils.encoding import escape_uri_path # Cần cái này để xử lý tiếng Việt
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError
+from django.conf import settings
 
-from core.exceptions import DomainError, UserNotFoundError, FileNotFoundError
+from core.exceptions import DomainError, UserNotFoundError, FileNotFoundError, AccessDeniedError
 from custom_account.models import UserModel
 from content.models import Course, Lesson, Enrollment
 from media.models import UploadedFile, FileStatus, Component
@@ -48,6 +49,16 @@ def create_file_upload(user: UserModel, data: dict) -> FileDomain:
     if not all([file_data, content_type_str, component is not None]):
         raise DomainError("Dữ liệu input (file, content_type, component) bị thiếu.")
     
+    # Lấy kích thước file (byte)
+    file_size = getattr(file_data, 'size', 0)
+
+    if file_size > settings.MAX_FILE_SIZE_BYTES:
+        # Đổi ra MB để báo lỗi cho thân thiện
+        size_in_mb = round(file_size / (1024 * 1024), 2)
+        raise DomainError(
+            f"File quá lớn ({size_in_mb}MB). Giới hạn tối đa là {settings.MAX_FILE_SIZE_MB}MB."
+        )
+
     if content_type_str and object_id is not None:
         try:
             app_label, model_name = content_type_str.split('.')
@@ -404,8 +415,7 @@ def _check_quiz_access(user, related_object):
         return True
     
     # Check Attempt
-    # return QuizAttempt.objects.filter(user=user, quiz=quiz).exists()
-    return False
+    return QuizAttempt.objects.filter(user=user, quiz=quiz).exists()
 
 
 def _get_course_from_object(obj):
@@ -458,37 +468,47 @@ def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
     # NẾU KHÔNG PHẢI PUBLIC, BẮT ĐẦU CHECK NGHIỆP VỤ SÂU HƠN
     # =========================================================
 
-    # Lấy đối tượng cha (Course, Lesson, Quiz...)
-    related_object = file_object.content_object 
+    # # Lấy đối tượng cha (Course, Lesson, Quiz...)
+    related_object = file_object.content_object
     if not related_object:
         return False # File mồ côi (chưa gắn vào đâu) -> Chặn
 
-    # Nếu là Owner (người tạo ra object cha) -> Luôn có quyền
-    if hasattr(related_object, 'owner_id') and str(related_object.owner_id) == str(user.id):
+    owner_id = getattr(related_object, 'owner_id', None)
+    course = None
+
+    # Case 1: Đối tượng nằm trong Quiz (Câu hỏi, Ảnh đề bài)
+    # (Ưu tiên check Quiz trước vì Question thường không nối trực tiếp Course)
+    if hasattr(related_object, 'quiz'): 
+        quiz = related_object.quiz
+        owner_id = getattr(quiz, 'owner_id', owner_id)
+
+    # Case 2: Đối tượng nằm trong Course (Bài học, Tài liệu)
+    elif hasattr(related_object, 'course'):
+        course = related_object.course
+        owner_id = getattr(course, 'owner_id', owner_id)
+
+    # Case 3: Fallback (Dùng helper nếu logic phức tạp hơn)
+    if not course:
+        # Hàm này bạn đã có, tái sử dụng nó
+        course = _get_course_from_object(related_object) 
+        if course and not owner_id:
+             owner_id = getattr(course, 'owner_id', None)
+
+    if owner_id and str(owner_id) == str(user.id):
         return True
     
-    # --- LOGIC CHO QUIZ/EXAM ---
-    if file_object.component == UploadedFile.Component.QUIZ_ATTACHMENT:
-        # Code cũ của bạn xử lý đoạn này khá ổn, chỉ cần bê vào đây
-        # Logic: Phải đang làm bài (Attempt) mới xem được ảnh câu hỏi
+    if file_object.component == Component.QUIZ_ATTACHMENT:
         return _check_quiz_access(user, related_object)
-    
-    # --- LOGIC CHO BÀI HỌC (LESSON MATERIAL) ---
-    if file_object.component == UploadedFile.Component.LESSON_MATERIAL:
-        # Truy ngược lên Course để check Enrollment
-        course = _get_course_from_object(related_object)
-        if not course:
-            return False
-            
-        # 1. Course Public?
+
+    if course:
+        # Nếu Course Public -> Cho xem
         if getattr(course, 'is_public', False):
             return True
             
-        # 2. User đã Enroll? (Giả sử bạn có hàm check này)
+        # Nếu User đã Enroll -> Cho xem
         if user_is_enrolled(user, course):
             return True
-
-    # Mặc định chặn nếu không khớp case nào
+        
     return False
     
 
@@ -540,7 +560,7 @@ def serve_file(request, file_id, user):
     # 2. Check quyền (Logic nghiệp vụ)
     # Giả sử bạn có service check quyền riêng
     if not user_has_access_to_file(user=user, file_object=file_obj):
-        raise PermissionError("Bạn không có quyền truy cập tài nguyên này.")
+        raise AccessDeniedError("Bạn không có quyền truy cập tài nguyên này.")
 
     # 3. BẮT LỖI FILE VẬT LÝ (IO Error)
     if not file_obj.file:

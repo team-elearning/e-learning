@@ -5,7 +5,7 @@
       <el-input
         v-model="query.q"
         clearable
-        placeholder="Tìm tên / mã / giáo viên"
+        placeholder="Tìm tên"
         @clear="applyFilters"
         @keyup.enter="applyFilters"
         class="md:col-span-2 xl:col-span-2 w-full"
@@ -31,7 +31,7 @@
         <el-option v-for="t in teachers" :key="t.id" :label="t.name" :value="t.id" />
       </el-select>
 
-      <el-select
+      <!-- <el-select
         v-model="query.status"
         clearable
         placeholder="Trạng thái"
@@ -39,11 +39,10 @@
         class="xl:col-span-1"
       >
         <el-option label="Bản nháp" value="draft" />
-        <!-- <el-option label="Chờ duyệt" value="pending_review" /> -->
         <el-option label="Đã xuất bản" value="published" />
         <el-option label="Từ chối" value="rejected" />
         <el-option label="Lưu trữ" value="archived" />
-      </el-select>
+      </el-select> -->
 
       <div class="md:col-span-2 xl:col-span-2 min-w-0">
         <el-date-picker
@@ -109,13 +108,13 @@
         <el-table-column prop="lessonsCount" label="Bài" width="80" align="center" />
         <el-table-column prop="enrollments" label="HV" width="90" align="center" />
 
-        <el-table-column prop="status" label="Trạng thái" width="140" align="center">
+        <!-- <el-table-column prop="status" label="Trạng thái" width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" size="small">
               {{ statusLabel(row.status) }}
             </el-tag>
           </template>
-        </el-table-column>
+        </el-table-column> -->
 
         <el-table-column prop="updatedAt" label="Cập nhật" min-width="160">
           <template #default="{ row }">{{ fmtDate(row.updatedAt) }}</template>
@@ -140,7 +139,7 @@
                 Xoá
               </el-button>
 
-              <el-button
+              <!-- <el-button
                 v-if="row.status !== 'archived'"
                 size="small"
                 type="warning"
@@ -148,10 +147,10 @@
                 @click="archive(row)"
               >
                 Lưu trữ
-              </el-button>
-              <el-button v-else size="small" type="info" plain @click="restore(row)">
+              </el-button> -->
+              <!-- <el-button v-else size="small" type="info" plain @click="restore(row)">
                 Khôi phục
-              </el-button>
+              </el-button> -->
             </div>
           </template>
         </el-table-column>

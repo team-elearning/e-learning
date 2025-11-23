@@ -46,6 +46,9 @@ class Quiz(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    is_flagged = models.BooleanField(default=False)
+
     files = GenericRelation('media.UploadedFile')
 
     def __str__(self):
