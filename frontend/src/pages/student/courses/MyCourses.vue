@@ -180,9 +180,6 @@
                 <h3>Khóa học bổ trợ</h3>
                 <span class="sub">{{ suppList.length }} khóa</span>
               </div>
-              <router-link class="ghost sm" :to="{ name: 'student-catalog' }"
-                >Tìm thêm ›</router-link
-              >
             </div>
 
             <div class="grid">
@@ -190,7 +187,7 @@
                 v-for="s in suppList"
                 :key="`supp-${activeTab}-${s.id}`"
                 class="card"
-                @click="openSuppInfo(s)"
+                @click="openDetail(s.id)"
               >
                 <div :class="['thumb', { loaded: isThumbLoaded(s.id) }]">
                   <img
@@ -382,53 +379,6 @@
       </aside>
     </div>
 
-    <transition name="preview">
-      <div v-if="previewOpen && previewCourse" class="preview-panel">
-        <button class="close-btn" type="button" @click="closePreview">×</button>
-        <div
-          :class="[
-            'preview-thumb',
-            { loaded: previewCourse ? isThumbLoaded(previewCourse.id) : false },
-          ]"
-        >
-          <img
-            :src="previewCourse ? thumbSource(previewCourse.id, previewCourse.thumbnail) : ''"
-            :alt="previewCourse?.title || 'Khoá học'"
-            loading="lazy"
-            @load="previewCourse && markThumbLoaded(previewCourse.id)"
-            @error="(e) => previewCourse && handleThumbError(e, previewCourse.id)"
-          />
-        </div>
-        <div class="preview-body">
-          <p class="preview-tag">{{ toLevelLabel(Number(previewCourse?.grade || 1)) }}</p>
-          <h3>{{ previewCourse?.title }}</h3>
-          <p class="preview-meta">
-            {{ formatSubjectLabel(previewCourse) }} · GV {{ previewCourse?.teacherName }} ·
-            {{ previewCourse?.lessonsCount }} bài học
-          </p>
-          <p class="preview-price">{{ formatPrice(previewCourse?.price) }}</p>
-          <p class="preview-note">
-            Khóa học này giúp bạn củng cố kiến thức nền tảng theo đúng lộ trình. Hãy xem nhanh thông
-            tin và đăng ký để kích hoạt ngay.
-          </p>
-          <div class="preview-actions">
-            <button
-              class="primary"
-              :disabled="!!previewCourse && enrollingId === previewCourse.id"
-              @click="previewCourse && handleSuppEnroll(previewCourse)"
-            >
-              {{
-                Number(previewCourse?.price ?? 0) > 0
-                  ? 'Đi tới đăng ký'
-                  : 'Đăng ký ngay'
-              }}
-            </button>
-            <button class="ghost" type="button" @click="closePreview">Đóng</button>
-          </div>
-        </div>
-      </div>
-    </transition>
-    <div v-if="previewOpen" class="preview-backdrop" @click="closePreview"></div>
   </div>
 </template>
 
@@ -487,8 +437,6 @@ const trophyTarget = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyAnimated = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyFrameMap = new Map<string, number>()
 const suppCourses = ref<CourseSummary[]>([])
-const previewCourse = ref<CourseSummary | null>(null)
-const previewOpen = ref(false)
 
 function markThumbLoaded(id: ID) {
   thumbLoaded.value = { ...thumbLoaded.value, [String(id)]: true }
@@ -710,20 +658,6 @@ watch(
   { deep: true },
 )
 
-watch(
-  suppCourses,
-  () => {
-    if (
-      previewCourse.value &&
-      !suppCourses.value.some((c) => String(c.id) === String(previewCourse.value?.id ?? ''))
-    ) {
-      previewOpen.value = false
-      previewCourse.value = null
-    }
-  },
-  { deep: true },
-)
-
 /* ====== FILTERING ====== */
 const filteredMain = computed(() => {
   let arr = all.value.slice()
@@ -922,26 +856,13 @@ async function handleSuppEnroll(course: CourseSummary | Item) {
   if (!course) return
   const requiresPayment = Number(course.price ?? 0) > 0
   if (requiresPayment) {
-    previewOpen.value = false
     openDetail(course.id)
     return
   }
   const success = await enroll(course.id)
   if (success) {
-    previewOpen.value = false
     await playFirst(course.id)
   }
-}
-
-function openSuppInfo(course: CourseSummary | Item) {
-  if (!course) return
-  previewCourse.value = course
-  previewOpen.value = true
-  ensureThumb(course.id, course.thumbnail)
-}
-
-function closePreview() {
-  previewOpen.value = false
 }
 
 onMounted(load)
@@ -1639,102 +1560,6 @@ h1 {
   border-radius: 999px;
   width: var(--progress-target, 0%);
   animation: barFill 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.preview-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(2px);
-  z-index: 80;
-}
-.preview-panel {
-  position: fixed;
-  right: clamp(12px, 5vw, 60px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: min(420px, 92vw);
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15);
-  padding: 22px;
-  z-index: 90;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.preview-thumb {
-  width: 100%;
-  height: 180px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #e2e8f0;
-  position: relative;
-}
-.preview-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-.preview-thumb.loaded img {
-  opacity: 1;
-}
-.close-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  color: #475569;
-  z-index: 2;
-}
-.preview-body h3 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.preview-tag {
-  font-size: 12px;
-  font-weight: 700;
-  color: #6366f1;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.preview-meta {
-  color: #475569;
-  font-size: 13px;
-}
-.preview-price {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0ea5e9;
-}
-.preview-note {
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.5;
-}
-.preview-actions {
-  display: flex;
-  gap: 10px;
-}
-.preview-enter-active,
-.preview-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.preview-enter-from,
-.preview-leave-to {
-  opacity: 0;
-  transform: translateY(-50%) scale(0.97);
 }
 
 @keyframes ringFill {
