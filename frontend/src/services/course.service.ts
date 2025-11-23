@@ -481,8 +481,8 @@ export const courseService = {
       const { data } = await api.get(endpoint)
       return normalizeCourseDetail(data)
     } catch (error) {
-      console.error('courseService.detail fallback to mock data:', error)
-      return buildMockDetail(id)
+      console.error('courseService.detail error:', error)
+      throw error
     }
   },
 
