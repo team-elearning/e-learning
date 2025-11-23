@@ -28,4 +28,17 @@ useIdleLogout(15) // 15 phút không hoạt động -> cảnh báo -> logout
 .fade-leave-to {
   opacity: 0;
 }
+/* Ẩn icon mắt mặc định của Edge/Chrome */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+  height: 0;
+  width: 0;
+}
 </style>

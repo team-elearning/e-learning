@@ -13,9 +13,15 @@
         <a href="#reviews" class="hover:text-yellow-500">Cảm nhận</a>
         <a href="#contact" class="hover:text-purple-500">Liên hệ</a>
       </nav>
-      <button class="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition">
+      <!-- <button class="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition">
         <router-link to="/auth/login">Đăng nhập</router-link>
-      </button>
+      </button> -->
+      <router-link
+        to="/auth/login"
+        class="bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition inline-block"
+      >
+        Đăng nhập
+      </router-link>
     </header>
 
     <!-- Hero Section -->
@@ -27,11 +33,17 @@
         Cùng EDURIOT, bé sẽ được khám phá thế giới kiến thức qua trò chơi, video hoạt hình và bài
         tập tương tác đầy thú vị.
       </p>
-      <button
+      <!-- <button
         class="bg-gradient-to-r from-pink-400 to-yellow-400 text-white px-8 py-3 rounded-full font-semibold shadow hover:scale-105 transition"
       >
         <router-link to="/auth/login"> Bắt đầu học thử ngay </router-link>
-      </button>
+      </button> -->
+      <router-link
+        to="/auth/login"
+        class="bg-gradient-to-r from-pink-400 to-yellow-400 text-white px-8 py-3 rounded-full font-semibold shadow hover:scale-105 transition"
+      >
+        Bắt đầu học thử ngay
+      </router-link>
     </section>
 
     <!-- About Section -->
@@ -62,11 +74,12 @@
         >
           <h4 class="text-xl font-bold mb-2">{{ course.title }}</h4>
           <p class="text-gray-700 mb-4">{{ course.description }}</p>
-          <button
-            class="bg-white text-blue-600 px-4 py-2 rounded-lg shadow hover:bg-blue-100 transition"
+          <router-link
+            to="/auth/login"
+            class="bg-white text-blue-600 px-4 py-2 rounded-lg shadow hover:bg-blue-100 transition inline-block"
           >
-            <router-link to="/auth/login">khám phá</router-link>
-          </button>
+            khám phá
+          </router-link>
         </div>
       </div>
     </section>
@@ -209,29 +222,29 @@
           <h4 class="font-bold text-lg mb-4">Kết nối với chúng tôi</h4>
           <div class="flex space-x-4 mb-4">
             <!-- <a
-              href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
-              class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center"
-            >
-              <i data-feather="facebook" class="w-5 h-5"></i>
-            </a>
-            <a
-              href="https://www.instagram.com/tustar.k72/"
-              class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center"
-            >
-              <i data-feather="instagram" class="w-5 h-5"></i>
-            </a>
-            <a
-              href="#"
-              class="bg-gray-700 hover:bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center"
-            >
-              <i data-feather="twitter" class="w-5 h-5"></i>
-            </a>
-            <a
-              href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
-              class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center"
-            >
-              <i data-feather="youtube" class="w-5 h-5"></i>
-            </a>   -->
+                href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
+                class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                <i data-feather="facebook" class="w-5 h-5"></i>
+              </a>
+              <a
+                href="https://www.instagram.com/tustar.k72/"
+                class="bg-gray-700 hover:bg-pink-600 w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                <i data-feather="instagram" class="w-5 h-5"></i>
+              </a>
+              <a
+                href="#"
+                class="bg-gray-700 hover:bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                <i data-feather="twitter" class="w-5 h-5"></i>
+              </a>
+              <a
+                href="https://www.youtube.com/@T%C3%BANguy%E1%BB%85nanh-tuna2004/featured"
+                class="bg-gray-700 hover:bg-red-500 w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                <i data-feather="youtube" class="w-5 h-5"></i>
+              </a>   -->
             <a
               href="https://www.facebook.com/tu.chu.46680?locale=vi_VN"
               class="bg-gray-700 hover:bg-blue-600 w-10 h-10 rounded-full flex items-center justify-center transition-colors"

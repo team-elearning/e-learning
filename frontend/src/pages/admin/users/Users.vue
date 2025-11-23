@@ -68,7 +68,7 @@
       <!-- Action buttons: full width ở mobile, 2 cột ở md, 1 cột ở xl -->
       <div class="md:col-span-2 xl:col-span-1 flex items-center gap-2 md:justify-end">
         <el-button @click="resetFilters">Xoá lọc</el-button>
-        <el-button type="primary" plain @click="applyFilters">Lọc</el-button>
+        <!-- <el-button type="primary" plain @click="applyFilters">Lọc</el-button> -->
       </div>
     </div>
 
