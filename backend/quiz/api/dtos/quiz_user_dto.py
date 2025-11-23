@@ -1,7 +1,7 @@
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_validator, computed_field
+from pydantic import BaseModel, ConfigDict, field_validator, computed_field, Field
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from quiz.api.dtos.exam_dto import ExamPublicOutput
 
@@ -27,14 +27,33 @@ class AccessDecisionOutput(BaseDTO):
     button_label: str
     ongoing_attempt_id: Optional[UUID] = None
 
+
 # ==========================================
-# 2. Quiz Preflight Output (Màn hình chờ)
+# 2. Attempt History DTO (Lịch sử thi)
+# ==========================================
+
+class AttemptHistoryItemOutput(BaseModel):
+    """DTO cho 1 dòng lịch sử"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    order: int
+    status: str
+    status_display: str = Field(validation_alias='status_label') # Map property 'status_label' từ domain
+    score: Optional[float]
+    time_submitted: Optional[datetime]
+
+
+# ==========================================
+# 3. Quiz Preflight Output (Màn hình chờ)
 # ==========================================
 class QuizPreflightOutput(BaseDTO):
     model_config = ConfigDict(from_attributes=True)
 
+    attempts_used: int
+    score_best: float
+    history: List[AttemptHistoryItemOutput]
+    access_decision: AccessDecisionOutput
     exam: ExamPublicOutput
     
-    # Nested DTO
-    access_decision: AccessDecisionOutput
-    attempts_used: int
+    

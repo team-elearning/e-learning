@@ -38,34 +38,38 @@ class QuizInfoView(RoleBasedOutputMixin, APIView):
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
-# class StudentQuizAttemptStartView(APIView):
-#     permission_classes = [IsAuthenticated]
+class StudentQuizAttemptStartView(RoleBasedOutputMixin, APIView):
+    permission_classes = [IsAuthenticated]
 
-#     def post(self, request, pk):
-#         """
-#         ENDPOINT: /student/quizzes/<id>/attempt/
-#         Nhiệm vụ:
-#         - Tạo QuizAttempt mới (nếu đủ điều kiện).
-#         - HOẶC trả về QuizAttempt cũ (nếu Resume).
-#         """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quiz_service = quiz_user_service
+
+    def post(self, request, pk):
+        """
+        ENDPOINT: /student/quizzes/<id>/attempt/
+        Nhiệm vụ:
+        - Tạo QuizAttempt mới (nếu đủ điều kiện).
+        - HOẶC trả về QuizAttempt cũ (nếu Resume).
+        """
         
-#         try:
-#             # Service này đã bao gồm logic:
-#             # 1. Tìm 'in_progress' -> Nếu thấy -> return (attempt, 'resumed')
-#             # 2. Nếu không -> Check time/max_attempts -> Create -> return (attempt, 'created')
-#             attempt, action = start_or_resume_attempt(pk, request.user)
+        try:
+            # Service này đã bao gồm logic:
+            # 1. Tìm 'in_progress' -> Nếu thấy -> return (attempt, 'resumed')
+            # 2. Nếu không -> Check time/max_attempts -> Create -> return (attempt, 'created')
+            attempt, action = quiz_user_service.start_or_resume_attempt(pk, request.user)
             
-#             return Response({
-#                 "attempt_id": attempt.id,
-#                 "action": action, 
-#                 "detail": "Đã khôi phục bài làm" if action == 'resumed' else "Bắt đầu bài làm mới"
-#             }, status=status.HTTP_200_OK)
+            return Response({
+                "attempt_id": attempt.id,
+                "action": action, 
+                "detail": "Đã khôi phục bài làm" if action == 'resumed' else "Bắt đầu bài làm mới"
+            }, status=status.HTTP_200_OK)
             
-#         except ValidationError as e:
-#             # Lỗi logic nghiệp vụ (Hết giờ, hết lượt...)
-#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
-#         except Exception as e:
-#             return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except ValidationError as e:
+            # Lỗi logic nghiệp vụ (Hết giờ, hết lượt...)
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # class StudentAttemptDetailView(APIView):
