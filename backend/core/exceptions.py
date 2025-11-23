@@ -45,6 +45,15 @@ class LessonVersionNotFoundError(ResourceNotFound):
 class StateNotFoundError(ResourceNotFound):
     pass
 
+class FileNotFoundError(ResourceNotFound):
+    pass
+
+class QuizNotFoundError(ResourceNotFound):
+    pass
+
+class ExamNotFoundError(ResourceNotFound):
+    pass
+
 
 # =============================================================================
 # 2. NHÓM LỖI LOGIC & VALIDATION (BUSINESS LOGIC ERRORS)

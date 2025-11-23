@@ -238,7 +238,7 @@ class CourseDomain:
             "grade": model.grade,
             "published": model.published,
             "published_at": model.published_at,
-            "owner_id": model.owner_id,
+            "owner_id": model.owner__id,
             "subject_id": str(model.subject_id) if model.subject_id else None,
             "image_url": image_url,
             "module_count": count,

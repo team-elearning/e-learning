@@ -250,8 +250,10 @@
                             v-else-if="b.payload?._image_blob_url"
                             :src="b.payload._image_blob_url"
                             :alt="b.payload?.caption || 'Hình ảnh bài học'"
-                            class="h-full w-full object-contain"
+                            class="h-full w-full cursor-zoom-in object-contain transition hover:opacity-90"
+                            @click="openImageViewer(b.payload._image_blob_url)"
                           />
+
                           <div
                             v-else
                             class="flex h-32 w-full items-center justify-center text-slate-400"
@@ -797,6 +799,27 @@
         </div>
       </transition>
       <!-- ========= END QUIZ MODAL ========= -->
+      <!-- ========= IMAGE VIEWER MODAL ========= -->
+      <div
+        v-if="imageViewerOpen && imageViewerUrl"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        @click.self="closeImageViewer"
+      >
+        <div class="relative max-h-[90vh] max-w-[90vw]">
+          <img
+            :src="imageViewerUrl"
+            class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+          />
+          <button
+            type="button"
+            class="absolute -right-3 -top-3 rounded-full bg-white p-1.5 text-slate-700 shadow hover:bg-slate-100"
+            @click="closeImageViewer"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+      <!-- ========= END IMAGE VIEWER MODAL ========= -->
     </main>
   </div>
 </template>
@@ -808,6 +831,19 @@ import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
+/* IMAGE VIEWER */
+const imageViewerOpen = ref(false)
+const imageViewerUrl = ref<string | null>(null)
+
+function openImageViewer(url: string) {
+  imageViewerUrl.value = url
+  imageViewerOpen.value = true
+}
+
+function closeImageViewer() {
+  imageViewerOpen.value = false
+  imageViewerUrl.value = null
+}
 
 /* ========== AUTH HEADER ========== */
 const getAuthHeaders = () => {

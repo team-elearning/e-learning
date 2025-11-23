@@ -24,6 +24,8 @@ class UserInput(BaseModel):
         return self.model_dump(exclude_none=exclude_none)
 
 class UserPublicOutput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     username: str
     email: str
     created_on: datetime

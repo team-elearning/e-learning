@@ -125,7 +125,7 @@ class CourseAdminOutput(BaseModel):
     published_at: Optional[datetime] = None # Thêm trường này từ domain
     
     # Thông tin chi tiết về chủ sở hữu
-    owner_id: uuid.UUID
+    owner_id: uuid.UUID | None = None
     
     # --- Các quan hệ (Sử dụng DTO đầy đủ) ---
     subject: Optional[SubjectAdminOutput] = None
