@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from quiz.models import Quiz, Question
+
+from quiz.models import Quiz, Question, UserAnswer
 
 
 
@@ -157,3 +158,35 @@ class PracticeInputSerializer(serializers.Serializer):
             # })
 
         return data
+    
+
+class QuestionTakingSerializer(serializers.ModelSerializer):
+    """
+    Dùng cho màn hình LÀM BÀI.
+    Tuyệt đối KHÔNG include 'answer_payload', 'hint', 'explanation'.
+    """
+    class Meta:
+        model = Question
+        fields = ['id', 'type', 'prompt'] # Chỉ trả về nội dung câu hỏi
+
+
+class UserAnswerDetailSerializer(serializers.ModelSerializer):
+    # Dùng cho màn hình KẾT QUẢ
+    question_prompt = serializers.ReadOnlyField(source='question.prompt')
+    question_explanation = serializers.SerializerMethodField()
+    correct_answer = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserAnswer
+        fields = ['question_id', 'question_prompt', 'selected_options', 'is_correct', 'score_obtained', 'question_explanation', 'correct_answer']
+
+    def get_question_explanation(self, obj):
+        # Chỉ hiện giải thích nếu mode là Practice hoặc settings cho phép
+        if obj.attempt.quiz.mode == 'practice' or obj.attempt.quiz.show_correct_answer:
+            return obj.question.hint
+        return None
+
+    def get_correct_answer(self, obj):
+        if obj.attempt.quiz.mode == 'practice' or obj.attempt.quiz.show_correct_answer:
+            return obj.question.answer_payload
+        return None
