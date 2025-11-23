@@ -236,7 +236,7 @@ class AdminUserDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Unexpected error in AdminUserDetailView delete: {e}", exc_info=True)
-            return Response({"detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"An unexpected error occurred. - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 class AdminChangePasswordView(APIView):
