@@ -95,7 +95,7 @@ class PublicDownloadFileView(APIView):
     """
     View này "gác cổng" tất cả các file đã commit.
     """
-    permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
+    # permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
 
     # 2. QUAN TRỌNG: Khai báo renderer này để DRF không bọc HTML/JSON vào file
     renderer_classes = [BinaryFileRenderer, JSONRenderer]

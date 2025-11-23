@@ -21,7 +21,7 @@ from django.db import DatabaseError
 from core.exceptions import DomainError, UserNotFoundError, FileNotFoundError
 from custom_account.models import UserModel
 from content.models import Course, Lesson, Enrollment
-from media.models import UploadedFile, FileStatus
+from media.models import UploadedFile, FileStatus, Component
 from media.domains.file_domain import FileDomain
 from quiz.models import QuizAttempt
 
@@ -77,6 +77,10 @@ def create_file_upload(user: UserModel, data: dict) -> FileDomain:
     if not mime_type:
         mime_type = 'application/octet-stream'
 
+    # --- [MỚI] LOGIC LẤY FILE SIZE ---
+    # file_data.size trả về kích thước bằng byte (int)
+    file_size = getattr(file_data, 'size', 0)
+
     saved_file_model = UploadedFile.objects.create(
         file=file_data,
         original_filename=file_data.name,
@@ -86,7 +90,8 @@ def create_file_upload(user: UserModel, data: dict) -> FileDomain:
         component=component,
         status=FileStatus.STAGING,
 
-        mime_type=mime_type
+        mime_type=mime_type,
+        file_size=file_size
     )
     
     return FileDomain.from_model(saved_file_model)
@@ -390,6 +395,150 @@ def delete_file(file_id: uuid.UUID) -> None:
     return None
 
 
+# def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
+#     """
+#     Kiểm tra xem user có quyền truy cập file này không (phiên bản đầy đủ).
+#     Bao gồm: Admin, Owner (Giảng viên), Enrolled User (Học viên),
+#     và các khóa học Public.
+#     """
+    
+#     # 0. Admin/Staff luôn có quyền
+#     # (Bỏ qua nếu bạn không muốn staff có toàn quyền)
+#     if user.is_superuser or user.is_staff:
+#         return True
+        
+#     try:
+#         # Lấy ContentType (thông tin về loại model)
+#         ct = file_object.content_type
+#         if not ct:
+#             return False
+
+#         # 1. Lấy đối tượng mà file này được đính kèm (Course, Lesson, v.v.)
+#         related_object = file_object.content_object 
+#         if related_object is None:
+#             # File 'staging' hoặc bị lỗi (chưa commit), không ai được xem
+#             return False
+
+#         app_label = ct.app_label  # VD: 'quiz', 'course'
+#         model_name = ct.model     # VD: 'question', 'quiz', 'lesson'
+
+#         # --- DEBUG LOG (Rất quan trọng để biết tại sao sai) ---
+#         # print(f"DEBUG: Checking File {file_object.id}")
+#         # print(f"DEBUG: App: {app_label} | Model: {model_name}")
+#         # print(f"DEBUG: User: {user.id} | Obj ID: {related_object.id}")
+#         # ------------------------------------------------------
+
+#         # === LOGIC TỔNG QUÁT (Dùng cho mọi Model có field 'owner') ===
+#         # Thay vì if app_label == '...', ta check thuộc tính owner trước
+#         # Cách này giúp code chạy đúng dù app tên là 'content', 'course' hay 'education'
+
+#         owner_id = None
+#         if hasattr(related_object, 'owner_id'):
+#             owner_id = related_object.owner_id
+
+#         if owner_id:
+#             if str(owner_id) == str(user.id):
+#                 return True
+
+#         if app_label == 'quiz':
+#             quiz_to_check = None
+
+#             if model_name == 'question':
+#                 # Nếu file thuộc Question -> Truy ngược lên Quiz
+#                 quiz_to_check = related_object.quiz 
+                
+#             elif model_name == 'quiz':
+#                 # Nếu file thuộc chính Quiz (VD: ảnh bìa)
+#                 quiz_to_check = related_object
+
+#             # ---> CHECK QUYỀN TRÊN QUIZ
+#             if quiz_to_check:
+#                 # A. Chủ sở hữu (Owner)
+#                 # So sánh ID trực tiếp (nhanh hơn so sánh object)
+#                 if quiz_to_check.owner_id == user.id:
+#                     return True
+                
+#                 # B. Chế độ Practice (Thường mở rộng rãi)
+#                 if quiz_to_check.mode == 'practice':
+#                     return True
+                
+#                 # Logic: Nếu user có bất kỳ lượt làm bài nào (đang làm hoặc đã nộp)
+#                 # đối với Quiz này thì được phép xem ảnh đề bài.
+#                 if QuizAttempt.objects.filter(user=user, quiz=quiz_to_check).exists():
+#                     return True
+                
+#         elif app_label == 'course': # Hoặc tên app của bạn là 'courses'
+#             course_to_check = None
+            
+#             if model_name == 'course':
+#                 course_to_check = related_object
+#             elif model_name == 'lesson':
+#                 course_to_check = related_object.module.course
+#             elif model_name == 'contentblock': # Nếu có
+#                 course_to_check = related_object.lesson.module.course
+
+#             # ---> CHECK QUYỀN TRÊN COURSE
+#             if course_to_check:
+#                 # A. Chủ sở hữu
+#                 if course_to_check.owner_id == user.id: 
+#                     return True
+                
+#                 # B. Khóa học Public
+#                 if getattr(course_to_check, 'published', False): 
+#                     return True
+                
+#                 # C. Học viên đã ghi danh (Enrolled)
+#                 # Import cục bộ model Enrollment
+#                 # from apps.course.models import Enrollment
+#                 # if Enrollment.objects.filter(course=course_to_check, user=user, is_active=True).exists():
+#                 #     return True
+
+#         # Nếu không khớp bất kỳ logic nào ở trên
+#         return False
+   
+#     except Exception as e:
+#         # Ghi log lỗi nếu cần
+#         # logger.error(f"Lỗi nghiêm trọng khi kiểm tra quyền file {file_object.id} cho user {user.id}: {e}")
+#         return False
+
+
+def _check_quiz_access(user, related_object):
+    # ... (Logic quiz như cũ của bạn) ...
+    # Tìm Quiz cha
+    quiz = related_object.quiz if hasattr(related_object, 'quiz') else related_object
+    
+    if quiz.mode == 'practice':
+        return True
+    
+    # Check Attempt
+    # return QuizAttempt.objects.filter(user=user, quiz=quiz).exists()
+    return False
+
+
+def _get_course_from_object(obj):
+    """Hàm đệ quy hoặc if/else để tìm Course từ Lesson/Block"""
+    if obj._meta.model_name == 'course':
+        return obj
+    if hasattr(obj, 'course'): # Quan hệ trực tiếp
+        return obj.course
+    if hasattr(obj, 'module') and hasattr(obj.module, 'course'): # Lesson -> Module -> Course
+        return obj.module.course
+    return None
+
+
+def user_is_enrolled(user, course: Course) -> bool:
+    """
+    Kiểm tra xem user có đang ghi danh vào khóa học này không.
+    """
+    # 2. Check trong bảng Enrollment
+    # Dùng .exists() là tối ưu nhất vì nó không load dữ liệu lên RAM, 
+    # chỉ trả về True/False ở cấp DB.
+    return Enrollment.objects.filter(
+        user=user, 
+        course=course
+    ).exists()
+
+
 def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
     """
     Kiểm tra xem user có quyền truy cập file này không (phiên bản đầy đủ).
@@ -401,100 +550,53 @@ def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
     # (Bỏ qua nếu bạn không muốn staff có toàn quyền)
     if user.is_superuser or user.is_staff:
         return True
-        
-    try:
-        # Lấy ContentType (thông tin về loại model)
-        ct = file_object.content_type
-        if not ct:
+    
+    PUBLIC_COMPONENTS = {
+        Component.COURSE_THUMBNAIL,
+        Component.USER_AVATAR,
+        Component.SITE_LOGO,
+        Component.PUBLIC_ATTACHMENT
+    }
+    
+    if file_object.component in PUBLIC_COMPONENTS:
+        return True
+
+    # =========================================================
+    # NẾU KHÔNG PHẢI PUBLIC, BẮT ĐẦU CHECK NGHIỆP VỤ SÂU HƠN
+    # =========================================================
+
+    # Lấy đối tượng cha (Course, Lesson, Quiz...)
+    related_object = file_object.content_object 
+    if not related_object:
+        return False # File mồ côi (chưa gắn vào đâu) -> Chặn
+
+    # Nếu là Owner (người tạo ra object cha) -> Luôn có quyền
+    if hasattr(related_object, 'owner_id') and str(related_object.owner_id) == str(user.id):
+        return True
+    
+    # --- LOGIC CHO QUIZ/EXAM ---
+    if file_object.component == UploadedFile.Component.QUIZ_ATTACHMENT:
+        # Code cũ của bạn xử lý đoạn này khá ổn, chỉ cần bê vào đây
+        # Logic: Phải đang làm bài (Attempt) mới xem được ảnh câu hỏi
+        return _check_quiz_access(user, related_object)
+    
+    # --- LOGIC CHO BÀI HỌC (LESSON MATERIAL) ---
+    if file_object.component == UploadedFile.Component.LESSON_MATERIAL:
+        # Truy ngược lên Course để check Enrollment
+        course = _get_course_from_object(related_object)
+        if not course:
             return False
-
-        # 1. Lấy đối tượng mà file này được đính kèm (Course, Lesson, v.v.)
-        related_object = file_object.content_object 
-        if related_object is None:
-            # File 'staging' hoặc bị lỗi (chưa commit), không ai được xem
-            return False
-
-        app_label = ct.app_label  # VD: 'quiz', 'course'
-        model_name = ct.model     # VD: 'question', 'quiz', 'lesson'
-
-        # --- DEBUG LOG (Rất quan trọng để biết tại sao sai) ---
-        # print(f"DEBUG: Checking File {file_object.id}")
-        # print(f"DEBUG: App: {app_label} | Model: {model_name}")
-        # print(f"DEBUG: User: {user.id} | Obj ID: {related_object.id}")
-        # ------------------------------------------------------
-
-        # === LOGIC TỔNG QUÁT (Dùng cho mọi Model có field 'owner') ===
-        # Thay vì if app_label == '...', ta check thuộc tính owner trước
-        # Cách này giúp code chạy đúng dù app tên là 'content', 'course' hay 'education'
-
-        owner_id = None
-        if hasattr(related_object, 'owner_id'):
-            owner_id = related_object.owner_id
-
-        if owner_id:
-            if str(owner_id) == str(user.id):
-                return True
-
-        if app_label == 'quiz':
-            quiz_to_check = None
-
-            if model_name == 'question':
-                # Nếu file thuộc Question -> Truy ngược lên Quiz
-                quiz_to_check = related_object.quiz 
-                
-            elif model_name == 'quiz':
-                # Nếu file thuộc chính Quiz (VD: ảnh bìa)
-                quiz_to_check = related_object
-
-            # ---> CHECK QUYỀN TRÊN QUIZ
-            if quiz_to_check:
-                # A. Chủ sở hữu (Owner)
-                # So sánh ID trực tiếp (nhanh hơn so sánh object)
-                if quiz_to_check.owner_id == user.id:
-                    return True
-                
-                # B. Chế độ Practice (Thường mở rộng rãi)
-                if quiz_to_check.mode == 'practice':
-                    return True
-                
-                # Logic: Nếu user có bất kỳ lượt làm bài nào (đang làm hoặc đã nộp)
-                # đối với Quiz này thì được phép xem ảnh đề bài.
-                if QuizAttempt.objects.filter(user=user, quiz=quiz_to_check).exists():
-                    return True
-                
-        elif app_label == 'course': # Hoặc tên app của bạn là 'courses'
-            course_to_check = None
             
-            if model_name == 'course':
-                course_to_check = related_object
-            elif model_name == 'lesson':
-                course_to_check = related_object.module.course
-            elif model_name == 'contentblock': # Nếu có
-                course_to_check = related_object.lesson.module.course
+        # 1. Course Public?
+        if getattr(course, 'is_public', False):
+            return True
+            
+        # 2. User đã Enroll? (Giả sử bạn có hàm check này)
+        if user_is_enrolled(user, course):
+            return True
 
-            # ---> CHECK QUYỀN TRÊN COURSE
-            if course_to_check:
-                # A. Chủ sở hữu
-                if course_to_check.owner_id == user.id: 
-                    return True
-                
-                # B. Khóa học Public
-                if getattr(course_to_check, 'published', False): 
-                    return True
-                
-                # C. Học viên đã ghi danh (Enrolled)
-                # Import cục bộ model Enrollment
-                # from apps.course.models import Enrollment
-                # if Enrollment.objects.filter(course=course_to_check, user=user, is_active=True).exists():
-                #     return True
-
-        # Nếu không khớp bất kỳ logic nào ở trên
-        return False
-   
-    except Exception as e:
-        # Ghi log lỗi nếu cần
-        # logger.error(f"Lỗi nghiêm trọng khi kiểm tra quyền file {file_object.id} cho user {user.id}: {e}")
-        return False
+    # Mặc định chặn nếu không khớp case nào
+    return False
     
 
 def _get_best_mime_type(file_obj):
@@ -559,26 +661,39 @@ def serve_file(request, file_id, user):
     # 4. XÁC ĐỊNH MIME TYPE (Logic quan trọng nhất)
     real_mime_type = _get_best_mime_type(file_obj=file_obj)
 
-    # 5. Xử lý hiển thị (Inline vs Attachment)
-    # Inline: Xem trực tiếp trên trình duyệt (Video, Ảnh, PDF)
-    # Attachment: Tải về (Zip, Docx, Exe)
-    disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
-
-    # 5. XỬ LÝ TÊN FILE TIẾNG VIỆT (Chống lỗi UnicodeEncodeError)
-    # Cách chuẩn RFC 5987: filename*=UTF-8''ten_file_ma_hoa
-    safe_filename = escape_uri_path(file_obj.original_filename)
-
     # --- TRẢ VỀ RESPONSE ---
+    print(f"DEBUG STATUS: {settings.DEBUG}")
 
     # A. DEV MODE
     if settings.DEBUG:
+        # try:
+        #     f = open(file_obj.file.path, 'rb')
+        #     response = FileResponse(f, content_type=real_mime_type)
+        #     response['Content-Length'] = file_obj.file_size
+        # except PermissionError:
+        #     raise PermissionError("Server không có quyền đọc file này (Permission Denied từ OS).")
+        # except OSError as e:
+        #     raise OSError(f"Lỗi IO khi mở file: {str(e)}")
+
         try:
-            f = open(file_obj.file.path, 'rb')
-            response = FileResponse(f, content_type=real_mime_type)
-        except PermissionError:
-            raise PermissionError("Server không có quyền đọc file này (Permission Denied từ OS).")
-        except OSError as e:
-            raise OSError(f"Lỗi IO khi mở file: {str(e)}")
+            # CÁCH FIX: Dùng file.open() thay vì open()
+            # Điều này giúp Django tự quản lý việc đóng mở file tốt hơn
+            file_handle = file_obj.file.open('rb') 
+            
+            response = FileResponse(file_handle, content_type=real_mime_type)
+            
+            # Thêm Content-Length để Client biết file nặng bao nhiêu mà hứng
+            if file_obj.file_size:
+                response['Content-Length'] = file_obj.file_size
+                
+            return response
+            
+        except FileNotFoundError:
+            raise Http404("File gốc không tìm thấy trên ổ cứng.")
+        except Exception as e:
+            # In lỗi ra để debug nếu có lỗi khác
+            print(f"ERROR serving file: {e}")
+            raise OSError(f"Lỗi khi đọc file: {str(e)}")
 
     # B. PRODUCTION MODE (Nginx)
     else:
@@ -586,6 +701,18 @@ def serve_file(request, file_id, user):
         nginx_path = f"/protected_media/{file_obj.file.name}"
         response['X-Accel-Redirect'] = nginx_path
         response['Content-Type'] = real_mime_type
+
+        # Tối ưu: Giúp Nginx không phải tính lại dung lượng lần nữa
+        response['Content-Length'] = file_obj.file_size
+
+        # 5. Xử lý hiển thị (Inline vs Attachment)
+        # Inline: Xem trực tiếp trên trình duyệt (Video, Ảnh, PDF)
+        # Attachment: Tải về (Zip, Docx, Exe)
+        disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
+
+        # 5. XỬ LÝ TÊN FILE TIẾNG VIỆT (Chống lỗi UnicodeEncodeError)
+        # Cách chuẩn RFC 5987: filename*=UTF-8''ten_file_ma_hoa
+        safe_filename = escape_uri_path(file_obj.original_filename)
 
         # Thiết lập Header an toàn cho tiếng Việt
         # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)

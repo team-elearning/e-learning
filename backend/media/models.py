@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+import mimetypes
 
 from content.models import Course
 
@@ -44,6 +45,18 @@ class FileStatus(models.TextChoices):
     STAGING = 'staging', 'Đang chờ' 
     COMMITTED = 'committed', 'Đã sử dụng'
 
+class Component(models.TextChoices):
+        # Public Components (Ai cũng xem được)
+        COURSE_THUMBNAIL = 'course_thumbnail', 'Ảnh bìa khóa học'
+        USER_AVATAR = 'user_avatar', 'Avatar người dùng'
+        SITE_LOGO = 'site_logo', 'Logo trang web'
+        PUBLIC_ATTACHMENT = 'public_attachment', 'File đính kèm công khai'
+
+        # Private Components (Cần check quyền)
+        LESSON_MATERIAL = 'lesson_material', 'Tài liệu bài học'
+        QUIZ_ATTACHMENT = 'quiz_attachment', 'File trong đề thi'
+        SUBMISSION_FILE = 'submission_file', 'Bài nộp của học viên'
+
 # Create your models here.
 class UploadedFile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -65,7 +78,7 @@ class UploadedFile(models.Model):
     )
 
     # Dùng để phân loại (ví dụ: 'course_thumbnail', 'lesson_material', 'user_avatar')
-    component = models.CharField(max_length=100, db_index=True, blank=True, null=True)
+    component = models.CharField(max_length=100, db_index=True, blank=True, null=True, choices=Component.choices)
 
     content_type = models.ForeignKey(
         ContentType, 
@@ -76,6 +89,7 @@ class UploadedFile(models.Model):
     object_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     content_object = GenericForeignKey('content_type', 'object_id')
     mime_type = models.CharField(max_length=255, blank=True, null=True)
+    file_size = models.PositiveIntegerField(default=0)
 
     sort_order = models.IntegerField(default=0)
 
@@ -107,6 +121,31 @@ class UploadedFile(models.Model):
         if not self.file:
             return None
         return self.file.url
+    
+    def save(self, *args, **kwargs):
+        # --- TỰ ĐỘNG LƯU MIME TYPE & SIZE (Giải quyết vấn đề 2) ---
+        if self.file:
+            # 1. Tính toán Mime Type nếu chưa có
+            if not self.mime_type:
+                # Cách 1: Nhanh, dùng đuôi file (Built-in)
+                guessed_type, _ = mimetypes.guess_type(self.file.name)
+                self.mime_type = guessed_type or 'application/octet-stream'
+                
+                # Cách 2: Chính xác, đọc header file (Cần thư viện python-magic)
+                # if not self.mime_type and hasattr(self.file, 'read'):
+                #     initial_pos = self.file.tell()
+                #     self.file.seek(0)
+                #     self.mime_type = magic.from_buffer(self.file.read(2048), mime=True)
+                #     self.file.seek(initial_pos)
+
+            # 2. Lưu file size
+            if self.file_size == 0:
+                try:
+                    self.file_size = self.file.size
+                except:
+                    pass
+        
+        super().save(*args, **kwargs)
     
 @receiver(post_delete, sender=UploadedFile)
 def auto_delete_file_on_db_delete(sender, instance, **kwargs):
