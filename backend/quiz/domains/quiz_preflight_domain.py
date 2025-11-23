@@ -51,16 +51,27 @@ class QuizPreflightDomain:
     """
     attempts_used: int
     score_best: float
-    # history: List[AttemptHistoryItemDomain] = field(default_factory=list)
     
     access_decision: AccessDecisionDomain # Nhúng object quyết định vào đây
     exam: ExamDomain
+    history: List[AttemptHistoryItemDomain] = field(default_factory=list)
     
     def to_dict(self):
         return {
-            "exam": self.exam.to_dict(), # Tận dụng hàm to_dict mạnh mẽ của ExamDomain
+            "exam": self.exam.to_dict(),
             "access_decision": self.access_decision.__dict__,
             "stats": {
                 "attempts_used": self.attempts_used,
-            }
+                "score_best": self.score_best
+            },
+            # Serialize list history
+            "history": [
+                {
+                    "id": item.id,
+                    "order": item.order,
+                    "status": item.status_label, # Dùng label hiển thị cho đẹp
+                    "score": item.score,
+                    "time_submitted": item.time_submitted
+                } for item in self.history
+            ]
         }

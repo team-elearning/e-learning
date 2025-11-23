@@ -33,10 +33,10 @@
         <!-- Right: Actions -->
         <div class="flex flex-wrap items-center gap-2">
           <el-button type="primary" @click="goEdit">Sửa</el-button>
-
+          <!-- 
           <el-button v-if="detail?.published" @click="unpublish">Gỡ</el-button>
 
-          <el-button v-else type="success" @click="publish">Xuất bản</el-button>
+          <el-button v-else type="success" @click="publish">Xuất bản</el-button> -->
         </div>
       </div>
     </div>

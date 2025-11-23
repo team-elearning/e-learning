@@ -39,7 +39,7 @@
         class="xl:col-span-1"
       >
         <el-option label="Bản nháp" value="draft" />
-        <el-option label="Chờ duyệt" value="pending_review" />
+        <!-- <el-option label="Chờ duyệt" value="pending_review" /> -->
         <el-option label="Đã xuất bản" value="published" />
         <el-option label="Từ chối" value="rejected" />
         <el-option label="Lưu trữ" value="archived" />
@@ -68,19 +68,22 @@
     <!-- Table -->
     <div class="rounded-lg bg-white p-4 ring-1 ring-black/5">
       <div class="mb-3 flex items-center justify-between">
-        <div class="text-sm text-gray-600">Tổng: {{ total }}</div>
+        <!-- <div class="text-sm text-gray-600">Tổng: {{ total }}</div> -->
+        <div class="text-sm text-gray-600">Tổng: {{ filteredItems.length }}</div>
         <div class="flex items-center gap-2">
-          <el-button @click="goApproval">Hàng chờ duyệt</el-button>
+          <!-- <el-button @click="goApproval">Hàng chờ duyệt</el-button> -->
           <el-button type="primary" @click="refresh" :loading="loading">Tải lại</el-button>
-          <!-- Create Course Button -->
           <el-button type="primary" @click="goCreate">Tạo khoá học</el-button>
         </div>
       </div>
 
-      <el-table :data="items" v-loading="loading" height="560" @row-dblclick="goDetail">
+      <el-table :data="filteredItems" v-loading="loading" height="560" @row-dblclick="goDetail">
         <el-table-column label="" width="72">
           <template #default="{ row }">
-            <img :src="row.thumbnail" class="h-10 w-16 rounded object-cover" />
+            <img
+              :src="thumbnailMap[String(row.id)] || row.thumbnail"
+              class="h-10 w-16 rounded object-cover"
+            />
           </template>
         </el-table-column>
 
@@ -108,9 +111,9 @@
 
         <el-table-column prop="status" label="Trạng thái" width="140" align="center">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{
-              statusLabel(row.status)
-            }}</el-tag>
+            <el-tag :type="statusTagType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
+            </el-tag>
           </template>
         </el-table-column>
 
@@ -122,14 +125,17 @@
           <template #default="{ row }">
             <div class="flex gap-2 justify-end">
               <el-button size="small" @click="goDetail(row)">Xem</el-button>
+
               <el-button
                 v-if="row.status !== 'published' && row.status !== 'archived'"
                 size="small"
                 type="success"
                 plain
                 @click="publish(row)"
-                >Xuất bản</el-button
               >
+                Xuất bản
+              </el-button>
+
               <el-button size="small" type="danger" plain @click="removeCourse(row)">
                 Xoá
               </el-button>
@@ -140,11 +146,12 @@
                 type="warning"
                 plain
                 @click="archive(row)"
-                >Lưu trữ</el-button
               >
-              <el-button v-else size="small" type="info" plain @click="restore(row)"
-                >Khôi phục</el-button
-              >
+                Lưu trữ
+              </el-button>
+              <el-button v-else size="small" type="info" plain @click="restore(row)">
+                Khôi phục
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -170,13 +177,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 import {
   courseService,
+  resolveMediaUrl, // 🔥 nhớ import hàm này
   type CourseSummary,
   type CourseStatus,
   type PageParams,
@@ -187,11 +195,16 @@ const router = useRouter()
 
 const subjects = courseService.subjects()
 const teachers = ref<{ id: number | string; name: string }[]>([])
+
+const allItems = ref<CourseSummary[]>([])
 const items = ref<CourseSummary[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 const loading = ref(false)
+
+// map courseId -> url ảnh đã resolve (có token)
+const thumbnailMap = ref<Record<string, string>>({})
 
 const query = reactive<PageParams>({
   q: '',
@@ -245,30 +258,57 @@ function resetFilters() {
   query.from = undefined
   query.to = undefined
   dateRange.value = null
-  page.value = 1
-  fetch()
+
+  // xoá lọc thực
+  filterParams.q = ''
+  filterParams.grade = undefined
+  filterParams.subject = undefined
+  filterParams.teacherId = undefined
+  filterParams.status = undefined
+  filterParams.from = undefined
+  filterParams.to = undefined
 }
+
+const filterParams = reactive<PageParams>({
+  q: '',
+  grade: undefined,
+  subject: undefined,
+  teacherId: undefined,
+  status: undefined,
+  from: undefined,
+  to: undefined,
+})
+
 function applyFilters() {
-  page.value = 1
-  fetch()
+  filterParams.q = query.q
+  filterParams.grade = query.grade
+  filterParams.subject = query.subject
+  filterParams.teacherId = query.teacherId
+  filterParams.status = query.status
+  filterParams.from = query.from
+  filterParams.to = query.to
 }
 
 async function fetch() {
   loading.value = true
   try {
-    const { items: rows, total: t } = await courseService.list({
-      ...query,
-      page: page.value,
-      pageSize,
-    })
-    items.value = rows
+    const { items: rows, total: t } = await courseService.list({ page: page.value, pageSize }, true)
+
+    allItems.value = rows // lưu toàn bộ
+    items.value = rows // copy qua để render lần đầu
     total.value = t
+
+    thumbnailMap.value = {}
+
+    for (const c of rows) {
+      if (!c.thumbnail) continue
+      resolveMediaUrl(c.thumbnail).then((url) => {
+        if (url) thumbnailMap.value[String(c.id)] = url
+      })
+    }
   } finally {
     loading.value = false
   }
-}
-function refresh() {
-  fetch()
 }
 
 function goDetail(row: CourseSummary) {
@@ -277,7 +317,6 @@ function goDetail(row: CourseSummary) {
 function goApproval() {
   router.push('/admin/courses/approval')
 }
-
 function goCreate() {
   router.push('/admin/courses/create')
 }
@@ -286,28 +325,23 @@ function goCreate() {
 async function publish(row: CourseSummary) {
   await ElMessageBox.confirm(`Xuất bản khoá “${row.title}”?`, 'Xác nhận')
   await courseService.publish(row.id)
-  ElMessage.success('Đã xuất bản (mock)')
+  ElMessage.success('Đã xuất bản')
   fetch()
 }
 
 async function archive(row: CourseSummary) {
   await ElMessageBox.confirm(`Lưu trữ khoá “${row.title}”?`, 'Xác nhận', { type: 'warning' })
   await courseService.archive(row.id)
-  ElMessage.success('Đã lưu trữ (mock)')
+  ElMessage.success('Đã lưu trữ')
   fetch()
 }
 async function restore(row: CourseSummary) {
   await courseService.restore(row.id)
-  ElMessage.success('Đã khôi phục (mock)')
+  ElMessage.success('Đã khôi phục')
   fetch()
 }
 
-onMounted(async () => {
-  teachers.value = await courseService.listTeachers()
-  fetch()
-})
-
-// xóa khóa học
+// xoá khoá học qua endpoint riêng
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -328,7 +362,6 @@ async function removeCourse(row: CourseSummary) {
     ElMessage.success('Đã xoá khoá học')
     fetch()
   } catch (err: any) {
-    // Nếu user bấm cancel confirm → không hiện lỗi
     if (err === 'cancel' || err === 'close') return
 
     console.error('❌ Lỗi xoá khoá học:', err)
@@ -342,4 +375,36 @@ async function removeCourse(row: CourseSummary) {
     ElMessage.error(msg)
   }
 }
+
+onMounted(async () => {
+  teachers.value = await courseService.listTeachers()
+  fetch()
+})
+
+//lọc
+const filteredItems = computed(() => {
+  let list = [...allItems.value]
+
+  const p = filterParams
+
+  // search
+  if (p.q) {
+    const kw = p.q.trim().toLowerCase()
+    list = list.filter(
+      (c) =>
+        c.title.toLowerCase().includes(kw) ||
+        String(c.id).includes(kw) ||
+        c.teacherName.toLowerCase().includes(kw),
+    )
+  }
+
+  if (p.grade) list = list.filter((c) => c.grade === p.grade)
+  if (p.subject) list = list.filter((c) => c.subject === p.subject)
+  if (p.teacherId) list = list.filter((c) => String(c.teacherId) === String(p.teacherId))
+  if (p.status) list = list.filter((c) => c.status === p.status)
+  if (p.from) list = list.filter((c) => c.createdAt >= (p.from ?? ''))
+  if (p.to) list = list.filter((c) => c.createdAt <= (p.to ?? ''))
+
+  return list
+})
 </script>

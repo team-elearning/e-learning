@@ -362,9 +362,9 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     undefined
   const lessonsFromModules = Array.isArray(payload.modules)
     ? payload.modules.reduce(
-        (total: number, mod: RawModule) => total + (Array.isArray(mod?.lessons) ? mod.lessons.length : 0),
-        0,
-      )
+      (total: number, mod: RawModule) => total + (Array.isArray(mod?.lessons) ? mod.lessons.length : 0),
+      0,
+    )
     : 0
   const lessonsCount = payload.lessonsCount ?? payload.lessons_count ?? lessonsFromModules
   const enrollments = payload.enrollments ?? payload.enrollment_count ?? 0
@@ -402,11 +402,11 @@ function normalizeCourseDetail(payload: any): CourseDetail {
     payload.duration ??
     (sections.length
       ? sections.reduce(
-          (total, section) =>
-            total +
-            section.lessons.reduce((acc, lesson) => acc + (lesson.durationMinutes || 0), 0),
-          0,
-        )
+        (total, section) =>
+          total +
+          section.lessons.reduce((acc, lesson) => acc + (lesson.durationMinutes || 0), 0),
+        0,
+      )
       : undefined)
 
   return {
@@ -443,7 +443,7 @@ export const courseService = {
       console.error('courseService.list fallback to mock data:', error)
       return buildMockList(params)
     }
-    
+
   },
 
   async listPublicCatalog(): Promise<PageResult<CourseSummary>> {
@@ -503,21 +503,21 @@ export const courseService = {
     if (COURSE_USE_MOCK) return Promise.resolve({ ok: true, id: Date.now() })
     const endpoint = useAdminEndpoint ? '/admin/courses/' : '/content/courses/'
     const config = payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}
-    return api.post(endpoint,(payload), config).then((res) => res.data)
+    return api.post(endpoint, (payload), config).then((res) => res.data)
   },
   update(id: ID, payload: Partial<CourseDetail> | FormData, useAdminEndpoint = false) {
     if (COURSE_USE_MOCK) return Promise.resolve({ ok: true })
     const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
     return api.patch(endpoint, payload)
   },
-  
+
   // DELETE
   async delete(id: ID, useAdminEndpoint = false): Promise<void> {
     if (COURSE_USE_MOCK) return
     const endpoint = useAdminEndpoint ? `/admin/courses/${id}/` : `/content/courses/${id}`
     await api.delete(endpoint)
   },
-  
+
   // ENROLL (student only)
   async enroll(courseId: ID): Promise<{ success: boolean }> {
     if (COURSE_USE_MOCK) return Promise.resolve({ success: true })
@@ -539,7 +539,7 @@ export const courseService = {
   unpublish(id: ID) { return COURSE_USE_MOCK ? Promise.resolve({ ok: true }) : api.post(`/admin/courses/${id}/unpublish/`) },
   archive(id: ID) { return COURSE_USE_MOCK ? Promise.resolve({ ok: true }) : api.post(`/admin/courses/${id}/archive/`) },
   restore(id: ID) { return COURSE_USE_MOCK ? Promise.resolve({ ok: true }) : api.post(`/admin/courses/${id}/restore/`) },
-  
+
   // STATUS / ACTIONS (Teacher - use content endpoint)
   async publishCourse(id: ID): Promise<any> {
     if (COURSE_USE_MOCK) return Promise.resolve({ ok: true })
@@ -590,14 +590,44 @@ export const courseService = {
   },
 }
 
+// export async function resolveMediaUrl(url?: string | null): Promise<string | null> {
+//   if (!url) return null
+//   if (typeof window === 'undefined') return url
+//   if (!url.startsWith('/api/media/')) return url
+//   if (mediaCache.has(url)) return mediaCache.get(url)!
+//   const token = window.localStorage?.getItem('accessToken') || window.sessionStorage?.getItem('accessToken')
+//   const headers: Record<string, string> = {}
+//   if (token) headers.Authorization = `Bearer ${token}`
+//   const res = await fetch(url, {
+//     headers,
+//     credentials: 'include',
+//   })
+//   if (!res.ok) throw new Error(`resolveMediaUrl failed: ${res.status}`)
+//   const blob = await res.blob()
+//   const objectUrl = URL.createObjectURL(blob)
+//   mediaCache.set(url, objectUrl)
+//   return objectUrl
+// }
+
+
+
 export async function resolveMediaUrl(url?: string | null): Promise<string | null> {
   if (!url) return null
   if (typeof window === 'undefined') return url
   if (!url.startsWith('/api/media/')) return url
+
   if (mediaCache.has(url)) return mediaCache.get(url)!
-  const token = window.localStorage?.getItem('accessToken') || window.sessionStorage?.getItem('accessToken')
+
+  // 🔥 SỬA Ở ĐÂY: ưu tiên 'access', fallback 'accessToken'
+  const token =
+    window.localStorage?.getItem('access') ||
+    window.sessionStorage?.getItem('access') ||
+    window.localStorage?.getItem('accessToken') ||
+    window.sessionStorage?.getItem('accessToken')
+
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
+
   const res = await fetch(url, {
     headers,
     credentials: 'include',
