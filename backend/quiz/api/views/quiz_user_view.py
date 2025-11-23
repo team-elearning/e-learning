@@ -11,8 +11,8 @@ from django.core.exceptions import PermissionDenied
 from core.api.mixins import RoleBasedOutputMixin
 from quiz.models import UserAnswer, Question, QuizAttempt, Quiz
 from quiz.services import quiz_user_service
-from quiz.serializers import QuestionTakingSerializer, QuizAttemptStartSerializer
-from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput
+from quiz.serializers import QuestionTakingSerializer, QuizAttemptStartSerializer, SaveAnswerSerializer
+from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput
 
 
 
@@ -118,47 +118,44 @@ class AttemptDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi tải đề thi: {str(e)}"}, status=status.HTTP_404_NOT_FOUND)
 
 
-# class StudentAttemptSaveAnswerView(RoleBasedOutputMixin, APIView):
-#     """
-#     POST /student/attempts/<id>/save/
-#     Nhiệm vụ: Auto-save đáp án & Đánh dấu (Flag).
-#     """
-#     permission_classes = [IsAuthenticated]
+class AttemptSaveAnswerView(RoleBasedOutputMixin, APIView):
+    """
+    POST /attempts/<id>/save/
+    Nhiệm vụ: Auto-save đáp án & Đánh dấu (Flag).
+    """
+    permission_classes = [IsAuthenticated]
     
-#     # Định nghĩa Output DTO cho Mixin
-#     output_dto_public = SaveAnswerOutput
+    # Định nghĩa Output DTO cho Mixin
+    output_dto_public = SaveAnswerOutput
 
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.quiz_service = quiz_user_service
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quiz_service = quiz_user_service
 
-#     def post(self, request, pk):
-#         # 1. Serializer (Validate JSON format)
-#         serializer = SaveAnswerSerializer(data=request.data)
-#         if not serializer.is_valid():
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, pk):
+        # 1. Serializer (Validate JSON format)
+        serializer = SaveAnswerSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-#         # 2. Input DTO
-#         try:
-#             input_dto = SaveAnswerInput(**serializer.validated_data)
-#         except Exception as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             # 3. Service & Domain Logic
-#             # Service trả về SaveAnswerOutput (Pydantic object)
-#             result_dto = self.quiz_service.save_answer(pk, request.user, input_dto)
+        # 2. Input DTO
+        try:
+            input_dto = SaveAnswerInput(**serializer.validated_data)
+    
+            # 3. Service & Domain Logic
+            # Service trả về SaveAnswerOutput (Pydantic object)
+            result_domain = self.quiz_service.save_answer(pk, request.user, input_dto.to_dict())
             
-#             # 4. Response (Mixin sẽ tự xử lý Pydantic -> JSON)
-#             # Trả về instance để Mixin map vào output_dto_public
-#             return Response({"instance": result_dto}, status=status.HTTP_200_OK)
+            # 4. Response (Mixin sẽ tự xử lý Pydantic -> JSON)
+            # Trả về instance để Mixin map vào output_dto_public
+            return Response({"instance": result_domain}, status=status.HTTP_200_OK)
             
-#         except ValidationError as e:
-#             # Lỗi nghiệp vụ (ví dụ: Hết giờ mà vẫn cố save)
-#             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValidationError as e:
+            # Lỗi nghiệp vụ (ví dụ: Hết giờ mà vẫn cố save)
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
             
-#         except Exception as e:
-#             return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # class StudentAttemptSubmitView(APIView):

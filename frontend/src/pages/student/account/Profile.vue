@@ -25,6 +25,8 @@
           </div>
         </transition>
 
+        <p v-if="profileError" class="err" role="alert">{{ profileError }}</p>
+
         <!-- FORM -->
         <form v-if="ready" class="form" @submit.prevent="saveProfile">
           <div class="row">
@@ -126,97 +128,6 @@
             </div>
           </div>
 
-          <div class="row">
-            <label class="label">Địa chỉ</label>
-            <div>
-              <textarea v-model.trim="form.address" class="input" rows="3" placeholder="Có thể để trống"></textarea>
-            </div>
-          </div>
-
-          <div class="row">
-            <label class="label">Tỉnh/Thành phố</label>
-            <div>
-              <select
-                v-model="form.city"
-                class="input select"
-                :disabled="locationLoading.provinces"
-              >
-                <option value="">{{ locationLoading.provinces ? 'Đang tải...' : 'Chọn tỉnh/thành' }}</option>
-                <option
-                  v-for="province in provinces"
-                  :key="province.code"
-                  :value="province.code.toString()"
-                >
-                  {{ province.name }}
-                </option>
-              </select>
-              <small v-if="locationLoading.provinces" class="helper">Đang tải danh sách tỉnh/thành...</small>
-              <p v-if="locationErrors.provinces" class="err">{{ locationErrors.provinces }}</p>
-            </div>
-          </div>
-
-          <div class="row">
-            <label class="label">Quận/Huyện</label>
-            <div>
-              <select
-                v-model="form.district"
-                class="input select"
-                :disabled="!form.city || locationLoading.districts"
-              >
-                <option value="">
-                  {{
-                    !form.city
-                      ? 'Chọn tỉnh trước'
-                      : locationLoading.districts
-                        ? 'Đang tải quận/huyện...'
-                        : 'Chọn quận/huyện'
-                  }}
-                </option>
-                <option
-                  v-for="district in districts"
-                  :key="district.code"
-                  :value="district.code.toString()"
-                >
-                  {{ district.name }}
-                </option>
-              </select>
-              <small v-if="!form.city" class="helper">Vui lòng chọn Tỉnh/Thành trước.</small>
-              <small v-else-if="locationLoading.districts" class="helper">Đang tải danh sách quận/huyện...</small>
-              <p v-if="locationErrors.districts" class="err">{{ locationErrors.districts }}</p>
-            </div>
-          </div>
-
-          <div class="row">
-            <label class="label">Phường/Xã</label>
-            <div>
-              <select
-                v-model="form.ward"
-                class="input select"
-                :disabled="!form.district || locationLoading.wards"
-              >
-                <option value="">
-                  {{
-                    !form.district
-                      ? 'Chọn quận trước'
-                      : locationLoading.wards
-                        ? 'Đang tải phường/xã...'
-                        : 'Chọn phường/xã'
-                  }}
-                </option>
-                <option
-                  v-for="ward in wards"
-                  :key="ward.code"
-                  :value="ward.code.toString()"
-                >
-                  {{ ward.name }}
-                </option>
-              </select>
-              <small v-if="!form.district" class="helper">Vui lòng chọn Quận/Huyện trước.</small>
-              <small v-else-if="locationLoading.wards" class="helper">Đang tải danh sách phường/xã...</small>
-              <p v-if="locationErrors.wards" class="err">{{ locationErrors.wards }}</p>
-            </div>
-          </div>
-
           <div class="actions">
             <button type="submit" class="btn-primary" :class="{ 'is-busy': saving }"
               :disabled="saving || !isValidInfo || !isDirty">
@@ -269,12 +180,13 @@
 import { computed, onMounted, reactive, ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
-import type { UpdateProfileDto } from '@/services/auth.service'
-import { locationService, type Province, type District, type Ward } from '@/services/location.service'
+import { authService, type UpdateProfileDto } from '@/services/auth.service'
 
 const router = useRouter()
 const auth = useAuthStore()
 const ready = ref(false)
+const profileLoading = ref(false)
+const profileError = ref('')
 
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
 const OVER_LIMIT_MSG = 'File ảnh vượt quá dung lượng cho phép (2MB)'
@@ -283,31 +195,11 @@ function goChangePwd() { router.push({ name: 'student-change-password' }) }
 function goParent() { router.push({ name: 'student-parent' }) }
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
-const currentAvatar = computed(() => auth.user?.avatar || defaultAvatar)
+const currentAvatar = computed(() => auth.user?.avatar || auth.user?.avatarUrl || defaultAvatar)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string>('')
-
-/** LOCATION */
-const provinces = ref<Province[]>([])
-const districts = ref<District[]>([])
-const wards = ref<Ward[]>([])
-const locationLoading = reactive({ provinces: false, districts: false, wards: false })
-const locationErrors = reactive({ provinces: '', districts: '', wards: '' })
-
-async function loadProvinces() {
-  locationLoading.provinces = true
-  locationErrors.provinces = ''
-  try {
-    provinces.value = await locationService.getProvinces()
-  } catch (error) {
-    console.error('Failed to load provinces', error)
-    locationErrors.provinces = 'Không thể tải danh sách tỉnh/thành.'
-  } finally {
-    locationLoading.provinces = false
-  }
-}
 
 function openFile() { fileInput.value?.click() }
 
@@ -363,98 +255,66 @@ const form = reactive({
   email: '',
   emailUpdates: false,
   gender: 'male',
-  address: '',
-  city: '',
-  district: '',
-  ward: '',
 })
-
-let districtRequestToken = 0
-watch(
-  () => form.city,
-  async (provinceCode) => {
-    form.district = ''
-    form.ward = ''
-    wards.value = []
-    locationErrors.districts = ''
-    locationErrors.wards = ''
-    if (!provinceCode) {
-      districts.value = []
-      return
-    }
-    const currentToken = ++districtRequestToken
-    locationLoading.districts = true
-    try {
-      const data = await locationService.getDistricts(provinceCode)
-      if (currentToken === districtRequestToken) {
-        districts.value = data
-      }
-    } catch (error) {
-      if (currentToken === districtRequestToken) {
-        districts.value = []
-        locationErrors.districts = 'Không thể tải quận/huyện.'
-        console.error('Failed to load districts', error)
-      }
-    } finally {
-      if (currentToken === districtRequestToken) {
-        locationLoading.districts = false
-      }
-    }
-  }
-)
-
-let wardRequestToken = 0
-watch(
-  () => form.district,
-  async (districtCode) => {
-    form.ward = ''
-    if (!districtCode) {
-      wards.value = []
-      locationErrors.wards = ''
-      return
-    }
-    const currentToken = ++wardRequestToken
-    locationErrors.wards = ''
-    locationLoading.wards = true
-    try {
-      const data = await locationService.getWards(districtCode)
-      if (currentToken === wardRequestToken) {
-        wards.value = data
-      }
-    } catch (error) {
-      if (currentToken === wardRequestToken) {
-        wards.value = []
-        locationErrors.wards = 'Không thể tải phường/xã.'
-        console.error('Failed to load wards', error)
-      }
-    } finally {
-      if (currentToken === wardRequestToken) {
-        locationLoading.wards = false
-      }
-    }
-  }
-)
 
 const dob = reactive({ day: 1, month: 1, year: 2000 })
 const days = Array.from({ length: 31 }, (_, i) => i + 1)
 const months = Array.from({ length: 12 }, (_, i) => i + 1)
 const years = Array.from({ length: 60 }, (_, i) => 1980 + i)
 
+function parseDobString(raw?: string | null) {
+  if (!raw) return null
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return null
+  return { day: date.getDate(), month: date.getMonth() + 1, year: date.getFullYear() }
+}
+
+function applyProfileToForm(data: any) {
+  form.username = data?.name || data?.username || form.username
+  form.fullname = data?.displayName || data?.name || data?.username || form.fullname
+  form.phone = data?.phone || form.phone
+  form.email = data?.email || form.email
+  form.gender =
+    data?.gender && String(data.gender).toLowerCase().startsWith('f')
+      ? 'female'
+      : data?.gender && String(data.gender).toLowerCase().startsWith('m')
+        ? 'male'
+        : form.gender
+
+  const parsedDob = parseDobString(data?.dob)
+  if (parsedDob) {
+    dob.day = parsedDob.day
+    dob.month = parsedDob.month
+    dob.year = parsedDob.year
+  }
+}
+
+async function fetchProfile() {
+  profileLoading.value = true
+  profileError.value = ''
+  try {
+    const data = await authService.getProfile()
+    applyProfileToForm(data)
+    auth.user = { ...(auth.user as any), ...data }
+    if (typeof auth.persist === 'function') auth.persist()
+  } catch (error: any) {
+    profileError.value =
+      error?.response?.data?.detail || error?.message || 'Không thể tải thông tin cá nhân.'
+  } finally {
+    profileLoading.value = false
+  }
+}
+
 const initialJSON = ref<string>('')
 
 function snapshot() {
-  initialJSON.value = JSON.stringify({ ...form, avatarPreview: avatarPreview.value })
+  initialJSON.value = JSON.stringify({ ...form, dob: { ...dob }, avatarPreview: avatarPreview.value })
 }
 
-onMounted(() => {
-  loadProvinces()
-  auth.init?.()
-  if (auth.user) {
-    form.username = auth.user.name || ''
-    form.fullname = auth.user.name || ''
-    form.phone = auth.user.phone || ''
-    form.email = auth.user.email || ''
-  }
+onMounted(async () => {
+  await auth.init?.()
+  if (auth.user) applyProfileToForm(auth.user)
+  await fetchProfile()
   snapshot()
   ready.value = true
 })
@@ -476,7 +336,7 @@ watch(
 
 const isValidInfo = computed(() => !errors.fullname && !errors.phone && !errors.email)
 const isDirty = computed(() => {
-  const now = JSON.stringify({ ...form, avatarPreview: avatarPreview.value })
+  const now = JSON.stringify({ ...form, dob: { ...dob }, avatarPreview: avatarPreview.value })
   return now !== initialJSON.value
 })
 
@@ -502,11 +362,15 @@ async function saveProfile() {
   saving.value = true
   try {
     const payload: UpdateProfileDto = {
-      name: form.fullname,
+      displayName: form.fullname || auth.user?.displayName || auth.user?.name,
+      name: form.fullname || auth.user?.name,
       email: form.email || auth.user?.email,
       phone: form.phone,
+      gender: form.gender,
       avatar: avatarPreview.value || auth.user?.avatar,
-      // dob: `${dob.year}-${String(dob.month).padStart(2,'0')}-${String(dob.day).padStart(2,'0')}`
+      avatarUrl: avatarPreview.value || auth.user?.avatarUrl || auth.user?.avatar,
+      dob: `${dob.year}-${String(dob.month).padStart(2, '0')}-${String(dob.day).padStart(2, '0')}`,
+      language: auth.user?.language,
     }
     await auth.updateProfile(payload as any)
     lastUpdated.value = new Date().toLocaleString()

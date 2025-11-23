@@ -73,3 +73,13 @@ class AttemptTakingDomain:
     
     # Content
     questions: List[QuestionTakingDomain]
+
+
+@dataclass
+class SaveAnswerResultDomain:
+    """
+    Domain Entity: Kết quả của hành động lưu bài.
+    Service sẽ trả về cái này.
+    """
+    status: str
+    saved_at: datetime

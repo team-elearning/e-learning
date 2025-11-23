@@ -9,7 +9,7 @@ from core.exceptions import ExamNotFoundError
 from quiz.models import Quiz, QuizAttempt, UserAnswer, Question
 from quiz.domains.quiz_preflight_domain import AccessDecisionDomain, QuizPreflightDomain, AttemptHistoryItemDomain
 from quiz.domains.exam_domain import ExamDomain
-from quiz.domains.quiz_attempt_domain import AttemptCreationResultDomain, QuizAttemptDomain, AttemptTakingDomain, QuestionTakingDomain
+from quiz.domains.quiz_attempt_domain import AttemptCreationResultDomain, QuizAttemptDomain, AttemptTakingDomain, QuestionTakingDomain, SaveAnswerResultDomain
 
 
 
@@ -273,47 +273,48 @@ def get_attempt_taking_context(attempt_id, user) -> AttemptTakingDomain:
         )
 
 
-# def save_answer(self, attempt_id, user, input_dto: SaveAnswerInput) -> SaveAnswerOutput:
-#     """
-#     Lưu câu trả lời và trạng thái Flag.
-#     """
-#     # 1. Validate Attempt
-#     # Dùng select_related/only để tối ưu query nếu cần
-#     attempt = get_object_or_404(QuizAttempt, pk=attempt_id, user=user)
+def save_answer(attempt_id, user, data: dict) -> SaveAnswerResultDomain:
+    """
+    Lưu câu trả lời.
+    Input: Dictionary (Raw data đã validate).
+    Output: Domain Entity.
+    """
+    # 1. Extract data từ dict (Không phụ thuộc Pydantic)
+    question_id = data.get('question_id')
+    current_index = data.get('current_index')
+    selected_options = data.get('selected_options')
+    is_flagged = data.get('is_flagged')
+
+    # 2. Validate Logic
+    attempt = get_object_or_404(QuizAttempt, pk=attempt_id, user=user)
     
-#     if attempt.status != 'in_progress':
-#         raise ValidationError("Bài thi đã kết thúc hoặc quá hạn.")
+    if attempt.status != 'in_progress':
+        raise PermissionDenied("Bài thi đã kết thúc hoặc quá hạn.")
 
-#     # 2. Chuẩn bị dữ liệu update
-#     # Chúng ta dùng update_or_create để xử lý cả case chưa có và đã có
-#     defaults = {}
-    
-#     # Chỉ update nếu client có gửi dữ liệu lên (tránh ghi đè None vào data đang có)
-#     if input_dto.selected_options is not None:
-#         defaults['selected_options'] = input_dto.selected_options
+    # 3. Chuẩn bị data update
+    defaults = {}
+    if selected_options is not None:
+        defaults['selected_options'] = selected_options
+    if is_flagged is not None:
+        defaults['is_flagged'] = is_flagged
+
+    # 4. Upsert DB
+    UserAnswer.objects.update_or_create(
+        attempt=attempt,
+        question_id=question_id,
+        defaults=defaults
+    )
+
+    # 5. Update Current Index (Chỉ khi thay đổi)
+    if current_index is not None and attempt.current_question_index != current_index:
+        attempt.current_question_index = current_index
+        attempt.save(update_fields=['current_question_index'])
         
-#     if input_dto.is_flagged is not None:
-#         defaults['is_flagged'] = input_dto.is_flagged
-
-#     # 3. Upsert UserAnswer
-#     # Logic: Tìm theo (attempt, question_id). Nếu thấy -> Update 'defaults'. Chưa -> Create.
-#     UserAnswer.objects.update_or_create(
-#         attempt=attempt,
-#         question_id=input_dto.question_id,
-#         defaults=defaults
-#     )
-
-#     # 4. Update vị trí hiện tại (Current Index)
-#     # Chỉ save khi có sự thay đổi để giảm tải DB write
-#     if attempt.current_question_index != input_dto.current_index:
-#         attempt.current_question_index = input_dto.current_index
-#         attempt.save(update_fields=['current_question_index'])
-        
-#     # 5. Return Output DTO
-#     return SaveAnswerOutput(
-#         status="saved",
-#         saved_at=timezone.now()
-#     )
+    # 6. Return DOMAIN ENTITY (Không trả về DTO/JSON)
+    return SaveAnswerResultDomain(
+        status="saved",
+        saved_at=timezone.now()
+    )
 
 
 # def submit_attempt( attempt_id, user):

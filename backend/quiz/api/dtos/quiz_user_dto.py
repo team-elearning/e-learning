@@ -130,8 +130,9 @@ class SaveAnswerInput(BaseModel):
     selected_options: Optional[Dict[str, Any]] = None 
     is_flagged: Optional[bool] = None
 
-    def to_dict(self):
-        return self.model_dump()
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """Convert DTO to Dict to pass into Service"""
+        return self.model_dump(exclude_none=exclude_none)
     
 
 class SaveAnswerOutput(BaseModel):

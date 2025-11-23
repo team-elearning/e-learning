@@ -40,6 +40,12 @@ export interface AuthUser {
   title?: string
   bio?: string
   avatar?: string
+  displayName?: string | null
+  avatarUrl?: string | null
+  dob?: string | null
+  gender?: string | null
+  language?: string | null
+  metadata?: Record<string, any>
 }
 
 export interface AuthPayload {
@@ -49,6 +55,50 @@ export interface AuthPayload {
 
 export interface UpdateProfileDto extends Partial<AuthUser> {
   avatar?: string
+}
+
+function mapAuthUser(raw: any): AuthUser {
+  const displayName =
+    raw?.display_name ?? raw?.displayName ?? raw?.name ?? raw?.username ?? raw?.full_name ?? ''
+  const avatarUrl = raw?.avatar_url ?? raw?.avatarUrl ?? raw?.avatar ?? ''
+  const role = (raw?.role as Role) || 'student'
+
+  return {
+    id: Number(raw?.id ?? raw?.user_id ?? 0),
+    name: displayName || raw?.username || raw?.name || 'User',
+    displayName: displayName || raw?.username || raw?.name || 'User',
+    email: raw?.email ?? '',
+    role,
+    phone: raw?.phone,
+    title: raw?.title,
+    bio: raw?.bio,
+    avatar: avatarUrl || raw?.avatar || '',
+    avatarUrl: avatarUrl || raw?.avatar || '',
+    dob: raw?.dob ?? raw?.date_of_birth ?? raw?.birth_date ?? null,
+    gender: raw?.gender ?? raw?.sex ?? null,
+    language: raw?.language ?? null,
+    metadata: raw?.metadata ?? {},
+  }
+}
+
+function buildProfilePayload(payload: UpdateProfileDto) {
+  const body: Record<string, any> = { ...payload }
+
+  if (payload.displayName !== undefined) {
+    body.display_name = payload.displayName
+    body.name = payload.displayName
+  }
+  if (payload.avatarUrl !== undefined) {
+    body.avatar_url = payload.avatarUrl
+  }
+  if (payload.avatar !== undefined && body.avatar_url === undefined) {
+    body.avatar_url = payload.avatar
+  }
+  if (payload.dob !== undefined) body.dob = payload.dob
+  if (payload.gender !== undefined) body.gender = payload.gender
+  if (payload.language !== undefined) body.language = payload.language
+
+  return body
 }
 
 export const authService = {
@@ -68,10 +118,8 @@ export const authService = {
 
     const role = (getRoleFromToken(token) || (data.user?.role as Role) || 'student') as Role
 
-    const user: AuthUser = {
-      id: Number(data.user?.id ?? data.user_id ?? 0),
-      name: data.user?.username ?? data.user?.name ?? 'User',
-      email: data.user?.email ?? '',
+    const user = {
+      ...mapAuthUser({ ...data.user, id: data.user?.id ?? data.user_id }),
       role,
     }
 
@@ -123,35 +171,16 @@ export const authService = {
 
 
   async updateProfile(payload: UpdateProfileDto): Promise<{ user: AuthUser }> {
-    const { data } = await http.patch('/account/profile/', payload)
-    // giả sử backend trả về { user: {...} } hoặc trả user trực tiếp
+    const { data } = await http.patch('/account/profile/', buildProfilePayload(payload))
     const returnedUser = data.user ?? data
-    const user: AuthUser = {
-      id: Number(returnedUser.id ?? 0),
-      name: returnedUser.username ?? returnedUser.name ?? 'User',
-      email: returnedUser.email ?? '',
-      role: (returnedUser.role as Role) || 'student',
-      phone: returnedUser.phone,
-      title: returnedUser.title,
-      bio: returnedUser.bio,
-      avatar: returnedUser.avatar,
-    }
+    const user = mapAuthUser(returnedUser)
     return { user }
   },
 
   async getProfile(): Promise<AuthUser> {
     const { data } = await http.get('/account/profile/')
     const returnedUser = data.user ?? data
-    return {
-      id: Number(returnedUser.id ?? 0),
-      name: returnedUser.username ?? returnedUser.name ?? 'User',
-      email: returnedUser.email ?? '',
-      role: (returnedUser.role as Role) || 'student',
-      phone: returnedUser.phone,
-      title: returnedUser.title,
-      bio: returnedUser.bio,
-      avatar: returnedUser.avatar,
-    }
+    return mapAuthUser(returnedUser)
   },
 
   async changePassword(oldPassword: string, newPassword: string): Promise<{ ok: boolean }> {
