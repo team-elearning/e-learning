@@ -86,8 +86,7 @@ def _map_to_domain(instance, strategy: CourseFetchStrategy) -> CourseDomain:
     elif strategy == CourseFetchStrategy.FULL_STRUCTURE:
         return CourseDomain.from_model(instance) # Hàm này load full modules
     else:
-        return CourseDomain.from_model_overview(instance) # Hàm nhẹ
-    
+        return CourseDomain.from_model_overview(instance)
 
 # ==========================================
 # PUBLIC INTERFACE (GET)

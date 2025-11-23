@@ -160,6 +160,9 @@ class PracticeInputSerializer(serializers.Serializer):
         return data
     
 
+#########################################
+#########################################
+#########################################
 class QuestionTakingSerializer(serializers.ModelSerializer):
     """
     Dùng cho màn hình LÀM BÀI.
@@ -190,3 +193,35 @@ class UserAnswerDetailSerializer(serializers.ModelSerializer):
         if obj.attempt.quiz.mode == 'practice' or obj.attempt.quiz.show_correct_answer:
             return obj.question.answer_payload
         return None
+    
+
+class AccessDecisionSerializer(serializers.Serializer):
+    can_attempt = serializers.BooleanField(source='is_allowed')
+    warning_message = serializers.CharField(source='reason_message')
+    button_action = serializers.CharField(source='action.value') # Lấy value của Enum ('start', 'resume')
+    ongoing_attempt_id = serializers.UUIDField(source='ongoing_attempt.id', allow_null=True)
+    
+    # Logic presentation (Label nút bấm) nên nằm ở Serializer hoặc Frontend
+    button_label = serializers.SerializerMethodField()
+
+    def get_button_label(self, obj):
+        if not obj.is_allowed:
+            return "Không thể làm bài"
+        if obj.action.value == 'resume':
+            return "Tiếp tục làm bài"
+        return "Bắt đầu làm bài"
+
+class QuizPreflightResponseSerializer(serializers.Serializer):
+    """
+    Serializer chuyên dụng để flatten dữ liệu từ Domain Object ra JSON phẳng
+    """
+    quiz_title = serializers.CharField(source='quiz.title')
+    description = serializers.CharField(source='quiz.description')
+    time_limit_str = serializers.CharField(source='time_limit_display')
+    pass_score = serializers.DecimalField(source='pass_score', max_digits=4, decimal_places=2)
+    
+    attempts_used = serializers.IntegerField(source='attempts_history_count')
+    max_attempts = serializers.IntegerField(source='max_attempts', allow_null=True)
+    
+    # Nhúng serializer con vào để flatten data
+    access_info = AccessDecisionSerializer(source='access_decision')

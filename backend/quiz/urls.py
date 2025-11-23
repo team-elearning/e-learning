@@ -3,6 +3,7 @@ from django.urls import path
 from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetailView, AdminExamDetailView, AdminExamListView
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
 from quiz.api.views.parse_view import QuizParseToolView
+from quiz.api.views.quiz_user_view import QuizInfoView
 
 
 
@@ -25,10 +26,10 @@ urlpatterns = [
     path('admin/practices/<uuid:pk>/', AdminPracticeDetailView.as_view(), name='admin-practice-detail'),
 
 
-    # # USER
-    # # STUDENT - PRE-FLIGHT
-    # # Lấy thông tin bài thi + trạng thái (đã làm bao nhiêu lần, có được thi tiếp không)
-    # path('student/quizzes/<uuid:pk>/info/', StudentQuizInfoView.as_view(), name='student-quiz-info'),
+    # USER
+    # STUDENT - PRE-FLIGHT
+    # Lấy thông tin bài thi + trạng thái (đã làm bao nhiêu lần, có được thi tiếp không)
+    path('exam/<uuid:pk>/info/', QuizInfoView.as_view(), name='student-quiz-info'),
 
     # # BẮT ĐẦU HOẶC LÀM TIẾP (Start/Resume)
     # # POST: Tạo lượt làm bài mới hoặc trả về lượt đang dang dở

@@ -18,7 +18,7 @@ from django.utils.encoding import escape_uri_path # Cần cái này để xử l
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError
 
-from core.exceptions import DomainError, UserNotFoundError
+from core.exceptions import DomainError, UserNotFoundError, FileNotFoundError
 from custom_account.models import UserModel
 from content.models import Course, Lesson, Enrollment
 from media.models import UploadedFile, FileStatus
@@ -538,11 +538,9 @@ def serve_file(request, file_id, user):
     # 1. Lấy object (Nên cache nhẹ chỗ này nếu lượng truy cập lớn)
     try:
         file_obj = get_object_or_404(UploadedFile, id=file_id)
-    except ValidationError:
-        raise ValidationError("File ID không đúng định dạng UUID.")
-    except DatabaseError:
-        # Lỗi mất kết nối DB
-        raise DatabaseError("Lỗi kết nối cơ sở dữ liệu.")
+    except UploadedFile.DoesNotExist:
+        raise FileNotFoundError("File không tồn tại trong hệ thống.")
+
 
     # 2. Check quyền (Logic nghiệp vụ)
     # Giả sử bạn có service check quyền riêng
@@ -589,9 +587,9 @@ def serve_file(request, file_id, user):
         response['X-Accel-Redirect'] = nginx_path
         response['Content-Type'] = real_mime_type
 
-    # Thiết lập Header an toàn cho tiếng Việt
-    # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)
-    # Dùng: filename*=UTF-8''t%C3%AAn%20ti%E1%BA%BFng%20vi%E1%BB%87t.mp4
-    response['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{safe_filename}"
+        # Thiết lập Header an toàn cho tiếng Việt
+        # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)
+        # Dùng: filename*=UTF-8''t%C3%AAn%20ti%E1%BA%BFng%20vi%E1%BB%87t.mp4
+        response['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{safe_filename}"
     
     return response
