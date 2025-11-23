@@ -1397,7 +1397,6 @@ async function uploadMedia(
   return data
 }
 
-// ================== FETCH COURSE ==================
 async function fetchCourse() {
   const id = route.params.id
   if (!id) {
@@ -1432,21 +1431,49 @@ async function fetchCourse() {
 
     tagsInput.value = f.tags.join(', ')
 
-    // clone sâu modules để chỉnh sửa mà không đụng vào course gốc
+    // clone sâu modules → lessons → blocks
     f.modules = (data.modules || []).map((m, mIndex) => ({
       id: m.id,
       title: m.title,
       position: (m as any).position ?? mIndex,
-      lessons: (m.lessons || []).map((l, lIndex) => ({
-        id: l.id,
-        title: l.title,
-        position: (l as any).position ?? lIndex,
-        content_type: (l as any).content_type || 'lesson',
-        published: (l as any).published,
-        content_blocks: (l as any).content_blocks
-          ? (JSON.parse(JSON.stringify((l as any).content_blocks)) as ContentBlock[])
-          : [],
-      })),
+      lessons: (m.lessons || []).map((l, lIndex) => {
+        const lesson = {
+          id: l.id,
+          title: l.title,
+          position: (l as any).position ?? lIndex,
+          content_type: (l as any).content_type || 'lesson',
+          published: (l as any).published,
+          content_blocks: (l as any).content_blocks
+            ? (JSON.parse(JSON.stringify((l as any).content_blocks)) as ContentBlock[])
+            : [],
+        }
+
+        // 🟦 FIX: Load preview cho media trong content_blocks
+        for (const block of lesson.content_blocks) {
+          // IMAGE
+          if (block.type === 'image' && block.payload?.image_url) {
+            fetchBlobUrl(block.payload.image_url).then((url) => {
+              if (url) block.payload.image_preview = url
+            })
+          }
+
+          // VIDEO
+          if (block.type === 'video' && block.payload?.video_url) {
+            fetchBlobUrl(block.payload.video_url).then((url) => {
+              if (url) block.payload.video_preview = url
+            })
+          }
+
+          // PDF / DOCX
+          if ((block.type === 'pdf' || block.type === 'docx') && block.payload?.file_url) {
+            fetchBlobUrl(block.payload.file_url).then((url) => {
+              if (url) block.payload.file_preview = url // nếu muốn xem trước
+            })
+          }
+        }
+
+        return lesson
+      }),
     }))
 
     // cover blob

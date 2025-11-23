@@ -331,13 +331,24 @@
                             >
                               Chọn file {{ block.type.toUpperCase() }}
                             </button>
-                            <span v-if="block.payload.file" class="file-info">
-                              {{ block.payload.file.name }} —
-                              {{ Math.round(block.payload.file.size / 1024) }} KB
-                            </span>
-                            <span v-else class="file-info text-gray-500"
-                              >Chưa có file nào được chọn</span
+                            <span
+                              v-if="block.payload.file || block.payload.file_selected_name"
+                              class="file-info"
                             >
+                              {{ block.payload.file?.name || block.payload.file_selected_name }}
+                              —
+                              {{
+                                Math.round(
+                                  (block.payload.file?.size || block.payload.file_selected_size) /
+                                    1024,
+                                )
+                              }}
+                              KB
+                            </span>
+
+                            <span v-else class="file-info text-gray-500">
+                              Chưa có file nào được chọn
+                            </span>
                           </div>
                           <label v-if="block.type === 'pdf'" class="block">
                             <span class="label-text">Tên file (tuỳ chọn)</span>
@@ -1083,6 +1094,8 @@ const handleFileUpload = async (
       if (!block.payload.filename) {
         block.payload.filename = file.name
       }
+      block.payload.file_selected_name = file.name
+      block.payload.file_selected_size = file.size
       delete block.payload.file
     }
 
@@ -1368,7 +1381,22 @@ async function submit() {
     }, 2000)
   } catch (e: any) {
     console.error('❌ Lỗi khi tạo khóa học:', e)
-    showNotification('error', 'Lỗi', e?.message || 'Có lỗi xảy ra. Vui lòng thử lại.')
+
+    const detail = e?.response?.data?.detail
+
+    // Nếu lỗi trùng tên (slug)
+    if (detail && detail.includes('Slug')) {
+      showNotification(
+        'error',
+        'Tên khoá học đã tồn tại',
+        'Đã có một khoá học khác dùng tên này. Vui lòng chọn tên khác để tiếp tục.',
+      )
+      submitting.value = false
+      return
+    }
+
+    // Lỗi khác
+    showNotification('error', 'Lỗi', detail || e?.message || 'Có lỗi xảy ra. Vui lòng thử lại.')
   } finally {
     submitting.value = false
   }

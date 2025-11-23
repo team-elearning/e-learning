@@ -100,7 +100,7 @@
     <!-- Table -->
     <div class="rounded-lg bg-white p-3 ring-1 ring-black/5">
       <el-table
-        :data="rows"
+        :data="filteredRows"
         v-loading="loading"
         height="520"
         @selection-change="onSelectionChange"
@@ -627,6 +627,41 @@ async function bulkBan() {
   ElMessage.success('Đã cấm tài khoản đã chọn')
   fetchList()
 }
+
+const filteredRows = computed(() => {
+  let list = [...rows.value]
+
+  // Tìm kiếm theo q (tên + email + username)
+  if (query.q) {
+    const kw = query.q.trim().toLowerCase()
+    list = list.filter(
+      (u) =>
+        u.username?.toLowerCase().includes(kw) ||
+        u.email?.toLowerCase().includes(kw) ||
+        (u.name && u.name.toLowerCase().includes(kw)),
+    )
+  }
+
+  // Lọc theo vai trò
+  if (query.role) {
+    list = list.filter((u) => u.role === query.role)
+  }
+
+  // Lọc theo trạng thái
+  if (query.status) {
+    list = list.filter((u) => u.status === query.status)
+  }
+
+  // Lọc theo ngày
+  if (query.from) {
+    list = list.filter((u) => u.createdAt >= query.from)
+  }
+  if (query.to) {
+    list = list.filter((u) => u.createdAt <= query.to)
+  }
+
+  return list
+})
 
 // export
 async function exportCsv() {
