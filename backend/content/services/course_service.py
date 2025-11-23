@@ -104,7 +104,7 @@ def get_courses(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFet
         return [_map_to_domain(course, strategy) for course in query_set]
     except Exception as e:
         logger.error(f"Error listing courses: {e}", exc_info=True)
-        raise DomainError("Lỗi hệ thống khi lấy danh sách khóa học: {e}")
+        raise DomainError(f"Lỗi hệ thống khi lấy danh sách khóa học: {str(e)}")
 
 
 def get_course_single(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFetchStrategy.FULL_STRUCTURE) -> CourseDomain:
