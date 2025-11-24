@@ -6,7 +6,6 @@
       <div class="tabs">
         <button class="tab" type="button" @click="goProfile">CÁ NHÂN</button>
         <button class="tab active" type="button">ĐỔI MẬT KHẨU</button>
-        <button class="tab" type="button" @click="goParent">PHỤ HUYNH</button>
       </div>
 
       <!-- Card -->
@@ -208,7 +207,7 @@ import { useAuthStore } from '@/store/auth.store'
 
 const router = useRouter()
 const goProfile = () => router.push({ name: 'student-profile' })
-const goParent = () => router.push({ name: 'student-parent' })
+// ❌ Đã xoá: const goParent = () => router.push({ name: 'student-parent' })
 const auth = useAuthStore()
 
 type Pwd = { current: string; new1: string; new2: string }
@@ -505,9 +504,6 @@ async function changePassword() {
   .container {
     padding: 24px 16px 40px;
   }
-  /* .tabs {
-    width: max-content;
-  } */
   .tab {
     padding: 10px 14px;
     font-size: 13px;

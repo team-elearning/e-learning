@@ -6,7 +6,6 @@
       <div class="tabs">
         <button class="tab active" type="button">CÁ NHÂN</button>
         <button class="tab" type="button" @click="goChangePwd">ĐỔI MẬT KHẨU</button>
-        <button class="tab" type="button" @click="goParent">PHỤ HUYNH</button>
       </div>
 
       <!-- Card -->
@@ -52,8 +51,8 @@
             </div>
           </div>
 
-          <div class="row" >
-            <label  class="label">Tên đăng nhập</label>
+          <div class="row">
+            <label class="label">Tên đăng nhập</label>
             <div>
               <input
                 v-model.trim="form.username"
@@ -125,8 +124,12 @@
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn-primary" :class="{ 'is-busy': saving }"
-              :disabled="saving || !isValidInfo || !isDirty">
+            <button
+              type="submit"
+              class="btn-primary"
+              :class="{ 'is-busy': saving }"
+              :disabled="saving || !isValidInfo || !isDirty"
+            >
               <span v-if="saving" class="spinner"></span>
               {{ saving ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT' }}
             </button>
@@ -187,8 +190,9 @@ const profileError = ref('')
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
 const OVER_LIMIT_MSG = 'File ảnh vượt quá dung lượng cho phép (2MB)'
 
-function goChangePwd() { router.push({ name: 'student-change-password' }) }
-function goParent() { router.push({ name: 'student-parent' }) }
+function goChangePwd() {
+  router.push({ name: 'student-change-password' })
+}
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
 const currentAvatar = computed(() => auth.user?.avatar || auth.user?.avatarUrl || defaultAvatar)
@@ -197,7 +201,9 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string>('')
 
-function openFile() { fileInput.value?.click() }
+function openFile() {
+  fileInput.value?.click()
+}
 
 /** MODAL: thông báo giới hạn dung lượng */
 const limitModal = reactive<{ open: boolean; message: string }>({ open: false, message: '' })
