@@ -3,13 +3,13 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import transaction
 import random
-from django.db.models import Max
+from django.db.models import Max, Prefetch
 
 from core.exceptions import ExamNotFoundError
 from quiz.models import Quiz, QuizAttempt, UserAnswer, Question
 from quiz.domains.quiz_preflight_domain import AccessDecisionDomain, QuizPreflightDomain, AttemptHistoryItemDomain
 from quiz.domains.exam_domain import ExamDomain
-from quiz.domains.quiz_attempt_domain import AttemptCreationResultDomain, QuizAttemptDomain, AttemptTakingDomain, QuestionTakingDomain, SaveAnswerResultDomain, SubmitAttemptResultDomain, AttemptResultDomain, QuestionReviewDomain
+from quiz.domains.quiz_attempt_domain import AttemptCreationResultDomain, QuizAttemptDomain, AttemptTakingDomain, QuestionTakingDomain, SaveAnswerResultDomain, SubmitAttemptResultDomain, AttemptResultDomain, QuestionReviewDomain, QuizSummaryDomain
 
 
 
@@ -81,7 +81,7 @@ def _evaluate_access_rules(exam: ExamDomain, attempts_count: int, ongoing_attemp
         if exam.max_attempts and exam.max_attempts > 0 and attempts_count >= exam.max_attempts:
             return AccessDecisionDomain(
                 is_allowed=False,
-                reason_message="Bạn đã hết {exam.max_attempts} lượt làm bài cho phép.",
+                reason_message=f"Bạn đã hết {exam.max_attempts} lượt làm bài cho phép.",
                 button_label="Hết lượt"
             )
 
@@ -321,100 +321,53 @@ def save_answer(attempt_id, user, data: dict) -> SaveAnswerResultDomain:
 ##############################################################################################
 ##############################################################################################
 
-def submit_attempt(attempt_id, user) -> SubmitAttemptResultDomain:
-    """
-    Xử lý nộp bài thi:
-    1. Kiểm tra quyền sở hữu.
-    2. Chốt thời gian.
-    3. Tính điểm (Auto-grading).
-    4. Cập nhật trạng thái DB.
-    """
-    # 1. Lấy Attempt & Validate
-    try:
-        attempt = QuizAttempt.objects.select_related('quiz').get(
-            pk=attempt_id, 
-            user=user
-        )
-    except QuizAttempt.DoesNotExist:
-        raise ValidationError("Không tìm thấy bài thi hoặc bạn không có quyền.")
-
-    # Logic Moodle: Nếu đã nộp rồi -> Trả về kết quả cũ luôn (Idempotency)
-    # Tránh việc user refresh trang finish gây tính điểm lại.
-    if attempt.status == 'completed':
-        return SubmitAttemptResultDomain(
-            attempt_id=attempt.id,
-            status=attempt.status,
-            score_obtained=attempt.score,
-            passed=attempt.score >= (attempt.quiz.pass_score or 0),
-            completion_time=attempt.time_submitted,
-            message="Bài thi này đã được nộp trước đó."
-        )
-
-    # 2. Bắt đầu Transaction để chấm điểm
-    with transaction.atomic():
-        now = timezone.now()
-        
-        # 2.1. Tính điểm (Grading Engine)
-        # Hàm này sẽ duyệt qua từng UserAnswer và so khớp với Question
-        total_score = _calculate_total_score(attempt)
-        
-        # 2.2. Kiểm tra điều kiện Đạt/Trượt
-        # Moodle logic: So sánh với pass_score của Quiz
-        pass_score = attempt.quiz.pass_score or 0
-        is_passed = total_score >= pass_score
-
-        # 2.3. Update Attempt
-        attempt.score = total_score
-        attempt.status = 'completed'
-        attempt.time_submitted = now
-        attempt.save()
-
-        # (Optional) TODO: Bắn event/signal cập nhật tiến độ khoá học (Course Progress)
-
-    # 3. Return Domain
-    return SubmitAttemptResultDomain(
-        attempt_id=attempt.id,
-        status='completed',
-        score_obtained=total_score,
-        passed=is_passed,
-        completion_time=now,
-        message="Nộp bài thành công."
-    )
-
-
 # --- PRIVATE HELPER: GRADING ENGINE ---
-def _calculate_total_score( attempt) -> float:
+def _calculate_grading_stats(attempt) -> float:
     """
-    Logic chấm điểm tự động.
-    Tham khảo Moodle: Duyệt qua tất cả câu hỏi trong attempt, 
-    load đáp án đúng và so sánh.
+    Logic chấm điểm quy đổi sang thang 10.
+    Công thức: (Số câu đúng / Tổng số câu) * 10
+    Return: (final_score_10, correct_count, total_questions)
     """
-    total_score = 0.0
+    # 1. Xác định tổng số câu hỏi của đề thi
+    # Lấy độ dài của questions_order (Snapshot danh sách câu hỏi lúc tạo đề)
+    total_questions_count = len(attempt.questions_order)
     
-    # Lấy danh sách câu trả lời của user cho attempt này
-    # Dùng select_related('question') để lấy luôn đáp án đúng (trong question) đỡ query nhiều
-    user_answers = UserAnswer.objects.filter(attempt=attempt).select_related('question')
+    if total_questions_count == 0:
+        return 0.0, 0, 0
 
+    raw_correct_count = 0.0
+    
+    # 2. Lấy danh sách câu trả lời user đã lưu
+    user_answers = UserAnswer.objects.filter(attempt=attempt).select_related('question')
+    
+    # Tạo map để duyệt nhanh (tránh query lại trong loop)
+    # Tuy nhiên, nếu user KHÔNG trả lời câu nào đó, user_answers sẽ thiếu record.
+    # Logic dưới đây chỉ duyệt các câu ĐÃ trả lời. Câu không trả lời mặc định 0 điểm.
+    
     for ua in user_answers:
         question = ua.question
-        user_selection = ua.selected_options # JSON/Dict
+        user_selection = ua.selected_options 
 
-        # Logic chấm điểm từng câu (Delegated Grading)
-        # Nên tách logic này ra Strategy Pattern nếu có nhiều loại câu hỏi (MCQ, Essay, FillBlank...)
-        score_for_question = _grade_single_question(question, user_selection)
+        # Chấm điểm từng câu (Trả về 1.0 nếu đúng, 0.0 nếu sai)
+        is_correct_score = _grade_single_question(question, user_selection)
         
-        # Cộng dồn
-        total_score += score_for_question
+        # Cộng số câu đúng
+        if is_correct_score > 0:
+            raw_correct_count += 1
         
-        # Cập nhật điểm cho từng câu trả lời (để hiện thị detail sau này)
-        ua.score_obtained = score_for_question
-        ua.is_correct = (score_for_question > 0) # Logic đơn giản: có điểm là đúng
+        # Cập nhật trạng thái từng câu (Để hiển thị màn Review: Câu này đúng hay sai?)
+        ua.score_obtained = is_correct_score # Lưu 1.0 hoặc 0.0
+        ua.is_correct = (is_correct_score > 0)
         ua.save(update_fields=['score_obtained', 'is_correct'])
         
-    return total_score
+    # 3. Tính toán quy đổi thang 10
+    final_score_10 = (raw_correct_count / total_questions_count) * 10
+    
+    # Làm tròn 2 chữ số thập phân (Ví dụ: 8.33)
+    return round(final_score_10, 2), raw_correct_count, total_questions_count
 
 
-def _grade_single_question( question, user_selection) -> float:
+def _grade_single_question(question, user_selection) -> float:
     """
     Hàm chấm điểm cho 1 câu hỏi cụ thể.
     Đây là phiên bản đơn giản cho Multiple Choice / Single Choice.
@@ -447,45 +400,107 @@ def _grade_single_question( question, user_selection) -> float:
         
     return 0.0
 
-
-# def submit_attempt( attempt_id, user):
-#     """
-#     Nộp bài: Tính điểm, đổi status.
-#     """
-#     attempt = get_object_or_404(QuizAttempt, pk=attempt_id, user=user)
-#     if attempt.status != 'in_progress':
-#         return attempt # Đã nộp rồi
-
-#     # Logic chấm điểm (Giả lập đơn giản)
-#     total_score = 0
-    
-#     # Lấy tất cả câu trả lời
-#     user_answers = UserAnswer.objects.filter(attempt=attempt)
-#     questions_map = {str(q.id): q for q in Question.objects.filter(id__in=attempt.questions_order)}
-
-#     for ua in user_answers:
-#         question = questions_map.get(str(ua.question_id))
-#         if question:
-#             # Gọi hàm so sánh đáp án (cần viết riêng trong Question model hoặc Utils)
-#             is_correct = _check_answer(question, ua.selected_options)
-#             ua.is_correct = is_correct
-#             if is_correct:
-#                 # Giả sử mỗi câu 1 điểm hoặc lấy từ config
-#                 ua.score_obtained = 1 
-#                 total_score += 1
-#             else:
-#                 ua.score_obtained = 0
-#             ua.save()
-    
-#     attempt.score = total_score
-#     attempt.time_submitted = timezone.now()
-#     attempt.status = 'completed'
-#     attempt.save()
-    
-#     return attempt
+def _get_overall_feedback(score, max_score):
+    """
+    Giả lập logic 'Overall Feedback' của Moodle.
+    Thực tế nên lấy từ cấu hình Quiz trong DB.
+    """
+    ratio = score / max_score if max_score > 0 else 0
+    if ratio >= 0.9:
+        return "Xuất sắc! Bạn nắm bài rất vững."
+    elif ratio >= 0.7:
+        return "Làm tốt lắm."
+    elif ratio >= 0.5:
+        return "Đạt yêu cầu, nhưng cần ôn thêm."
+    else:
+        return "Chưa đạt, hãy cố gắng lần sau nhé."
 
 
-def get_attempt_result(self, attempt_id, user) -> AttemptResultDomain:
+def submit_attempt(attempt_id, user) -> SubmitAttemptResultDomain:
+    """
+    Xử lý nộp bài thi:
+    1. Kiểm tra quyền sở hữu.
+    2. Chốt thời gian.
+    3. Tính điểm (Auto-grading).
+    4. Cập nhật trạng thái DB.
+    """
+    # 1. Lấy Attempt & Validate
+    try:
+        attempt = QuizAttempt.objects.select_related('quiz').get(
+            pk=attempt_id, 
+            user=user
+        )
+    except QuizAttempt.DoesNotExist:
+        raise ValidationError("Không tìm thấy bài thi hoặc bạn không có quyền.")
+
+    max_score_const = 10.0 # Thang điểm hệ thống
+
+    # Logic Moodle: Nếu đã nộp rồi -> Trả về kết quả cũ luôn (Idempotency)
+    # Tránh việc user refresh trang finish gây tính điểm lại.
+    if attempt.status == 'completed':
+        current_score = float(attempt.score) if attempt.score is not None else 0.0
+        percentage = (current_score / max_score_const) * 100 if max_score_const > 0 else 0
+
+        # Logic lấy số lượng khi đã nộp rồi:
+        # 1. Tổng số câu: Đếm từ questions_order (nhanh nhất)
+        total_questions = len(attempt.questions_order)
+        
+        # 2. Số câu đúng: Query đếm trong UserAnswer (vì đã lưu is_correct=True vào DB rồi)
+        correct_count = UserAnswer.objects.filter(attempt=attempt, is_correct=True).count()
+
+        return SubmitAttemptResultDomain(
+            attempt_id=attempt.id,
+            status=attempt.status,
+            score_obtained=current_score,
+            max_score=max_score_const,
+            percentage=round(percentage, 1),
+            correct_count=correct_count,
+            total_questions=total_questions,
+            passed=attempt.score >= (attempt.quiz.pass_score or 0),
+            completion_time=attempt.time_submitted,
+            message="Bài thi này đã được nộp trước đó.",
+            overall_feedback=_get_overall_feedback(current_score, max_score_const)
+        )
+
+    # 2. Bắt đầu Transaction để chấm điểm
+    with transaction.atomic():
+        now = timezone.now()
+        
+        # 2.1. Tính điểm (Grading Engine)
+        # Hàm này sẽ duyệt qua từng UserAnswer và so khớp với Question
+        total_score_10, raw_correct_count, total_qs_count = _calculate_grading_stats(attempt)
+        
+        # 2.2. Kiểm tra điều kiện Đạt/Trượt
+        # Moodle logic: So sánh với pass_score của Quiz
+        max_score_const = 10.0
+        percentage = (total_score_10 / max_score_const) * 100
+        # Lưu ý: pass_score trong DB cũng có thể là Decimal, cần ép kiểu khi so sánh
+        pass_score = float(attempt.quiz.pass_score) if attempt.quiz.pass_score else 0.0
+        is_passed = total_score_10 >= pass_score
+
+        # 2.3. Update Attempt
+        attempt.score = total_score_10
+        attempt.status = 'completed'
+        attempt.time_submitted = now
+        attempt.save()
+
+        # (Optional) TODO: Bắn event/signal cập nhật tiến độ khoá học (Course Progress)
+
+    # 3. Return Domain
+    return SubmitAttemptResultDomain(
+        attempt_id=attempt.id,
+        status='completed',
+        score_obtained=total_score_10,
+        max_score=max_score_const,
+        percentage=round(percentage, 1),
+        passed=is_passed,
+        completion_time=now,
+        message="Nộp bài thành công.",
+        overall_feedback=_get_overall_feedback(total_score_10, max_score_const)
+    )
+
+
+def get_attempt_result(attempt_id, user) -> AttemptResultDomain:
     """
     Lấy kết quả bài thi.
     Logic Moodle: Kiểm tra 'Review Options' (show_score, show_correct_answer)
@@ -538,6 +553,7 @@ def get_attempt_result(self, attempt_id, user) -> AttemptResultDomain:
     }
 
     max_score_total = 0.0
+    correct_count_total = 0
 
     for q_id in question_ids:
         question = questions_map.get(q_id)
@@ -557,10 +573,16 @@ def get_attempt_result(self, attempt_id, user) -> AttemptResultDomain:
         # Chỉ lấy đáp án đúng từ DB nếu được phép xem
         if can_see_correct_answer:
             # Trích xuất đáp án đúng từ payload (ví dụ lấy ID của option đúng)
-            correct_ans_data = self._extract_correct_options(question)
+            correct_ans_data = _extract_correct_options(question)
         
         if can_see_explanation:
             explanation_data = question.answer_payload.get('explanation', '')
+
+        # Xác định trạng thái đúng/sai của câu này
+        is_q_correct = user_ans.is_correct if user_ans else False
+
+        if is_q_correct:
+            correct_count_total += 1
 
         # --- MAP TO DOMAIN ---
         review_q = QuestionReviewDomain(
@@ -591,12 +613,16 @@ def get_attempt_result(self, attempt_id, user) -> AttemptResultDomain:
         score_obtained=attempt.score,
         max_score=max_score_total,
         is_passed=attempt.score >= (quiz.pass_score or 0),
+
+        correct_count=correct_count_total,
+        total_questions=len(question_ids),
+
         questions=review_questions
     )
 
 
 # --- HELPER EXTRACTOR ---
-def _extract_correct_options(self, question):
+def _extract_correct_options(question):
     """
     Helper để lấy ra list các Option đúng từ JSON payload của câu hỏi.
     """
@@ -606,3 +632,79 @@ def _extract_correct_options(self, question):
         return [opt['id'] for opt in options if opt.get('is_correct')]
     except Exception:
         return []
+    
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+
+def get_quiz_list(user, mode_filter=None) -> list[QuizSummaryDomain]:
+    qs = Quiz.objects.all()
+
+    if mode_filter:
+        qs = qs.filter(mode=mode_filter)
+    
+    qs = qs.order_by('-created_at')
+
+    # Prefetch giữ nguyên (rất tốt cho hiệu năng)
+    user_attempts_prefetch = Prefetch(
+        'attempts',
+        queryset=QuizAttempt.objects.filter(user=user).only('id', 'status', 'score'),
+        to_attr='user_attempts'
+    )
+    qs = qs.prefetch_related(user_attempts_prefetch)
+
+    domain_list = []
+    now = timezone.now()
+
+    for quiz in qs:
+        # 1. Tính toán User Status & Score (Logic cũ của bạn - giữ nguyên vì ổn)
+        attempts = quiz.user_attempts
+        attempts_count = len(attempts)
+        
+        current_attempt = next((a for a in attempts if a.status == 'in_progress'), None)
+        completed_scores = [a.score for a in attempts if a.score is not None]
+        best_score = max(completed_scores) if completed_scores else None
+
+        if current_attempt:
+            user_status = 'in_progress'
+        elif attempts_count > 0:
+            if quiz.max_attempts and attempts_count >= quiz.max_attempts:
+                user_status = 'completed'
+            else:
+                user_status = 'attempted' 
+        else:
+            user_status = 'not_started'
+
+        # 2. Tính toán Availability (Logic mới bổ sung)
+        # Kiểm tra thời gian mở/đóng để xem user có được vào thi không
+        is_available = True
+        if quiz.time_open and now < quiz.time_open:
+            is_available = False
+        if quiz.time_close and now > quiz.time_close:
+            is_available = False
+            
+        # 3. Format dữ liệu (ví dụ Time Limit)
+        # Giả sử time_limit là timedelta, convert sang string ở đây luôn
+        time_limit_str = str(quiz.time_limit) if quiz.time_limit else None
+
+        # 4. Tạo Domain Object (Mapping phẳng)
+        domain_obj = QuizSummaryDomain(
+            id=quiz.id,
+            title=quiz.title,
+            mode=quiz.mode,
+            
+            time_open=quiz.time_open,
+            time_close=quiz.time_close,
+            time_limit_str=time_limit_str,
+            
+            user_status=user_status,
+            best_score=best_score,
+            attempts_count=attempts_count,
+            
+            is_available=is_available
+        )
+        domain_list.append(domain_obj)
+
+    return domain_list

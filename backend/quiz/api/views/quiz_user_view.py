@@ -12,11 +12,11 @@ from core.api.mixins import RoleBasedOutputMixin
 from quiz.models import UserAnswer, Question, QuizAttempt, Quiz
 from quiz.services import quiz_user_service
 from quiz.serializers import QuestionTakingSerializer, QuizAttemptStartSerializer, SaveAnswerSerializer
-from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput, SubmitOutput, AttemptResultOutput
+from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput, SubmitOutput, AttemptResultOutput, QuizItemOutput
 
 
 
-class QuizInfoView(RoleBasedOutputMixin, APIView):
+class QuizInfoView(RoleBasedOutputMixin, APIView): 
     permission_classes = [IsAuthenticated]
 
     output_dto_public = QuizPreflightOutput
@@ -25,7 +25,7 @@ class QuizInfoView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_user_service
 
-    def get(self, request, pk):
+    def get(self, request, pk): # GET: Lấy thông tin bài thi + trạng thái (đã làm bao nhiêu lần, có được thi tiếp không)
         """
         ENDPOINT: /quizzes/<id>/info/
         View chỉ gọi Service lấy data và trả về.
@@ -39,8 +39,7 @@ class QuizInfoView(RoleBasedOutputMixin, APIView):
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
-# Bắt đầu lượt thi
-class QuizAttemptStartView(RoleBasedOutputMixin, APIView):
+class QuizAttemptStartView(RoleBasedOutputMixin, APIView): 
     permission_classes = [IsAuthenticated]
 
     output_dto_public = StartAttemptOutput
@@ -49,7 +48,7 @@ class QuizAttemptStartView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_user_service
 
-    def post(self, request, pk):
+    def post(self, request, pk): # POST: Tạo lượt làm bài mới hoặc trả về lượt đang dang dở
         """
         ENDPOINT: /quizzes/<id>/attempt/
         Nhiệm vụ:
@@ -87,7 +86,6 @@ class QuizAttemptStartView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# Bước lấy đề thi
 class AttemptDetailView(RoleBasedOutputMixin, APIView):
     """
     GET /attempts/<id>/
@@ -102,6 +100,7 @@ class AttemptDetailView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_user_service
 
+    # GET: Lấy chi tiết đề thi (câu hỏi, thời gian còn lại, các câu trả lời đã lưu)
     def get(self, request, pk):
         try:
             # 1. Gọi Service lấy Context Domain
@@ -118,7 +117,7 @@ class AttemptDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi tải đề thi: {str(e)}"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class AttemptSaveAnswerView(RoleBasedOutputMixin, APIView):
+class AttemptSaveAnswerView(RoleBasedOutputMixin, APIView): # POST: Lưu câu trả lời (Auto-save) & Đánh dấu (Flag)
     """
     POST /attempts/<id>/save/
     Nhiệm vụ: Auto-save đáp án & Đánh dấu (Flag).
@@ -158,7 +157,7 @@ class AttemptSaveAnswerView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class QuizAttemptSubmitView(RoleBasedOutputMixin, APIView):
+class AttemptSubmitView(RoleBasedOutputMixin, APIView):
     """
     POST /attempts/<id>/submit/
     Nhiệm vụ: 
@@ -172,7 +171,7 @@ class QuizAttemptSubmitView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_user_service
 
-    def post(self, request, pk):
+    def post(self, request, pk): # POST: NỘP BÀI (SUBMIT)
         try:
             # Gọi service để đổi state -> completed, tính điểm
             result_domain = self.quiz_service.submit_attempt(pk, request.user)
@@ -198,7 +197,7 @@ class AttemptResultView(RoleBasedOutputMixin, APIView):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_user_service
 
-    def get(self, request, pk):
+    def get(self, request, pk): # GET: XEM KẾT QUẢ (RESULT)
         try:
             # Service cần check: 
             # 1. User có phải chủ attempt không?
@@ -212,4 +211,32 @@ class AttemptResultView(RoleBasedOutputMixin, APIView):
             return Response({"detail": "Bạn không có quyền xem kết quả này."}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class QuizListView(RoleBasedOutputMixin, APIView):
+    """
+    GET /
+    Query Params:
+        ?mode=exam      -> Lấy bài kiểm tra
+        ?mode=practice  -> Lấy bài luyện tập
+    """
+    permission_classes = [IsAuthenticated]
+    output_dto_public = QuizItemOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quiz_service = quiz_user_service # Instance service của bạn
+
+    def get(self, request):
+        mode_param = request.query_params.get('mode', None) # exam | practice
+        
+        try:
+            # 1. Gọi Service
+            domain_list = self.quiz_service.get_quiz_list(request.user, mode_filter=mode_param)
+            
+            # Nếu dùng RoleBasedOutputMixin chuẩn, bạn có thể trả về dict:
+            return Response({"instance": domain_list}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": f"Lỗi lấy danh sách: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         

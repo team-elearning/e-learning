@@ -187,6 +187,7 @@ class ContentBlock(models.Model):
         # Sửa thành self.lesson
         return f"{self.type} in {self.lesson}"
 
+
 class Exploration(models.Model):
     # Oppia-style: Interactive state-based lessons.
     id = models.CharField(primary_key=True, max_length=255, editable=False)

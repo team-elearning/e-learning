@@ -7,60 +7,69 @@ from uuid import UUID
 
 @dataclass
 class UserBlockProgressDomain:
-    id: UUID
-    user_id: UUID  
+    id: Optional[UUID]  # None nếu chưa lưu DB
+    user_id: UUID   
     block_id: UUID
-    is_completed: bool
+    
+    # --- Trạng thái học tập ---
+    status: str  # Thay vì bool is_completed, dùng Enum: 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'
     time_spent_seconds: int
     resume_data: Dict[str, Any]
-    last_accessed: datetime
+    last_accessed: Optional[datetime]
     score: Optional[float] = None
+    
+    # --- MỞ RỘNG: Metadata từ ContentBlock (Để Frontend hiển thị) ---
+    # Giúp FE biết tổng thời lượng để vẽ thanh loading mà không cần gọi API khác
+    block_total_duration: Optional[int] = None 
+    block_passing_score: Optional[float] = None
+    
+    # --- Calculated Field ---
+    progress_percentage: float = 0.0 
 
     @classmethod
-    def from_model(cls, model_instance) -> 'UserBlockProgressDomain':
+    def from_model(cls, progress_model, content_block) -> 'UserBlockProgressDomain':
         """
-        Factory method: Chuyển đổi từ Django Model -> Domain Entity.
+        Factory method kết hợp dữ liệu từ Progress (User) và ContentBlock (System).
         """
+        # Logic tính status & percentage
+        status = 'IN_PROGRESS'
+        if progress_model.is_completed:
+            status = 'COMPLETED'
+        
+        # Tính phần trăm (Ví dụ đơn giản)
+        percent = 0.0
+        if content_block.duration_seconds and content_block.duration_seconds > 0:
+            percent = min(100.0, (progress_model.time_spent_seconds / content_block.duration_seconds) * 100)
+            
         return cls(
-            id=model_instance.id,
-            # Lưu ý: Dùng user_id và block_id (có _id) để tránh query thêm DB 
-            # nếu object user/block chưa được prefetch.
-            user_id=model_instance.user_id, 
-            block_id=model_instance.block_id,
-            is_completed=model_instance.is_completed,
-            time_spent_seconds=model_instance.time_spent_seconds,
-            score=model_instance.score,
-            # Đảm bảo resume_data luôn là dict kể cả khi DB lưu null (safety)
-            resume_data=model_instance.resume_data if model_instance.resume_data else {},
-            last_accessed=model_instance.last_accessed
+            id=progress_model.id,
+            user_id=progress_model.user_id,
+            block_id=progress_model.block_id,
+            status=status, # Mới
+            time_spent_seconds=progress_model.time_spent_seconds,
+            resume_data=progress_model.resume_data or {},
+            last_accessed=progress_model.last_accessed,
+            score=progress_model.score,
+            
+            # Map dữ liệu từ Block sang
+            block_total_duration=content_block.duration_seconds, # Giả sử model Block có trường này
+            block_passing_score=content_block.passing_score,
+            progress_percentage=round(percent, 2)
         )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Chuyển đổi Domain Entity -> Dictionary (thường dùng để trả về API).
-        Xử lý serialize UUID và Datetime sang string cho an toàn với JSON.
-        """
-        return {
-            "id": str(self.id),
-            "user_id": self.user_id, # Nếu user_id là UUID thì nên wrap str()
-            "block_id": str(self.block_id),
-            "is_completed": self.is_completed,
-            "time_spent_seconds": self.time_spent_seconds,
-            "score": self.score,
-            "resume_data": self.resume_data,
-            # Format ISO 8601 cho frontend dễ parse
-            "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None
-        }
-
-    # --- BUSINESS LOGIC (Optional) ---
-    # Bạn có thể thêm các hàm nghiệp vụ ngay tại đây thay vì để rải rác
     
-    def update_progress(self, new_data: dict, time_add: int = 0):
-        """Logic update dữ liệu resume và cộng dồn thời gian"""
-        self.resume_data.update(new_data)
-        self.time_spent_seconds += time_add
-        # Update last_accessed cần xử lý ở service hoặc lúc save
-    
-    def mark_as_completed(self):
-        """Logic hoàn thành bài học"""
-        self.is_completed = True
+    @classmethod
+    def create_transient(cls, user, block) -> 'UserBlockProgressDomain':
+        """Tạo object rỗng cho người chưa học bao giờ"""
+        return cls(
+            id=None,
+            user_id=user.id,
+            block_id=block.id,
+            status='NOT_STARTED',
+            time_spent_seconds=0,
+            resume_data={},
+            last_accessed=None,
+            score=None,
+            block_total_duration=block.duration_seconds,
+            block_passing_score=block.passing_score,
+            progress_percentage=0.0
+        )
