@@ -3,7 +3,7 @@ from django.urls import path
 from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetailView, AdminExamDetailView, AdminExamListView
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
 from quiz.api.views.parse_view import QuizParseToolView
-from quiz.api.views.quiz_user_view import QuizInfoView, QuizAttemptStartView, AttemptDetailView
+from quiz.api.views.quiz_user_view import QuizInfoView, QuizAttemptStartView, AttemptDetailView, AttemptSaveAnswerView
 
 
 
@@ -39,8 +39,8 @@ urlpatterns = [
     # GET: Lấy chi tiết đề thi (câu hỏi, thời gian còn lại, các câu trả lời đã lưu)
     path('attempts/<uuid:pk>/', AttemptDetailView.as_view(), name='student-attempt-detail'),
 
-    # # POST: Lưu câu trả lời (Auto-save) & Đánh dấu (Flag)
-    # path('student/attempts/<uuid:pk>/save-answer/', StudentAttemptSaveAnswerView.as_view(), name='student-attempt-save-answer'),
+    # POST: Lưu câu trả lời (Auto-save) & Đánh dấu (Flag)
+    path('attempts/<uuid:pk>/save/', AttemptSaveAnswerView.as_view(), name='student-attempt-save-answer'),
 
     # # POST: NỘP BÀI (SUBMIT)
     # path('student/attempts/<uuid:pk>/submit/', StudentAttemptSubmitView.as_view(), name='student-attempt-submit'),

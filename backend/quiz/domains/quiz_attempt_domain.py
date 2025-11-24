@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -52,6 +52,8 @@ class QuestionTakingDomain:
     # State của User (Resume)
     current_selection: Optional[Dict[str, Any]] = None # User đã chọn gì?
     is_answered: bool = False # Đã làm chưa? (Dùng để tô màu xanh/trắng navigation)
+
+    is_flagged: bool = False
     
     # Bảo mật: Tuyệt đối KHÔNG có answer_payload ở đây
 
@@ -83,3 +85,49 @@ class SaveAnswerResultDomain:
     """
     status: str
     saved_at: datetime
+
+
+@dataclass
+class SubmitAttemptResultDomain:
+    attempt_id: UUID
+    status: str          # 'completed'
+    score_obtained: float
+    passed: bool         # True/False dựa trên pass_score
+    completion_time: datetime
+    message: str         # "Nộp bài thành công"
+
+
+@dataclass
+class QuestionReviewDomain:
+    """
+    Chi tiết kết quả của 1 câu hỏi.
+    """
+    id: UUID
+    prompt: Dict[str, Any]      # Nội dung câu hỏi
+    user_selected: Any          # Đáp án user chọn (List ID hoặc Text)
+    is_correct: bool            # Đúng hay sai?
+    score_obtained: float       # Điểm đạt được câu này
+    
+    # Các field nhạy cảm (Chỉ hiện khi Practice Mode hoặc Config cho phép)
+    correct_answer: Optional[Any] = None  # Đáp án đúng là gì?
+    explanation: Optional[str] = None     # Giải thích chi tiết
+
+
+@dataclass
+class AttemptResultDomain:
+    """
+    Tổng quan kết quả bài thi.
+    """
+    attempt_id: UUID
+    quiz_title: str
+    status: str
+    time_taken_seconds: int     # Thời gian làm bài
+    time_submitted: datetime
+    
+    # Điểm số
+    score_obtained: float       # Điểm thô
+    max_score: float            # Tổng điểm của đề
+    is_passed: bool             # Đạt/Trượt
+    
+    # Danh sách chi tiết (Có thể rỗng nếu mode Exam không cho xem lại bài)
+    questions: List[QuestionReviewDomain] = field(default_factory=list)
