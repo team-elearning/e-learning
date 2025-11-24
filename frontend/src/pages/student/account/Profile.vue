@@ -373,6 +373,7 @@ async function saveProfile() {
       language: auth.user?.language,
     }
     await auth.updateProfile(payload as any)
+    await fetchProfile() // đồng bộ lại với dữ liệu vừa lưu trên server
     lastUpdated.value = new Date().toLocaleString()
     snapshot()
     avatarFile.value = null

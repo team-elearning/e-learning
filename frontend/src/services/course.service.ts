@@ -423,6 +423,56 @@ function normalizeCourseSummary(payload: any): CourseSummary {
   }
 }
 
+function normalizeCourseDetail(payload: any): CourseDetail {
+  if (!payload) return buildMockDetail(1)
+
+  const base = normalizeCourseSummary(payload)
+  const sections = normalizeSections(payload)
+
+  const lessonsCount =
+    base.lessonsCount ||
+    sections.reduce((a, s) => a + (s.lessons?.length || 0), 0) ||
+    0
+
+  const duration =
+    payload.durationMinutes ??
+    payload.duration_minutes ??
+    payload.duration ??
+    sections.reduce(
+      (a, s) => a + (s.lessons || []).reduce((b, l) => b + (l.durationMinutes || 0), 0),
+      0,
+    )
+
+  const rawLevel = String(payload.level || '').toLowerCase()
+  const level: Level | undefined =
+    rawLevel === 'advanced' ? 'advanced' : rawLevel === 'basic' ? 'basic' : undefined
+
+  const thumbnail =
+    payload.thumbnail ??
+    payload.thumbnail_url ??
+    payload.image_url ??
+    base.thumbnail ??
+    DEFAULT_THUMBNAIL
+
+  return {
+    ...base,
+    description:
+      payload.description ??
+      payload.short_description ??
+      payload.overview ??
+      payload.introduction ??
+      '',
+    introduction: payload.introduction ?? payload.description ?? '',
+    level,
+    durationMinutes: typeof duration === 'number' ? duration : undefined,
+    sections,
+    video_url: payload.video_url ?? payload.videoUrl ?? null,
+    video_file: payload.video_file ?? payload.videoFile ?? null,
+    thumbnail,
+    lessonsCount,
+  }
+}
+
 // ====== SERVICE ======
 export const courseService = {
   // LIST - Support both admin and student endpoints
