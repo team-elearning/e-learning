@@ -203,7 +203,7 @@
                 v-for="s in suppList"
                 :key="`supp-${activeTab}-${s.id}`"
                 class="card"
-                @click="openDetail(s.id)"
+                @click="handleSuppEnroll(s)"
               >
                 <div :class="['thumb', { loaded: isThumbLoaded(s.id) }]">
                   <img

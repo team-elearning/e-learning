@@ -60,7 +60,12 @@ export interface UpdateProfileDto extends Partial<AuthUser> {
 function mapAuthUser(raw: any): AuthUser {
   const displayName =
     raw?.display_name ?? raw?.displayName ?? raw?.name ?? raw?.username ?? raw?.full_name ?? ''
-  const avatarUrl = raw?.avatar_url ?? raw?.avatarUrl ?? raw?.avatar ?? ''
+  const avatarUrl =
+    raw?.avatar_url ??
+    raw?.avatarUrl ??
+    raw?.avatar_id ?? // backend có thể trả avatar_id dạng data URI
+    raw?.avatar ??
+    ''
   const role = (raw?.role as Role) || 'student'
 
   return {
