@@ -97,11 +97,21 @@
             <div class="text-xs text-gray-500">GV: {{ row.teacherName }}</div>
           </template>
         </el-table-column>
-
+        <!-- 
         <el-table-column label="Lớp/Môn" width="140">
           <template #default="{ row }">
             <div class="text-sm">Lớp {{ row.grade }}</div>
-            <div class="text-xs text-gray-500">{{ subjectName(row.subject) }}</div>
+            <div class="text-xs text-gray-500">
+              {{ displaySubject(row) }}
+            </div>
+          </template>
+        </el-table-column> -->
+        <el-table-column label="Lớp/Môn" width="140">
+          <template #default="{ row }">
+            <div class="text-sm">Lớp {{ row.grade }}</div>
+            <div class="text-xs text-gray-500">
+              {{ displaySubject(row) }}
+            </div>
           </template>
         </el-table-column>
 
@@ -225,6 +235,17 @@ const DEFAULT_THUMB = 'https://emojiapi.dev/api/v1/1f393/512.png'
 function subjectName(s: Subject) {
   return subjects.find((x) => x.value === s)?.label || s
 }
+
+function displaySubject(row: CourseSummary) {
+  if (row.subject) return subjectName(row.subject)
+
+  if (row.categories?.length) {
+    return row.categories[0].name
+  }
+
+  return 'Chưa rõ'
+}
+
 function statusLabel(s: CourseStatus) {
   return s === 'draft'
     ? 'Bản nháp'

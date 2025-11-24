@@ -494,12 +494,39 @@
                                       Chưa có ảnh nào được chọn
                                     </span>
                                   </div>
-                                  <img
+
+                                  <div>
+                                    <!-- Loading -->
+                                    <p
+                                      v-if="block.payload.is_loading"
+                                      class="text-xs text-slate-500"
+                                    >
+                                      Đang tải ảnh…
+                                    </p>
+
+                                    <!-- Error -->
+                                    <p
+                                      v-else-if="block.payload.load_error"
+                                      class="text-xs text-red-600"
+                                    >
+                                      {{ block.payload.load_error }}
+                                    </p>
+
+                                    <!-- Preview -->
+                                    <img
+                                      v-else-if="block.payload.image_preview"
+                                      :src="block.payload.image_preview"
+                                      alt="Xem trước ảnh"
+                                      class="image-preview-small"
+                                    />
+                                  </div>
+
+                                  <!-- <img
                                     v-if="block.payload.image_preview"
                                     :src="block.payload.image_preview"
                                     alt="Xem trước ảnh"
                                     class="image-preview-small"
-                                  />
+                                  /> -->
                                   <label class="block">
                                     <span class="label-text">Chú thích</span>
                                     <input
@@ -562,12 +589,35 @@
                                       Chưa có video nào được chọn
                                     </span>
                                   </div>
-                                  <video
+                                  <div>
+                                    <p
+                                      v-if="block.payload.is_loading"
+                                      class="text-xs text-slate-500"
+                                    >
+                                      Đang tải video…
+                                    </p>
+
+                                    <p
+                                      v-else-if="block.payload.load_error"
+                                      class="text-xs text-red-600"
+                                    >
+                                      {{ block.payload.load_error }}
+                                    </p>
+
+                                    <video
+                                      v-else-if="block.payload.video_preview"
+                                      :src="block.payload.video_preview"
+                                      controls
+                                      class="video-preview-small"
+                                    ></video>
+                                  </div>
+
+                                  <!-- <video
                                     v-if="block.payload.video_preview"
                                     :src="block.payload.video_preview"
                                     controls
                                     class="video-preview-small"
-                                  ></video>
+                                  ></video> -->
                                   <p class="hint-text">Hỗ trợ: MP4, WebM, MOV. Tối đa 200MB.</p>
                                   <div v-if="block.payload.uploading" class="text-sm text-gray-600">
                                     Đang upload video... {{ block.payload.progress || 0 }}%
@@ -579,6 +629,14 @@
                                   v-else-if="['pdf', 'docx'].includes(block.type)"
                                   class="space-y-3"
                                 >
+                                  <!-- HIỂN THỊ TÊN FILE TỪ BACKEND HOẶC FALLBACK -->
+                                  <p class="text-[11px] text-slate-500">
+                                    {{ getDisplayFilename(block) }}
+                                    <span v-if="block.payload.file_size">
+                                      — {{ Math.round(block.payload.file_size / 1024) }} KB
+                                    </span>
+                                  </p>
+
                                   <div class="file-upload-area">
                                     <input
                                       :ref="
@@ -619,14 +677,18 @@
                                     >
                                       Chọn file {{ block.type.toUpperCase() }}
                                     </button>
+
+                                    <!-- Tên file khi user upload -->
                                     <span v-if="block.payload.file" class="file-info">
                                       {{ block.payload.file.name }} —
                                       {{ Math.round(block.payload.file.size / 1024) }} KB
                                     </span>
+
                                     <span v-else class="file-info text-gray-500">
                                       Chưa có file nào được chọn
                                     </span>
                                   </div>
+
                                   <label v-if="block.type === 'pdf'" class="block">
                                     <span class="label-text">Tên file (tuỳ chọn)</span>
                                     <input
@@ -635,6 +697,16 @@
                                       placeholder="Tóm tắt lý thuyết.pdf"
                                     />
                                   </label>
+
+                                  <label v-if="block.type === 'docx'" class="block">
+                                    <span class="label-text">Tên file (tuỳ chọn)</span>
+                                    <input
+                                      v-model="block.payload.filename"
+                                      class="input-field"
+                                      placeholder="Tóm tắt lý thuyết.docx"
+                                    />
+                                  </label>
+
                                   <p class="hint-text">
                                     {{
                                       block.type === 'pdf'
@@ -1178,9 +1250,7 @@ async function fetchCourse() {
 
   try {
     const { data } = await axios.get<CourseDetail>(`/api/content/admin/courses/${id}/`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: { ...getAuthHeaders() },
     })
 
     course.value = data
@@ -1189,15 +1259,13 @@ async function fetchCourse() {
     f.title = data.title || ''
     f.description = data.description || ''
     f.grade = data.grade || '5'
-    // Subject: lấy từ subject nếu có, không thì từ category name
-    f.subject = data.subject || data.categories[0]?.name || data.categories[0]?.slug || ''
+    f.subject = data.subject || data.categories[0]?.name || ''
     f.published = !!data.published
 
-    // tags: từ object -> name
-    f.tags = Array.isArray(data.tags) ? data.tags.map((t) => t.name) : []
+    f.tags = data.tags?.map((t) => t.name) || []
     tagsInput.value = f.tags.join(', ')
 
-    // clone sâu modules để chỉnh sửa mà không đụng vào course gốc
+    // clone modules
     f.modules = (data.modules || []).map((m, mIndex) => ({
       id: m.id,
       title: m.title,
@@ -1208,27 +1276,109 @@ async function fetchCourse() {
         position: l.position ?? lIndex,
         content_type: l.content_type,
         published: l.published,
-        content_blocks: l.content_blocks
-          ? (JSON.parse(JSON.stringify(l.content_blocks)) as ContentBlock[])
-          : [],
+        content_blocks: l.content_blocks ? JSON.parse(JSON.stringify(l.content_blocks)) : [],
       })),
     }))
 
-    // cover blob
-    if (data.image_url) {
-      const url = await fetchBlobUrl(data.image_url)
-      if (url) {
-        coverBlobUrl.value = url
+    // ✨ (1) HIỆN GIAO DIỆN NGAY
+    loading.value = false
+
+    // ✨ (2) LOAD MEDIA SONG SONG
+    const tasks: Promise<void>[] = []
+
+    for (const mod of f.modules) {
+      for (const lesson of mod.lessons) {
+        for (const block of lesson.content_blocks) {
+          // thêm loading flag cho từng block
+          block.payload.is_loading = true
+          block.payload.load_error = ''
+
+          tasks.push(
+            (async () => {
+              try {
+                if (block.type === 'image' && block.payload.image_url) {
+                  const fileData = await loadFileFromUrl(block.payload.image_url)
+                  if (fileData) block.payload.image_preview = fileData.previewUrl
+                }
+
+                if (block.type === 'video' && block.payload.video_url) {
+                  const fileData = await loadFileFromUrl(block.payload.video_url)
+                  if (fileData) block.payload.video_preview = fileData.previewUrl
+                }
+
+                if (['pdf', 'docx'].includes(block.type) && block.payload.file_url) {
+                  const fileData = await loadFileFromUrl(block.payload.file_url)
+                  if (fileData) block.payload.file_preview = fileData.previewUrl
+                }
+              } catch (err) {
+                block.payload.load_error = 'Lỗi khi tải nội dung'
+              } finally {
+                block.payload.is_loading = false
+              }
+            })(),
+          )
+        }
       }
     }
+
+    // ✨ chạy song song nhưng KHÔNG BLOCK UI
+    Promise.all(tasks)
+
+    // load cover riêng
+    if (data.image_url) {
+      const url = await fetchBlobUrl(data.image_url)
+      if (url) coverBlobUrl.value = url
+    }
   } catch (e: any) {
-    console.error('❌ Lỗi tải chi tiết khoá học (admin):', e)
-    error.value =
-      e?.response?.data?.detail ||
-      e?.message ||
-      'Không thể tải chi tiết khoá học. Vui lòng thử lại.'
-  } finally {
+    console.error('❌ Lỗi tải khoá học:', e)
+    error.value = e?.response?.data?.detail || 'Không thể tải dữ liệu khoá học.'
     loading.value = false
+  }
+}
+function getDisplayFilename(block: any) {
+  const p = block.payload
+
+  // Nếu có tên file backend trả về
+  if (p.filename && p.filename.trim() !== '') {
+    return p.filename
+  }
+
+  // Nếu user upload file → tên file sẽ nằm trong p.file.name
+  if (p.file && p.file.name) {
+    return p.file.name
+  }
+
+  // Fallback: lấy tên từ file_url (theo ID)
+  if (p.file_url) {
+    const segments = p.file_url.split('/')
+    const id = segments[segments.length - 2]
+    return id + (block.type === 'pdf' ? '.pdf' : '.docx')
+  }
+
+  return 'Tập tin'
+}
+
+async function loadFileFromUrl(url: string) {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'blob',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    const blob = res.data
+    const previewUrl = URL.createObjectURL(blob)
+
+    return {
+      blob,
+      previewUrl,
+      size: blob.size,
+      type: blob.type,
+    }
+  } catch (error) {
+    console.error('❌ Lỗi tải file:', url, error)
+    return null
   }
 }
 
