@@ -234,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
@@ -252,7 +252,7 @@ const showConfirm = ref(false)
 const isLoggingOut = ref(false)
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=20'
-const avatarSrc = computed(() => auth.user?.avatar || defaultAvatar)
+const avatarSrc = computed(() => auth.user?.avatar || (auth.user as any)?.avatarUrl || defaultAvatar)
 const displayName = computed(() => auth.user?.name || 'Giáo viên')
 const displayEmail = computed(() => auth.user?.email || 'teacher@example.com')
 
@@ -310,6 +310,12 @@ function handleClick(path: string) {
     clickedItem.value = null
   }, 800)
 }
+
+onMounted(() => {
+  if (auth.user) {
+    auth.refreshProfile()
+  }
+})
 </script>
 
 <style scoped>
