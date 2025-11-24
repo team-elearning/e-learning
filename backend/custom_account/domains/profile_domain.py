@@ -81,7 +81,7 @@ class ProfileDomain:
         return cls(
             user_id=data["user_id"],
             display_name=data.get("display_name"),
-            avatar_url=data.get("avatar_url"),
+            avatar_id=data.get("avatar_id"),
             dob=data.get("dob"),
             gender=data.get("gender"),
             language=data.get("language", "vi"),

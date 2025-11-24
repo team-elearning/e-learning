@@ -47,7 +47,7 @@ class UserProfileView(RoleBasedOutputMixin, APIView):
         Handle PATCH requests to update the user's profile.
         """
         # Use a dedicated serializer *only* for validation
-        serializer = ProfileSerializer(data=request.data)
+        serializer = ProfileSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         
         # Create an Input DTO from validated data
