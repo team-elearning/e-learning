@@ -9,6 +9,7 @@ class ProfileInput(BaseModel):
     gender: str | None = None
 
 
+######
 class ProfileUpdateInput(BaseModel):
     # --- Profile Fields ---
     display_name: str | None = None
