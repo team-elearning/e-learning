@@ -301,8 +301,11 @@ const loadAvatar = async () => {
       responseType: 'blob'
     })
     avatarBlobUrl.value = URL.createObjectURL(response.data)
-  } catch (error) {
-    console.error('Failed to load avatar in navbar:', error)
+  } catch (error: any) {
+    // Nếu lỗi 401, không log error (user sẽ bị redirect đến login)
+    if (error?.response?.status !== 401) {
+      console.error('Failed to load avatar in navbar:', error)
+    }
     avatarBlobUrl.value = ''
   }
 }

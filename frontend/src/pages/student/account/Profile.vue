@@ -249,8 +249,11 @@ const loadAvatar = async () => {
       responseType: 'blob'
     })
     avatarBlobUrl.value = URL.createObjectURL(response.data)
-  } catch (error) {
-    console.error('Failed to load avatar:', error)
+  } catch (error: any) {
+    // Nếu lỗi 401, không log error (user sẽ bị redirect đến login)
+    if (error?.response?.status !== 401) {
+      console.error('Failed to load avatar:', error)
+    }
     avatarBlobUrl.value = ''
   }
 }
@@ -350,8 +353,10 @@ function parseDobString(raw?: string | null) {
 }
 
 function applyProfileToForm(data: any) {
-  form.username = data?.name || data?.username || form.username
-  form.fullname = data?.displayName || data?.name || data?.username || form.fullname
+  // Username không bao giờ được thay đổi - chỉ lấy từ data.username
+  form.username = data?.username || form.username
+  // Fullname lấy từ displayName hoặc name
+  form.fullname = data?.displayName || data?.name || form.fullname
   form.phone = data?.phone || form.phone
   form.email = data?.email || form.email
   form.gender =

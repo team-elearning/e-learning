@@ -34,6 +34,7 @@ export const getRoleFromToken = (token: string): Role | null => {
 export interface AuthUser {
   id: number
   name: string
+  username?: string
   email: string
   role: Role
   avatarId?: string | null
@@ -76,6 +77,7 @@ function mapAuthUser(raw: any): AuthUser {
   return {
     id: Number(raw?.id ?? raw?.user_id ?? 0),
     name: displayName || raw?.username || raw?.name || 'User',
+    username: raw?.username ?? raw?.user_name ?? '',
     displayName: displayName || raw?.username || raw?.name || 'User',
     email: raw?.email ?? '',
     role,

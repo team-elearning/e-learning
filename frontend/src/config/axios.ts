@@ -43,15 +43,15 @@ http.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    const origin =
-      typeof window !== "undefined" && window.location?.origin
-        ? window.location.origin
-        : "";
-    const configuredBase = config.baseURL ?? http.defaults.baseURL ?? "";
-    const base = configuredBase.startsWith("http")
-      ? configuredBase
-      : `${origin}${configuredBase}`;
-    console.log(`[HTTP] ${config.method?.toUpperCase()} ${base}${config.url}`);
+    // const origin =
+    //   typeof window !== "undefined" && window.location?.origin
+    //     ? window.location.origin
+    //     : "";
+    // const configuredBase = config.baseURL ?? http.defaults.baseURL ?? "";
+    // const base = configuredBase.startsWith("http")
+    //   ? configuredBase
+    //   : `${origin}${configuredBase}`;
+    // console.log(`[HTTP] ${config.method?.toUpperCase()} ${base}${config.url}`);
 
     return config;
   },
