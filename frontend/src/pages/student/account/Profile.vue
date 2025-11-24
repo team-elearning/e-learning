@@ -12,9 +12,6 @@
       <div class="card">
         <div class="card-head">
           <h2 class="card-title">THÔNG TIN CÁ NHÂN</h2>
-          <div class="last-updated">
-            Lần cập nhật gần nhất: <b>{{ lastUpdated }}</b>
-          </div>
         </div>
 
         <!-- Toast (thành công/thất bại khi lưu) -->
@@ -36,17 +33,34 @@
                 <div class="avatar">
                   <img :src="avatarPreview || currentAvatar" alt="avatar" />
                   <div class="avatar-overlay">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                      stroke-width="2" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"
+                      />
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"
+                      />
                     </svg>
                   </div>
                 </div>
               </div>
-              <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onPickFile" />
+              <input
+                ref="fileInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onPickFile"
+              />
               <small class="muted"><br />PNG/JPG ≤ 2MB</small>
             </div>
           </div>
@@ -62,14 +76,21 @@
                 tabindex="-1"
                 aria-readonly="true"
               />
-              <span class="helper muted">Tên đăng nhập do hệ thống cấp và không thể chỉnh sửa.</span>
+              <span class="helper muted"
+                >Tên đăng nhập do hệ thống cấp và không thể chỉnh sửa.</span
+              >
             </div>
           </div>
 
           <div class="row">
             <label class="label">Họ và tên <span class="req">*</span></label>
             <div>
-              <input v-model.trim="form.fullname" type="text" class="input" placeholder="Họ và tên" />
+              <input
+                v-model.trim="form.fullname"
+                type="text"
+                class="input"
+                placeholder="Họ và tên"
+              />
               <p v-if="errors.fullname" class="err">{{ errors.fullname }}</p>
             </div>
           </div>
@@ -117,7 +138,12 @@
           <div class="row">
             <label class="label">Email</label>
             <div>
-              <input v-model.trim="form.email" type="email" class="input" placeholder="you@example.com" />
+              <input
+                v-model.trim="form.email"
+                type="email"
+                class="input"
+                placeholder="you@example.com"
+              />
               <p v-if="errors.email" class="err">{{ errors.email }}</p>
               <span class="helper muted">Email không bắt buộc, có thể để trống.</span>
             </div>
@@ -134,7 +160,9 @@
               {{ saving ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT' }}
             </button>
             <small v-if="!isValidInfo || !isDirty" class="btn-hint">
-              {{ !isValidInfo ? 'Vui lòng điền đầy đủ thông tin bắt buộc' : 'Chưa có thay đổi nào' }}
+              {{
+                !isValidInfo ? 'Vui lòng điền đầy đủ thông tin bắt buộc' : 'Chưa có thay đổi nào'
+              }}
             </small>
           </div>
         </form>
@@ -156,10 +184,19 @@
     >
       <div class="modal-card" ref="limitCard" tabindex="-1">
         <div class="modal-header">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon-alert" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="icon-alert"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
           <h3 id="limit-title">Không thể tải ảnh</h3>
         </div>
@@ -310,7 +347,11 @@ async function fetchProfile() {
 const initialJSON = ref<string>('')
 
 function snapshot() {
-  initialJSON.value = JSON.stringify({ ...form, dob: { ...dob }, avatarPreview: avatarPreview.value })
+  initialJSON.value = JSON.stringify({
+    ...form,
+    dob: { ...dob },
+    avatarPreview: avatarPreview.value,
+  })
 }
 
 onMounted(async () => {
@@ -333,7 +374,7 @@ watch(
     errors.phone = form.phone ? '' : 'Vui lòng nhập số điện thoại.'
     errors.email = form.email && !isEmail(form.email) ? 'Email không hợp lệ.' : ''
   },
-  { deep: true }
+  { deep: true },
 )
 
 const isValidInfo = computed(() => !errors.fullname && !errors.phone && !errors.email)
@@ -406,35 +447,135 @@ async function saveProfile() {
 </style>
 
 <style scoped>
-.profile-page { background: var(--bg); min-height: 100vh; color: var(--text); }
-.container { max-width: 1000px; margin: 0 auto; padding: 16px 10px 32px; }
+.profile-page {
+  background: var(--bg);
+  min-height: 100vh;
+  color: var(--text);
+}
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px 10px 32px;
+}
 
 /* Tabs */
-.tabs { display: flex; gap: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 4px; width: 100%; }
-.tab { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid transparent; background: #fff; cursor: pointer; font-weight: 700; white-space: nowrap; text-align: center; font-size: 10px; line-height: 1.3; }
-.tab.active { color: var(--accent); border-color: var(--accent-tint-border); background: var(--accent-tint-bg); }
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  width: 100%;
+}
+.tab {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.tab.active {
+  color: var(--accent);
+  border-color: var(--accent-tint-border);
+  background: var(--accent-tint-bg);
+}
 
 /* Card */
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; padding: 12px; }
-.card-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.card-title { font-weight: 800; font-size: 14px; }
-.last-updated { font-size: 10px; color: var(--muted); width: 100%; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-top: 10px;
+  padding: 12px;
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.card-title {
+  font-weight: 800;
+  font-size: 14px;
+}
+.last-updated {
+  font-size: 10px;
+  color: var(--muted);
+  width: 100%;
+}
 
 /* Toast */
-.toast { position: fixed; right: 10px; bottom: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid; z-index: 40; font-size: 12px; }
-.toast.success { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-.toast.error { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.toast {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid;
+  z-index: 40;
+  font-size: 12px;
+}
+.toast.success {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+.toast.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 /* Form */
-.form { margin-top: 4px; }
-.row { display: grid; grid-template-columns: 1fr; gap: 4px; margin-bottom: 10px; }
-.label { text-align: left; color: #111827; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
-.req { color: #ef4444; }
+.form {
+  margin-top: 4px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.label {
+  text-align: left;
+  color: #111827;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.req {
+  color: #ef4444;
+}
 
-.input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; outline: none; font-size: 14px; }
-.input:focus { border-color: var(--focus-border); box-shadow: 0 0 0 3px var(--focus-ring); }
+.input {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  outline: none;
+  font-size: 14px;
+}
+.input:focus {
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .input:disabled,
 .input.locked-input {
   background: #f3f4f6;
@@ -453,94 +594,332 @@ async function saveProfile() {
   background-size: 5px 5px;
   background-repeat: no-repeat;
 }
-.field-inline { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
-.helper { display: block; margin-top: 4px; font-size: 10px; color: var(--muted); line-height: 1.4; }
-.err { color: #dc2626; font-size: 10px; margin-top: 4px; line-height: 1.4; }
+.field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+.helper {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.err {
+  color: #dc2626;
+  font-size: 10px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
 
 /* Avatar */
-.avatar-wrapper { cursor: pointer; flex-shrink: 0; }
-.avatar { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 2px solid var(--line); background: #fff; position: relative; transition: all 0.2s ease; }
-.avatar:hover { border-color: var(--accent); }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease; }
-.avatar:hover .avatar-overlay { opacity: 1; }
-.avatar-overlay svg { width: 20px; height: 20px; color: #fff; }
-.hidden { display: none; }
+.avatar-wrapper {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  background: #fff;
+  position: relative;
+  transition: all 0.2s ease;
+}
+.avatar:hover {
+  border-color: var(--accent);
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.avatar:hover .avatar-overlay {
+  opacity: 1;
+}
+.avatar-overlay svg {
+  width: 20px;
+  height: 20px;
+  color: #fff;
+}
+.hidden {
+  display: none;
+}
 
-.actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.btn-primary { background: var(--accent) !important; color: #fff !important; border: 1px solid var(--accent) !important; padding: 10px 14px !important; border-radius: 10px !important; font-weight: 800 !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important; font-size: 12px !important; width: 100% !important; }
-.btn-primary:disabled { background: #d1d5db !important; border-color: #d1d5db !important; color: #6b7280 !important; cursor: not-allowed !important; }
-.btn-primary.is-busy { opacity: .7 !important; cursor: progress !important; }
-.btn-hint { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.4; }
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.btn-primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--accent) !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  font-size: 12px !important;
+  width: 100% !important;
+}
+.btn-primary:disabled {
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+}
+.btn-primary.is-busy {
+  opacity: 0.7 !important;
+  cursor: progress !important;
+}
+.btn-hint {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.4;
+}
 
-.spinner { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius: 50%; animation: spin .8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg);} }
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-.radio { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; font-size: 12px; }
-.radio input { display: none; }
-.radio span { width: 14px; height: 14px; border: 2px solid var(--focus-border); border-radius: 50%; display: inline-block; position: relative; }
-.radio input:checked + span::after { content: ''; position: absolute; inset: 2px; background: var(--accent); border-radius: 50%; }
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  font-size: 12px;
+}
+.radio input {
+  display: none;
+}
+.radio span {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--focus-border);
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+.radio input:checked + span::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: var(--accent);
+  border-radius: 50%;
+}
 
-.gender-radio { flex-direction: row !important; }
+.gender-radio {
+  flex-direction: row !important;
+}
 
-.check { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; }
-.check input { display: none; }
-.check span { width: 14px; height: 14px; border: 1px solid #cbd5e1; border-radius: 4px; position: relative; }
-.check input:checked + span::after { content: ''; position: absolute; left: 3px; top: 0; width: 6px; height: 10px; border: 2px solid var(--accent); border-top: 0; border-left: 0; transform: rotate(45deg); }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.check input {
+  display: none;
+}
+.check span {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  position: relative;
+}
+.check input:checked + span::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 6px;
+  height: 10px;
+  border: 2px solid var(--accent);
+  border-top: 0;
+  border-left: 0;
+  transform: rotate(45deg);
+}
 
-.muted { color: var(--muted); }
+.muted {
+  color: var(--muted);
+}
 
-.dob-selects { flex-direction: row !important; gap: 4px !important; }
-.dob-selects .select { flex: 1; min-width: 0; font-size: 12px; padding: 8px 6px; }
+.dob-selects {
+  flex-direction: row !important;
+  gap: 4px !important;
+}
+.dob-selects .select {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 8px 6px;
+}
 
 /* ===== Modal styles ===== */
 .modal-backdrop {
-  position: fixed; inset: 0;
+  position: fixed;
+  inset: 0;
   background: rgba(15, 23, 42, 0.5);
-  display: grid; place-items: center;
-  padding: 16px; z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
 }
 .modal-card {
-  width: 100%; max-width: 420px;
-  background: #fff; border: 1px solid var(--line);
-  border-radius: 14px; padding: 14px;
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
   outline: none;
-  box-shadow: 0 20px 50px rgba(0,0,0,.15);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 }
-.modal-header { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-.icon-alert { width: 22px; height: 22px; color: #f59e0b; }
-.modal-header h3 { font-weight: 800; font-size: 15px; margin: 0; }
-.modal-body { color: var(--text); font-size: 13px; line-height: 1.5; margin: 8px 0 12px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.icon-alert {
+  width: 22px;
+  height: 22px;
+  color: #f59e0b;
+}
+.modal-header h3 {
+  font-weight: 800;
+  font-size: 15px;
+  margin: 0;
+}
+.modal-body {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0 12px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity .15s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
 
 /* Breakpoints: đồng bộ ChangePassword */
 @media (min-width: 641px) {
-  .container { padding: 20px 14px 36px; }
-  .tabs { gap: 6px; padding: 6px; }
-  .tab { padding: 10px 10px; font-size: 12px; }
-  .card { padding: 14px; }
-  .card-title { font-size: 15px; }
-  .label { font-size: 13px; }
-  .avatar { width: 64px; height: 64px; }
-  .avatar-overlay svg { width: 24px; height: 24px; }
+  .container {
+    padding: 20px 14px 36px;
+  }
+  .tabs {
+    gap: 6px;
+    padding: 6px;
+  }
+  .tab {
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+  .card {
+    padding: 14px;
+  }
+  .card-title {
+    font-size: 15px;
+  }
+  .label {
+    font-size: 13px;
+  }
+  .avatar {
+    width: 64px;
+    height: 64px;
+  }
+  .avatar-overlay svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 @media (min-width: 841px) {
-  .container { padding: 24px 16px 40px; }
-  .tab { padding: 10px 14px; font-size: 13px; }
-  .card { padding: 16px; }
-  .card-title { font-size: 16px; }
-  .row { grid-template-columns: 220px 1fr; gap: 14px; }
-  .label { font-size: 14px; padding-top: 10px; }
-  .avatar { width: 72px; height: 72px; }
-  .avatar-overlay svg { width: 28px; height: 28px; }
-  .field-inline { flex-direction: row; flex-wrap: wrap; }
-  .actions { align-items: flex-end; }
-  .btn-primary { width: auto !important; }
-  .btn-hint { text-align: right; }
-  .last-updated { width: auto; }
+  .container {
+    padding: 24px 16px 40px;
+  }
+  .tab {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .card {
+    padding: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+  }
+  .row {
+    grid-template-columns: 220px 1fr;
+    gap: 14px;
+  }
+  .label {
+    font-size: 14px;
+    padding-top: 10px;
+  }
+  .avatar {
+    width: 72px;
+    height: 72px;
+  }
+  .avatar-overlay svg {
+    width: 28px;
+    height: 28px;
+  }
+  .field-inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .actions {
+    align-items: flex-end;
+  }
+  .btn-primary {
+    width: auto !important;
+  }
+  .btn-hint {
+    text-align: right;
+  }
+  .last-updated {
+    width: auto;
+  }
 }
 </style>
