@@ -17,7 +17,7 @@ class FileInputDTO(BaseModel):
     """
     # 'file' sẽ là đối tượng InMemoryUploadedFile từ Django
     file: Any 
-    content_type_str: str
+    content_type_str: Optional[str] = None
     object_id: Optional[int] = None
     component: Optional[str] = None
     
