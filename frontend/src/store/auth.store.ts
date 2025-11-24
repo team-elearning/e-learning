@@ -136,7 +136,7 @@ export const useAuthStore = defineStore('auth', {
       this.hydrateFromStorage()
 
       if (!this.token) {
-        router.push('/login')
+        router.push('/auth/login')
         return
       }
 
@@ -162,6 +162,23 @@ export const useAuthStore = defineStore('auth', {
       if (this.user) {
         this.user = { ...this.user, avatar: url }
         this.persist()
+      }
+    },
+
+    // Đồng bộ hồ sơ (dùng ở navbar)
+    async refreshProfile() {
+      if (!this.token) return
+      try {
+        const profile = await authService.getProfile()
+        this.user = {
+          ...(this.user as AuthUser),
+          ...profile,
+          id: this.user?.id ?? profile.id,
+          role: this.user?.role ?? profile.role,
+        }
+        this.persist()
+      } catch (error) {
+        console.warn('Không thể đồng bộ hồ sơ', error)
       }
     },
   },

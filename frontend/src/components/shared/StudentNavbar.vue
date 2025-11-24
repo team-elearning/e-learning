@@ -267,7 +267,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
@@ -343,6 +343,12 @@ function handleClick(path: string) {
     clickedItem.value = null
   }, 800)
 }
+
+onMounted(() => {
+  if (auth.user) {
+    auth.refreshProfile()
+  }
+})
 </script>
 
 <style scoped>
