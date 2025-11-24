@@ -23,7 +23,7 @@ def list_lessons_for_module(module_id: UUID) -> List[LessonDomain]:
         raise ModuleNotFoundError("Module not found.")
 
     # 2. Lấy các bài học và sắp xếp
-    lessons = Lesson.objects.filter(module_id=module_id).order_by('order')
+    lessons = Lesson.objects.filter(module_id=module_id).prefetch_related('content_blocks').order_by('order')
 
     # 3. Chuyển đổi sang Domain (giống như list_all_users_for_admin)
     lesson_domains = [LessonDomain.from_model(lesson) for lesson in lessons]

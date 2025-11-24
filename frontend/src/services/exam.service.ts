@@ -1,6 +1,8 @@
 // src/services/exam.service.ts
 // NOTE: MOCK 100%. Khi nối API thật, chỉ cần đổi USE_MOCK=false và map endpoints.
 
+import http from '@/config/axios'
+
 export type ID = string | number
 export type Level = 'Lớp 1' | 'Lớp 2' | 'Lớp 3' | 'Lớp 4' | 'Lớp 5'
 export type ExamStatus = 'draft' | 'published' | 'archived'
@@ -94,7 +96,7 @@ export interface AttemptResult {
   detail: Array<{ qid: ID; score: number; max: number }>
 }
 
-const USE_MOCK = true
+const USE_MOCK = false
 
 // ========= MOCK BANK GENERATOR =========
 function randPick<T>(arr: T[], n: number): T[] {
@@ -313,6 +315,21 @@ function scoreQuestion(q: Question, ans: any): number {
 // ========= SERVICE API (MOCK) =========
 export const examService = {
   async list(params?: { level?: Level; q?: string }): Promise<ExamSummary[]> {
+    if (!USE_MOCK) {
+      const { data } = await http.get('/quiz/', { 
+        params: { mode: 'exam', ...params } 
+      })
+      return data.map((exam: any) => ({
+        id: exam.id,
+        title: exam.title,
+        level: exam.level || 'Lớp 1',
+        durationSec: exam.duration_sec || exam.durationSec || 1200,
+        passScore: exam.pass_score || exam.passScore || 50,
+        questionsCount: exam.questions_count || exam.questionsCount || 0,
+        status: exam.status || 'published',
+        updatedAt: exam.updated_at || exam.updatedAt || new Date().toISOString(),
+      }))
+    }
     let list = MOCK_EXAMS.slice()
     if (params?.level) list = list.filter((e) => e.level === params.level)
     if (params?.q) {

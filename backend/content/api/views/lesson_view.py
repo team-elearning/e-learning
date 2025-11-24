@@ -73,7 +73,7 @@ class PublicLessonDetailView(RoleBasedOutputMixin, APIView):
 
     def get_object(self, pk):
         try:
-            return Lesson.objects.get(pk=pk)
+            return Lesson.objects.get(pk=pk).select_related('module__course')
         except Lesson.DoesNotExist:
             raise Http404("Lesson not found.")
     

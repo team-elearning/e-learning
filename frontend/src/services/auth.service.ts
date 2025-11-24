@@ -36,6 +36,7 @@ export interface AuthUser {
   name: string
   email: string
   role: Role
+  avatarId?: string | null
   phone?: string
   title?: string
   bio?: string
@@ -55,17 +56,21 @@ export interface AuthPayload {
 
 export interface UpdateProfileDto extends Partial<AuthUser> {
   avatar?: string
+  avatarId?: string
 }
 
 function mapAuthUser(raw: any): AuthUser {
   const displayName =
     raw?.display_name ?? raw?.displayName ?? raw?.name ?? raw?.username ?? raw?.full_name ?? ''
-  const avatarUrl =
+  const avatarId = raw?.avatar_id ?? raw?.avatarId ?? null
+  let avatarUrl =
     raw?.avatar_url ??
     raw?.avatarUrl ??
-    raw?.avatar_id ?? // backend có thể trả avatar_id dạng data URI
     raw?.avatar ??
     ''
+  if (!avatarUrl && avatarId && typeof avatarId === 'string' && !avatarId.startsWith('data:')) {
+    avatarUrl = `/api/media/files/${avatarId}/`
+  }
   const role = (raw?.role as Role) || 'student'
 
   return {
@@ -77,6 +82,7 @@ function mapAuthUser(raw: any): AuthUser {
     phone: raw?.phone,
     title: raw?.title,
     bio: raw?.bio,
+    avatarId,
     avatar: avatarUrl || raw?.avatar || '',
     avatarUrl: avatarUrl || raw?.avatar || '',
     dob: raw?.dob ?? raw?.date_of_birth ?? raw?.birth_date ?? null,
@@ -95,6 +101,9 @@ function buildProfilePayload(payload: UpdateProfileDto) {
   }
   if (payload.avatarUrl !== undefined) {
     body.avatar_url = payload.avatarUrl
+  }
+  if (payload.avatarId !== undefined) {
+    body.avatar_id = payload.avatarId
   }
   if (payload.avatar !== undefined && body.avatar_url === undefined) {
     body.avatar_url = payload.avatar

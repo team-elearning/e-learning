@@ -911,11 +911,7 @@ async function enroll(id: number | string): Promise<boolean> {
 
 async function handleSuppEnroll(course: CourseSummary | Item) {
   if (!course) return
-  const requiresPayment = Number(course.price ?? 0) > 0
-  if (requiresPayment) {
-    openDetail(course.id)
-    return
-  }
+  // Tự động đăng ký và vào học luôn
   const success = await enroll(course.id)
   if (success) {
     await playFirst(course.id)

@@ -267,13 +267,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { onClickOutside } from '@vueuse/core'
 import LogoEduriot from '@/components/ui/LogoEduriot.vue'
 import ConfirmLogout from '@/components/ui/ConfirmLogout.vue'
 import NotificationBell from '@/components/shared/NotificationBell.vue'
+import api from '@/config/axios'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -285,7 +286,33 @@ const showConfirm = ref(false)
 const isLoggingOut = ref(false)
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
-const avatarSrc = computed(() => auth.user?.avatar || defaultAvatar)
+const avatarBlobUrl = ref<string>('')
+
+// Load avatar qua axios để gửi kèm token
+const loadAvatar = async () => {
+  const avatarId = auth.user?.avatarId
+  if (!avatarId) {
+    avatarBlobUrl.value = ''
+    return
+  }
+  
+  try {
+    const response = await api.get(`/media/files/${avatarId}/`, {
+      responseType: 'blob'
+    })
+    avatarBlobUrl.value = URL.createObjectURL(response.data)
+  } catch (error) {
+    console.error('Failed to load avatar in navbar:', error)
+    avatarBlobUrl.value = ''
+  }
+}
+
+// Watch avatarId changes
+watch(() => auth.user?.avatarId, () => {
+  loadAvatar()
+}, { immediate: true })
+
+const avatarSrc = computed(() => avatarBlobUrl.value || defaultAvatar)
 const displayName = computed(() => auth.user?.name || 'Học sinh')
 const displayEmail = computed(() => auth.user?.email || 'student@example.com')
 

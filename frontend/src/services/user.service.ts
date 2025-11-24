@@ -100,7 +100,7 @@ export interface NoteItem {
   time: string
 }
 
-const USE_MOCK = true// bật mock học viên
+const USE_MOCK = false// bật mock học viên
 
 function mapServerToUser(s: any): User {
   // server sample fields: id, username, email, created_on, updated_on, phone, role, is_active

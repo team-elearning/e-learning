@@ -9,29 +9,121 @@
       </div>
 
       <div class="content">
-        <!-- LEFT: VIDEO -->
+        <!-- LEFT: VIDEO & CONTENT -->
         <div class="left">
-          <div class="video-shell">
-            <video
-              v-if="currentSrc"
-              ref="videoRef"
-              class="video"
-              :src="currentSrc"
-              controls
-              playsinline
-              @ended="markDone(currentLesson?.id)"
-            ></video>
-            <div v-else class="video-empty">
-              <p v-if="videoLoading">Đang tải video…</p>
-              <p v-else-if="videoError">{{ videoError }}</p>
-              <p v-else>Chưa có video cho bài học này.</p>
+          <!-- Tabs -->
+          <div class="tabs">
+            <button 
+              :class="['tab', { active: activeTab === 'video' }]" 
+              @click="activeTab = 'video'"
+            >
+              📹 Video
+            </button>
+            <button 
+              :class="['tab', { active: activeTab === 'materials' }]" 
+              @click="activeTab = 'materials'"
+              v-if="hasContentBlocks"
+            >
+              📄 Nội dung
+            </button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="tab-content">
+            <!-- VIDEO TAB -->
+            <div v-show="activeTab === 'video'" class="video-shell">
+              <video
+                v-if="currentSrc"
+                ref="videoRef"
+                class="video"
+                :src="currentSrc"
+                controls
+                playsinline
+                @ended="markDone(currentLesson?.id)"
+              ></video>
+              <div v-else class="video-empty">
+                <p v-if="videoLoading">Đang tải video…</p>
+                <p v-else-if="videoError">{{ videoError }}</p>
+                <p v-else>Chưa có video cho bài học này.</p>
+              </div>
+
+              <div class="video-title">
+                <h2>{{ course.title }}</h2>
+                <p class="subtitle">
+                  {{ (currentFlatIndex + 1) }}. {{ currentLesson?.title }}
+                </p>
+              </div>
             </div>
 
-            <div class="video-title">
-              <h2>{{ course.title }}</h2>
-              <p class="subtitle">
-                {{ (currentFlatIndex + 1) }}. {{ currentLesson?.title }}
-              </p>
+            <!-- MATERIALS TAB -->
+            <div v-show="activeTab === 'materials'" class="materials-shell">
+              <div class="materials-header">
+                <h2>{{ currentLesson?.title }}</h2>
+                <p class="subtitle">Nội dung bài học</p>
+              </div>
+              
+              <div class="content-blocks">
+                <div 
+                  v-for="(block, idx) in currentContentBlocks" 
+                  :key="block.id || idx"
+                  class="content-block"
+                >
+                  <!-- TEXT -->
+                  <div v-if="block.type === 'text'" class="block-text">
+                    <p>{{ block.payload?.text || 'Không có nội dung' }}</p>
+                  </div>
+
+                  <!-- IMAGE -->
+                  <div v-else-if="block.type === 'image'" class="block-image">
+                    <img :src="block.payload?.image_url || block.payload?.url" alt="Hình ảnh bài học" />
+                  </div>
+
+                  <!-- VIDEO (trong content block) -->
+                  <div v-else-if="block.type === 'video'" class="block-video">
+                    <video 
+                      :src="block.payload?.video_url || block.payload?.url" 
+                      controls 
+                      playsinline
+                    ></video>
+                  </div>
+
+                  <!-- PDF / DOCX -->
+                  <div v-else-if="block.type === 'pdf' || block.type === 'docx'" class="block-file">
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                      <p class="file-name">{{ block.payload?.file_name || 'Tài liệu' }}</p>
+                      <a 
+                        v-if="block.payload?.file_url || block.payload?.url" 
+                        :href="block.payload?.file_url || block.payload?.url" 
+                        target="_blank"
+                        class="file-link"
+                      >
+                        Tải xuống
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- QUIZ -->
+                  <div v-else-if="block.type === 'quiz'" class="block-quiz">
+                    <div class="quiz-header">
+                      <h3>📝 Bài kiểm tra</h3>
+                      <p>{{ block.payload?.title || 'Kiểm tra kiến thức' }}</p>
+                    </div>
+                    <button class="btn-quiz" @click="startQuiz(block)">
+                      Bắt đầu làm bài
+                    </button>
+                  </div>
+
+                  <!-- UNKNOWN -->
+                  <div v-else class="block-unknown">
+                    <p class="muted">Loại nội dung: {{ block.type }}</p>
+                  </div>
+                </div>
+
+                <div v-if="!currentContentBlocks?.length" class="empty-state">
+                  <p>Chưa có nội dung bài học</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -118,6 +210,7 @@ const doneSet = reactive(new Set<string>())               // local progress
 const showNonVideoInOutline = true                       // ẩn/hiện PDF/Quiz
 const openIndex = ref<number>(0)
 const cur = ref<{ si: number; li: number }>({ si: 0, li: 0 })
+const activeTab = ref<'video' | 'materials'>('video')
 
 /* ====== LOAD ====== */
 async function load() {
@@ -196,6 +289,9 @@ const nextLesson = computed<UiLesson | null>(() => {
   return (idx >= 0 && idx < flat.value.length - 1) ? flat.value[idx + 1] : null
 })
 
+const currentContentBlocks = computed(() => currentLesson.value?.contentBlocks || [])
+const hasContentBlocks = computed(() => currentContentBlocks.value.length > 0)
+
 const currentSrc = ref<string>('')
 const videoLoading = ref(false)
 const videoError = ref('')
@@ -217,7 +313,20 @@ function goToLesson(si: number, li: number){
   openIndex.value = si
   const id = uiSections.value[si]?.items[li]?.id
   if (id != null) router.replace({ params: { ...route.params, lessonId: String(id) } })
-  videoRef.value?.play?.()
+  // Auto switch to video tab nếu có video, hoặc materials nếu không
+  const lesson = uiSections.value[si]?.items[li]
+  if (lesson?.videoUrl) {
+    activeTab.value = 'video'
+    videoRef.value?.play?.()
+  } else if (lesson?.contentBlocks?.length) {
+    activeTab.value = 'materials'
+  }
+}
+
+function startQuiz(block: any) {
+  // TODO: Navigate to quiz page hoặc show quiz modal
+  console.log('Start quiz:', block)
+  alert('Tính năng làm bài quiz đang được phát triển')
 }
 
 function goPrev(){
@@ -309,6 +418,23 @@ onMounted(load)
 
 /* LEFT */
 .left{ background:#000; border-radius:12px; overflow:hidden; border:6px solid #000; }
+
+/* TABS */
+.tabs{
+  display:flex; gap:0; background:#0b1220; border-bottom:1px solid rgba(255,255,255,.1);
+}
+.tab{
+  flex:1; padding:12px 16px; background:transparent; border:0; color:#94a3b8;
+  font-weight:700; font-size:14px; cursor:pointer; transition:all .2s;
+  border-bottom:2px solid transparent;
+}
+.tab:hover{ background:rgba(255,255,255,.05); color:#e2e8f0; }
+.tab.active{ color:#fff; border-bottom-color:#16a34a; background:rgba(22,163,74,.1); }
+
+/* TAB CONTENT */
+.tab-content{ background:#000; }
+
+/* VIDEO */
 .video-shell{ background:#000; position:relative; }
 .video{ width:100%; aspect-ratio:16/9; display:block; background:#000; }
 .video-empty{
@@ -330,6 +456,55 @@ onMounted(load)
 }
 .video-title h2{ font-size:18px; font-weight:800; margin:0; }
 .video-title .subtitle{ opacity:.85; font-size:14px; margin:0; }
+
+/* MATERIALS */
+.materials-shell{
+  background:#fff; min-height:500px; max-height:calc(100vh - 200px); overflow-y:auto;
+}
+.materials-header{
+  padding:16px 20px; background:#f8fafc; border-bottom:2px solid #e2e8f0;
+}
+.materials-header h2{ font-size:20px; font-weight:800; margin:0 0 4px 0; color:var(--text); }
+.materials-header .subtitle{ font-size:13px; color:var(--muted); margin:0; }
+
+/* CONTENT BLOCKS */
+.content-blocks{ padding:20px; }
+.content-block{ margin-bottom:24px; padding:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; }
+
+.block-text p{ line-height:1.7; color:var(--text); margin:0; white-space:pre-wrap; }
+
+.block-image img{ width:100%; max-width:100%; height:auto; border-radius:8px; display:block; }
+
+.block-video video{ width:100%; border-radius:8px; background:#000; }
+
+.block-file{
+  display:flex; align-items:center; gap:12px; padding:12px;
+  background:#fff; border:1px solid #cbd5e1; border-radius:10px;
+}
+.file-icon{ font-size:32px; }
+.file-info{ flex:1; }
+.file-name{ font-weight:700; color:var(--text); margin:0 0 4px 0; }
+.file-link{
+  display:inline-block; padding:6px 12px; background:#16a34a; color:#fff;
+  font-size:13px; font-weight:700; border-radius:8px; text-decoration:none;
+}
+.file-link:hover{ background:#15803d; }
+
+.block-quiz{
+  padding:16px; background:linear-gradient(135deg,#f0f9ff,#e0f2fe);
+  border:2px solid #0ea5e9; border-radius:12px;
+}
+.quiz-header h3{ margin:0 0 4px 0; font-size:16px; color:#0c4a6e; }
+.quiz-header p{ margin:0 0 12px 0; color:#475569; font-size:14px; }
+.btn-quiz{
+  padding:10px 20px; background:#0ea5e9; color:#fff; border:0;
+  border-radius:10px; font-weight:700; cursor:pointer; transition:all .2s;
+}
+.btn-quiz:hover{ background:#0284c7; transform:translateY(-1px); }
+
+.block-unknown{ padding:12px; text-align:center; color:var(--muted); }
+
+.empty-state{ padding:40px; text-align:center; color:var(--muted); font-size:14px; }
 
 /* RIGHT */
 .right{ position:relative; }
