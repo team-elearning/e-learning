@@ -3,6 +3,7 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.dispatch import receiver
+from django.conf import settings
 
 
 
@@ -55,45 +56,33 @@ class UserModel(AbstractBaseUser, PermissionsMixin):
     
 
 class Profile(models.Model):
-    user = models.OneToOneField(UserModel, on_delete=models.CASCADE, primary_key=True, related_name='profile')
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        primary_key=True, 
+        related_name='profile'
+    )
+    
+    # --- Basic Info ---
     display_name = models.CharField(max_length=150, blank=True, null=True)
-    avatar_url = models.TextField(blank=True, null=True)
+    avatar_id = models.TextField(blank=True, null=True) 
     dob = models.DateField(blank=True, null=True)
     gender = models.CharField(
         max_length=16,
-        choices=[('male', ('Male')), ('female', ('Female')), ('other', ('Other'))],
-        blank=True,
-        null=True
+        choices=[('male', 'Male'), ('female', 'Female'), ('other', 'Other')],
+        blank=True, null=True
     )
-    language = models.CharField(max_length=20, default='vietnamese')
-    metadata = models.JSONField(default=dict, blank=True)  # e.g., {'preferences': {...}}
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = ('Profile')
-        verbose_name_plural = ('Profiles')
+        verbose_name = 'Profile'
+        verbose_name_plural = 'Profiles'
 
     def __str__(self):
-        return f'Profile for {self.user.email}'
+        return f"{self.display_name or self.user.email}"
     
-
-# class ParentalConsent(models.Model):
-#     # Bổ sung: Quản lý sự đồng ý của phụ huynh cho tài khoản trẻ em (COPPA-like).
-#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-#     parent = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_given')
-#     child = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='consents_received')
-#     consented_at = models.DateTimeField(auto_now_add=True)
-#     scopes = models.JSONField(default=list, blank=True)  # e.g., ['data_sharing', 'progress_view']
-#     revoked_at = models.DateTimeField(null=True, blank=True)
-#     metadata = models.JSONField(default=dict, blank=True)  # e.g., {'verification_method': 'email'}
-
-#     class Meta:
-#         unique_together = ('parent', 'child')
-#         verbose_name = ('Parental Consent')
-#         verbose_name_plural = ('Parental Consents')
-#         indexes = [models.Index(fields=['parent', 'child'])]
-
-#     def __str__(self):
-#         return f'Consent from {self.parent} for {self.child}'
 
 
 

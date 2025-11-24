@@ -31,7 +31,7 @@
               :class="{ active: activeTab === 'main' }"
               @click="activeTab = 'main'"
             >
-              Khóa của tôi
+              Khóa học của tôi
             </button>
             <button
               class="tab"
@@ -100,6 +100,7 @@
                     @load="markThumbLoaded(c.id)"
                     @error="(e) => handleThumbError(e, c.id)"
                   />
+                  <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
                     <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </button>
@@ -161,6 +162,7 @@
                     @load="markThumbLoaded(c.id)"
                     @error="(e) => handleThumbError(e, c.id)"
                   />
+                  <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
                   <button class="play" type="button" title="Vào học" @click.stop="playFirst(c.id)">
                     <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </button>
@@ -211,6 +213,7 @@
                     @load="markThumbLoaded(s.id)"
                     @error="(e) => handleThumbError(e, s.id)"
                   />
+                  <div v-if="isThumbMissing(s.id)" class="thumb-empty">Không có ảnh</div>
                   <span class="chip">{{ s.tag }}</span>
                 </div>
                 <div class="meta">
@@ -374,6 +377,7 @@
                   @load="markThumbLoaded(c.id)"
                   @error="(e) => handleThumbError(e, c.id)"
                 />
+                <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
               </div>
               <div class="recent-info">
                 <div class="recent-title">{{ c.title }}</div>
@@ -426,9 +430,24 @@ const err = ref('')
 const loading = ref(false)
 const loadingAll = ref(false)
 const enrollingId = ref<string | number | null>(null)
-const PREFETCH_DETAIL_LIMIT = 80
+const PREFETCH_DETAIL_LIMIT = 0
 const thumbLoaded = ref<Record<string, boolean>>({})
 const thumbSrc = ref<Record<string, string>>({})
+const thumbMissing = ref<Record<string, boolean>>({})
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" width="400" height="225">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop stop-color="#e2e8f0" offset="0%"/>
+          <stop stop-color="#cbd5e1" offset="100%"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="225" fill="url(#g)"/>
+      <text x="200" y="118" font-size="22" font-family="Arial, sans-serif" fill="#475569" text-anchor="middle">Không có ảnh</text>
+    </svg>`,
+  )
 
 /* ====== LOAD COURSES FROM SERVICE ====== */
 type Item = CourseSummary & {
@@ -457,23 +476,42 @@ function markThumbLoaded(id: ID) {
 function isThumbLoaded(id: ID) {
   return Boolean(thumbLoaded.value[String(id)])
 }
+function isThumbMissing(id: ID) {
+  return Boolean(thumbMissing.value[String(id)])
+}
+function markThumbMissing(id: ID) {
+  const key = String(id)
+  thumbMissing.value = { ...thumbMissing.value, [key]: true }
+  thumbSrc.value = { ...thumbSrc.value, [key]: PLACEHOLDER }
+  thumbLoaded.value = { ...thumbLoaded.value, [key]: true }
+}
 function handleThumbError(event: Event, id: ID) {
   const img = event.target as HTMLImageElement | null
   if (img) img.style.opacity = '0'
+  markThumbMissing(id)
   markThumbLoaded(id)
 }
 async function ensureThumb(id: ID, url?: string | null) {
   const key = String(id)
-  if (!url || thumbSrc.value[key]) return
+  if (!url) {
+    markThumbMissing(id)
+    return
+  }
+  if (thumbSrc.value[key]) return
   try {
     const resolved = await resolveMediaUrl(url)
-    if (resolved) thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+    if (resolved) {
+      thumbSrc.value = { ...thumbSrc.value, [key]: resolved }
+    } else {
+      markThumbMissing(id)
+    }
   } catch (error) {
     console.warn('Không thể tải ảnh khoá học', error)
+    markThumbMissing(id)
   }
 }
 function thumbSource(id: ID, fallback?: string | null) {
-  return thumbSrc.value[String(id)] || fallback || ''
+  return thumbSrc.value[String(id)] || fallback || PLACEHOLDER
 }
 
 function getAnimatedProgress(id: number | string, fallback: number) {
@@ -567,9 +605,10 @@ function calcProgressFromDetail(d: CourseDetail, id: number | string) {
 }
 
 async function hydrateCourses(items: CourseSummary[]) {
-  const missingDetails = items
-    .filter((i) => !detailsMap.value.has(String(i.id)))
-    .slice(0, PREFETCH_DETAIL_LIMIT)
+  const missingDetails =
+    PREFETCH_DETAIL_LIMIT > 0
+      ? items.filter((i) => !detailsMap.value.has(String(i.id))).slice(0, PREFETCH_DETAIL_LIMIT)
+      : []
 
   if (missingDetails.length) {
     const details = await Promise.all(missingDetails.map((i) => courseService.detail(i.id)))
@@ -578,7 +617,7 @@ async function hydrateCourses(items: CourseSummary[]) {
 
   all.value = (items || []).map((i) => {
     const d = detailsMap.value.get(String(i.id))
-    const progress = d ? calcProgressFromDetail(d, i.id) : (Number(i.id) * 13) % 100
+    const progress = d ? calcProgressFromDetail(d, i.id) : Math.max(0, Math.min(100, Number((i as any).progress ?? 0)))
     const scoreInfo = calcScore(progress)
 
     const isPurchased = i.grade <= 2
@@ -1141,6 +1180,19 @@ h1 {
 .thumb.loaded::after {
   opacity: 0;
   visibility: hidden;
+}
+.thumb-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  color: #475569;
+  font-weight: 600;
+  font-size: 14px;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
 }
 .play {
   position: absolute;
