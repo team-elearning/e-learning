@@ -237,11 +237,13 @@ function subjectName(s: Subject) {
 }
 
 function displaySubject(row: CourseSummary) {
-  if (row.subject) return subjectName(row.subject)
-
-  if (row.categories?.length) {
+  // ƯU TIÊN tuyệt đối category từ backend
+  if (row.categories?.length && row.categories[0]?.name) {
     return row.categories[0].name
   }
+
+  // fallback: nếu vẫn muốn lấy theo subject (tuỳ chọn)
+  if (row.subjectName) return row.subjectName
 
   return 'Chưa rõ'
 }
@@ -350,6 +352,7 @@ async function fetch() {
   } finally {
     loading.value = false
   }
+  console.log('CATEGORIES:', merged[0].categories)
 }
 
 function goDetail(row: CourseSummary) {

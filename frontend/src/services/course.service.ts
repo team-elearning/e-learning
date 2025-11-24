@@ -27,6 +27,7 @@ export interface CourseSummary {
   updatedAt: string
   thumbnail?: string
   price?: number
+  categories?: { name: string }[] // Added categories property
 }
 
 export interface Lesson {
@@ -254,10 +255,29 @@ function normalizeGrade(value: any): Grade {
   return 1
 }
 
-function normalizeSubjectSlug(slug?: Subject | string | null): Subject {
-  if (slug && SUBJECTS.includes(slug as Subject)) return slug as Subject
-  return 'math'
+function normalizeSubjectSlug(slug?: string | null): Subject | null {
+  if (!slug) return null;
+
+  const key = slug.toLowerCase().trim();
+
+  const MAP: Record<string, Subject> = {
+    'toan': 'math',
+    'tieng-viet': 'vietnamese',
+    'tieng-anh': 'english',
+    'khoa-hoc': 'science',
+    'lich-su': 'history',
+
+    // fallback theo name
+    'toán': 'math',
+    'tiếng việt': 'vietnamese',
+    'tiếng-việt': 'vietnamese',
+    'tiếng anh': 'english',
+    'tiếng-anh': 'english',
+  };
+
+  return MAP[key] || null;
 }
+
 
 function normalizeLessonType(contentType?: string, fallback?: string): Lesson['type'] {
   const type = (contentType || fallback || '').toLowerCase()
@@ -332,19 +352,16 @@ function normalizeSections(payload: any): Section[] {
 }
 
 function normalizeCourseSummary(payload: any): CourseSummary {
-  if (!payload) {
-    return buildMockDetail(1)
-  }
+  if (!payload) return buildMockDetail(1)
 
   const { slug: subjectSlug, title: subjectTitle } = normalizeSubject(
     payload.subject ?? payload.subject_obj ?? payload.subjectInfo,
   )
 
-  const teacherId: ID =
+  const teacherId =
     payload.teacherId ??
     payload.teacher_id ??
     payload.owner_id ??
-    payload.ownerId ??
     payload.owner?.id ??
     'unknown'
 
@@ -356,28 +373,22 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     payload.owner?.email ??
     'Đang cập nhật'
 
-  const createdAt = payload.createdAt ?? payload.created_at ?? new Date().toISOString()
+  const createdAt = payload.createdAt ?? payload.created_at
   const updatedAt = payload.updatedAt ?? payload.updated_at ?? createdAt
 
   const thumbnail =
     payload.thumbnail ??
     payload.thumbnail_url ??
     payload.image_url ??
-    payload.imageUrl ??
     undefined
 
   const moduleCount =
     payload.module_count ??
     payload.modules?.length ??
-    payload.moduleCount ??
     0
 
   const lessonsFromModules = Array.isArray(payload.modules)
-    ? payload.modules.reduce(
-      (total: number, m: RawModule) =>
-        total + (Array.isArray(m.lessons) ? m.lessons.length : 0),
-      0,
-    )
+    ? payload.modules.reduce((total, m) => total + (m.lessons?.length || 0), 0)
     : 0
 
   const lessonsCount =
@@ -387,19 +398,18 @@ function normalizeCourseSummary(payload: any): CourseSummary {
 
   const enrollments = payload.enrollments ?? payload.enrollment_count ?? 0
 
-  const price =
-    payload.price ??
-    payload.price_amount ??
-    payload.tuition ??
-    payload.priceValue ??
-    undefined
+  const price = payload.price ?? payload.price_amount ?? payload.tuition
 
   return {
     id: payload.id ?? '',
     title: payload.title ?? 'Khoá học',
-    grade: normalizeGrade(payload.grade ?? payload.grade_label),
-    subject: normalizeSubjectSlug(subjectSlug),
+    grade: normalizeGrade(payload.grade),
+    subject: normalizeSubjectSlug(subjectSlug) ?? '',
     subjectName: subjectTitle,
+
+    // 🔥 THÊM DÒNG NÀY (QUAN TRỌNG NHẤT)
+    categories: payload.categories ?? [],
+
     teacherId,
     teacherName,
     lessonsCount,
@@ -410,37 +420,6 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     updatedAt,
     thumbnail,
     price,
-  }
-}
-
-function normalizeCourseDetail(payload: any): CourseDetail {
-  const summary = normalizeCourseSummary(payload)
-  const sections = normalizeSections(payload)
-  const duration =
-    payload.durationMinutes ??
-    payload.duration_minutes ??
-    payload.duration ??
-    (sections.length
-      ? sections.reduce(
-        (total, section) =>
-          total +
-          section.lessons.reduce((acc, lesson) => acc + (lesson.durationMinutes || 0), 0),
-        0,
-      )
-      : undefined)
-
-  return {
-    ...summary,
-    lessonsCount: summary.lessonsCount || sections.reduce((acc, s) => acc + (s.lessons?.length || 0), 0),
-    description: payload.description ?? payload.summary,
-    introduction: payload.introduction ?? payload.intro,
-    level: payload.level,
-    durationMinutes: typeof duration === 'number' && duration > 0 ? duration : undefined,
-    sections,
-    video_url: payload.video_url ?? payload.intro_video_url,
-    video_file: payload.video_file,
-    price: summary.price ?? payload.price,
-    thumbnail: summary.thumbnail ?? payload.thumbnail ?? payload.image_url ?? DEFAULT_THUMBNAIL,
   }
 }
 
