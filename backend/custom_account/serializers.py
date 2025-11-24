@@ -66,57 +66,42 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    """Serializer for Profile <-> ProfileDomain mapping."""
+    # Khai báo thêm các field của User để Serializer chấp nhận input
+    username = serializers.CharField(required=False, min_length=3)
+    email = serializers.EmailField(required=False)
+    phone = serializers.CharField(required=False)
 
     class Meta:
         model = Profile
         fields = [
-            "display_name", "avatar_id",
-            "dob", "gender"
+            "display_name", "avatar_id", "dob", "gender",
+            # Thêm các field user vào fields list
+            "username", "email", "phone"
         ]
         read_only_fields = ["user_id"]
 
-    def to_domain(self) -> ProfileDomain:
-        """Convert serializer data to domain object."""
-        data = dict(self.validated_data)
+    # Optional: Validate username/email unique ngay tại đây nếu muốn trả lỗi 400 chi tiết
+    def validate_username(self, value):
+        user = self.context['request'].user
+        if UserModel.objects.filter(username=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("Username này đã được sử dụng.")
+        return value
 
-        # inject user_id from context or instance
-        if self.instance:
-            data["user_id"] = self.instance.user_id
-        else:
-            # trường hợp create profile
-            user = self.context.get("user")
-            if not user:
-                raise ValueError("Missing user in serializer context")
-            data["user_id"] = user.id
-
-        domain = ProfileDomain.from_dict(data)
-        domain.validate()
-        return domain
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if UserModel.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("Email này đã được sử dụng.")
+        return value
+    
+    def validate_phone(self, value):
+        user = self.context['request'].user
+        if UserModel.objects.filter(phone=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("Phone này đã được sử dụng.")
+        return value
 
     @staticmethod
     def from_domain(domain: ProfileDomain) -> dict:
         return domain.to_dict()
-
-
-# class ParentalConsentSerializer(serializers.ModelSerializer):
-#     """Serializer for ParentalConsent <-> ParentalConsentDomain mapping."""
-
-#     class Meta:
-#         model = ParentalConsent
-#         fields = [
-#             "id", "parent", "child", "consented_at",
-#             "scopes", "revoked_at", "metadata"
-#         ]
-#         read_only_fields = ["id", "consented_at"]
-
-#     def to_domain(self) -> ParentalConsentDomain:
-#         return ParentalConsentDomain.from_dict(self.validated_data)
-
-#     @staticmethod
-#     def from_domain(domain: ParentalConsentDomain) -> dict:
-#         return domain.to_dict()
-
 
 
 """Serializer for user registration requests (input only)."""

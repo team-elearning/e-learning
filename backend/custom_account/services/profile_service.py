@@ -66,7 +66,32 @@ def _delete_old_avatar(old_file_id: str):
 @transaction.atomic
 def update_profile(user_id: int, updates: dict) -> ProfileDomain:
     profile = Profile.objects.select_related('user').get(user_id=user_id)
-    
+    user = profile.user
+
+    # --- XỬ LÝ USER MODEL ---
+    # Tách các field của User ra khỏi dict updates
+    user_fields = ['username', 'email', 'phone']
+    user_has_changed = False
+
+    for field in user_fields:
+        if field in updates:
+            value = updates.pop(field) # Lấy ra và xóa khỏi dict updates (để phần dưới chỉ còn field của Profile)
+            
+            # Chỉ update nếu giá trị khác hiện tại
+            if getattr(user, field) != value:
+                setattr(user, field, value)
+                user_has_changed = True
+
+    if user_has_changed:
+        # Check unique lần cuối (Service layer safeguard)
+        # Logic này có thể thừa nếu Serializer đã bắt, nhưng an toàn cho Domain
+        if UserModel.objects.filter(username=user.username).exclude(pk=user.pk).exists():
+             raise DomainError("Username đã tồn tại.")
+        
+        user.save()
+
+    # --- XỬ LÝ PROFILE MODEL ---
+
     # 1. Tách avatar_id ra xử lý riêng
     new_avatar_id = updates.pop('avatar_id', None)
     
@@ -104,7 +129,6 @@ def update_profile(user_id: int, updates: dict) -> ProfileDomain:
 
             # c. Lưu vào Profile
             profile.avatar_id = str(new_avatar_file.id) # Lưu ID hoặc URL tùy bạn
-            # profile.avatar_url = new_avatar_file.file.url 
 
         except UploadedFile.DoesNotExist:
             raise DomainError("File ảnh không hợp lệ hoặc phiên upload đã hết hạn.")

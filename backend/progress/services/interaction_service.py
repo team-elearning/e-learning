@@ -9,6 +9,7 @@ from content.models import ContentBlock, Lesson, Module
 from progress.models import UserBlockProgress
 from progress.domains.user_block_progress_domain import UserBlockProgressDomain
 from progress.domains.resume_position_domain import ResumePositionDomain
+from progress.services.course_progress_service import handle_block_completion
 
 
 
@@ -92,22 +93,39 @@ def sync_heartbeat(self, user, data: dict) -> UserBlockProgressDomain:
         # Chỉ update thành True nếu chưa hoàn thành
         if not progress.is_completed:
             should_complete = False
+
+            # Lấy metadata từ JSON Payload
+            payload = content_block.payload or {}
             
-            # Rule 1: Dựa vào thời lượng (Nếu là Video/Audio)
-            if content_block.duration_seconds and content_block.duration_seconds > 0:
-                percent_watched = progress.time_spent_seconds / content_block.duration_seconds
-                if percent_watched >= settings.COMPLETION_THRESHOLD:
+            # 1. Xử lý Video
+            if content_block.type == 'video':
+                # Giả sử payload lưu: {"url": "...", "duration": 600}
+                duration = payload.get('duration', 0)
+
+                if duration > 0:
+                    percent_watched = progress.time_spent_seconds / duration
+                    if percent_watched >= settings.COMPLETION_THRESHOLD: # Ngưỡng 95%
+                        should_complete = True
+
+            # 2. Xử lý Quiz (Tham chiếu ForeignKey)
+            elif content_block.type == 'quiz':
+                # Với Quiz, thường logic complete sẽ nằm ở API submit bài thi riêng,
+                # không nằm ở heartbeat. Nhưng nếu heartbeat chỉ để track time:
+                pass
+
+            # 3. Các loại khác (Text/PDF)
+            else:
+                # Logic đơn giản: User ở đó đủ lâu (ví dụ 10s) và client báo done
+                if client_claims_completed and progress.time_spent_seconds > 5:
                     should_complete = True
-            
-            # Rule 2: Nếu không có thời lượng (VD: PDF), tin client NHƯNG phải có time_spent tối thiểu
-            # (Ví dụ: Phải mở PDF ít nhất 10 giây)
-            elif client_claims_completed and progress.time_spent_seconds > 10:
-                should_complete = True
 
             if should_complete:
                 progress.is_completed = True
+                progress.save()
                 # TODO: Trigger Event "Course Progress Update" tại đây
-                # self.course_service.update_course_progress(user, content_block.course_id)
+                transaction.on_commit(
+                    lambda: handle_block_completion(user, content_block)
+                )
 
         progress.save()
 
@@ -116,105 +134,101 @@ def sync_heartbeat(self, user, data: dict) -> UserBlockProgressDomain:
     return UserBlockProgressDomain.from_model(progress, content_block)
 
 
-# def mark_block_as_complete(user, data: dict) -> UserBlockProgressDomain:
-#     """
-#     Xử lý logic đánh dấu hoàn thành Block.
-#     Validate chặt chẽ dựa trên dữ liệu heartbeat đã tích lũy.
-#     Output: UserBlockProgressDomain
-#     """
-#     block_id = data.get('block_id') 
+################################################################################
+################################################################################
+################################################################################
 
-#     # 1. Lấy Block và Progress hiện tại
-#     # Chúng ta dùng get_or_create để đảm bảo record tồn tại, 
-#     # nhưng logic validate sẽ chặn nếu time_spent = 0
-#     try:
-#         block = ContentBlock.objects.get(id=block_id)
-#         progress, created = UserBlockProgress.objects.get_or_create(
-#             user=user, block=block
-#         )
-#     except ContentBlock.DoesNotExist:
-#         raise ValueError(f"Block {block_id} không tồn tại hoặc chưa được cập nhật.")
-
-#     # 2. Idempotency Check (Quan trọng)
-#     # Nếu đã hoàn thành rồi -> Trả về Domain luôn, không xử lý lại.
-#     if progress.is_completed:
-#         return UserBlockProgressDomain.from_model(progress)
-
-#     # 3. VALIDATION LOGIC (Kiểm tra điều kiện "Đủ")
-#     # Logic này ngăn chặn việc user gọi API complete mà chưa học
-#     if block.type == 'VIDEO':
-#         validate_completion_dynamic(block, progress)
+def validate_completion_policy(block: ContentBlock, progress: UserBlockProgress):
+    """
+    Unified Validator: Kiểm tra xem user đã đủ điều kiện để 'Tick xanh' chưa.
+    Logic dựa trên block.type và cấu hình trong block.payload.
+    """
+    # Lấy cấu hình từ payload (JSON), có default value an toàn
+    payload = block.payload or {}
+    criteria = payload.get('completion_criteria', {}) 
     
-#     elif block.type in ['TEXT', 'PDF', 'DOCUMENT']:
-#         validate_completion_dynamic(block, progress)
+    # --- CASE 1: VIDEO / AUDIO ---
+    if block.type in ['video', 'audio']:
+        # 1. Lấy duration từ payload (System define)
+        duration = payload.get('duration', 0)
         
-#     # elif block.block_type == 'QUIZ':
-#     #     self._validate_quiz_completion(block, progress)
+        # Nếu data lỗi không có duration -> Fallback: Bắt buộc xem tối thiểu 30s
+        if not duration:
+            if progress.time_spent_seconds < 30:
+                raise ValueError("Dữ liệu video chưa đầy đủ, vui lòng xem tối thiểu 30s.")
+            return
 
-#     # 4. Update & Persistence
-#     # Dùng transaction atomic nếu sau này bạn có trigger update Course/Module progress
-#     with transaction.atomic():
-#         progress.is_completed = True
-#         progress.last_accessed = timezone.now()
-#         progress.save()
+        # 2. Lấy ngưỡng % yêu cầu (Default Moodle thường là xem hết, ta cho 90% là mượt)
+        required_percent = criteria.get('min_percent', 90)
+        required_seconds = duration * (required_percent / 100)
         
-#         # TODO: Trigger event/signal để update Module Progress nếu cần
-#         # self._check_and_update_module_completion(user, block.module_id)
+        # 3. Validation
+        if progress.time_spent_seconds < required_seconds:
+            missing = int(required_seconds - progress.time_spent_seconds)
+            raise ValueError(
+                f"Bạn mới xem {int(progress.time_spent_seconds)}s. "
+                f"Cần xem {required_percent}% thời lượng (còn thiếu {missing}s)."
+            )
 
-#     # 5. Convert Model -> Domain và Return
-#     return UserBlockProgressDomain.from_model(progress)
-
-
-# def validate_completion_dynamic(self, block, progress):
-#     """
-#     Logic: Video phải xem > 90% thời lượng (hoặc config dynamic).
-#     Dữ liệu time_spent_seconds được tích lũy từ Heartbeat API.
-#     """
-#     video_duration = block.duration_seconds # Trường duration của ContentBlock
-    
-#     # Fail-safe: Nếu video không có duration (ví dụ livestream hoặc lỗi data),
-#     # ta có thể cho qua hoặc yêu cầu tối thiểu 30s.
-#     if not video_duration:
-#         return 
-
-#     required_time = video_duration * 0.9
-    
-#     # Lấy time đã học (từ DB - do heartbeat cập nhật)
-#     current_time_spent = progress.time_spent_seconds
-    
-#     # Validation
-#     if current_time_spent < required_time:
-#         # Logic phụ: Check thêm timestamp hiện tại (resume_data) để chặt chẽ hơn
-#         # (Tránh trường hợp user tua đến cuối nhưng tổng thời gian xem chưa đủ)
-#         current_timestamp = progress.resume_data.get('video_timestamp', 0)
+    # --- CASE 2: READING (PDF / DOC / TEXT) ---
+    elif block.type in ['pdf', 'docx', 'text', 'image']:
+        # Rule: Phải ở lại trang tối thiểu X giây (Moodle gọi là "View time")
+        min_seconds = criteria.get('min_view_time', 5) # Default 5s để tránh click nhầm
         
-#         # Chi tiết lỗi trả về giúp FE hiển thị thông báo rõ ràng
-#         missing_seconds = int(required_time - current_time_spent)
-#         raise ValueError(
-#             f"Bạn chưa xem đủ thời lượng yêu cầu. Hãy xem thêm {missing_seconds} giây nữa."
-#         )
+        if progress.time_spent_seconds < min_seconds:
+             raise ValueError(f"Vui lòng đọc tài liệu tối thiểu {min_seconds} giây.")
 
-
-# def validate_completion_dynamic(self, block, progress):
-#     criteria = block.completion_criteria # Lấy rule từ DB
-    
-#     # 1. Rule chung cho Video
-#     if block.type == 'VIDEO':
-#         required_percent = criteria.get('min_percent', 90) # Default 90% nếu không config
+    # --- CASE 3: QUIZ (Bài tập) ---
+    elif block.type == 'quiz':
+        # Quiz thường hoàn thành khi có điểm PASS
+        # Logic này thường check score chứ không check time
+        passing_score = criteria.get('passing_score', 5.0)
+        current_score = progress.score or 0.0
         
-#         if not block.duration_seconds: return # Skip check nếu lỗi data
-        
-#         required_time = block.duration_seconds * (required_percent / 100)
-#         if progress.time_spent_seconds < required_time:
-#              raise ValueError(f"Yêu cầu xem tối thiểu {required_percent}% thời lượng.")
+        if current_score < passing_score:
+            raise ValueError(f"Điểm số chưa đạt. Cần {passing_score}, hiện tại {current_score}.")
 
-#     # 2. Rule chung cho Reading
-#     elif block.type in ['PDF', 'TEXT']:
-#         required_seconds = criteria.get('min_seconds', 5) # Default 5s
-        
-#         if progress.time_spent_seconds < required_seconds:
-#             raise ValueError(f"Cần đọc tối thiểu {required_seconds} giây.")
+    # --- CASE DEFAULT ---
+    else:
+        # Với các type lạ, chỉ cần có record heartbeat là cho qua
+        pass
 
+
+def mark_block_as_complete(self, user, data: dict) -> UserBlockProgressDomain:
+    block_id = data.get('block_id') 
+
+    try:
+        # Select related để lấy payload xử lý validate
+        block = ContentBlock.objects.get(id=block_id)
+        # Get progress hiện tại (đã được Heartbeat update time_spent)
+        progress = UserBlockProgress.objects.get(user=user, block=block)
+    except (ContentBlock.DoesNotExist, UserBlockProgress.DoesNotExist):
+        raise ValueError("Không tìm thấy dữ liệu học tập. Vui lòng học thử vài giây trước khi hoàn thành.")
+
+    # 1. Idempotency (Nếu đã xong rồi thì return luôn)
+    if progress.is_completed:
+        return UserBlockProgressDomain.from_model(progress, block)
+
+    # 2. GỌI HÀM VALIDATE GỘP
+    # Nếu không thỏa mãn, hàm này sẽ raise ValueError -> API trả về 400
+    validate_completion_policy(block, progress)
+
+    # 3. Update & Ripple Effect (Quan trọng)
+    with transaction.atomic():
+        progress.is_completed = True
+        progress.last_accessed = timezone.now()
+        progress.save()
+        
+        # Kích hoạt tính toán lại tiến độ Lesson/Course
+        transaction.on_commit(
+            lambda: handle_block_completion(user, block)
+        )
+
+    return UserBlockProgressDomain.from_model(progress, block)
+
+
+##################################################################################################################
+##################################################################################################################
 ##################################################################################################################
 
 # def _find_next_block(self, current_block):
