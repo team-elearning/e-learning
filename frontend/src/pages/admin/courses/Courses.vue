@@ -5,7 +5,7 @@
       <el-input
         v-model="query.q"
         clearable
-        placeholder="Tìm tên"
+        placeholder="Tìm tên khóa học"
         @clear="applyFilters"
         @keyup.enter="applyFilters"
         class="md:col-span-2 xl:col-span-2 w-full"
@@ -105,7 +105,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="lessonsCount" label="Bài" width="80" align="center" />
+        <el-table-column label="Chương" width="80" align="center">
+          <template #default="{ row }">
+            {{ row.moduleCount }}
+          </template>
+        </el-table-column>
         <el-table-column prop="enrollments" label="HV" width="90" align="center" />
 
         <!-- <el-table-column prop="status" label="Trạng thái" width="140" align="center">
@@ -216,6 +220,8 @@ const query = reactive<PageParams>({
 })
 const dateRange = ref<[string, string] | null>(null)
 
+const DEFAULT_THUMB = 'https://emojiapi.dev/api/v1/1f393/512.png'
+
 function subjectName(s: Subject) {
   return subjects.find((x) => x.value === s)?.label || s
 }
@@ -287,19 +293,34 @@ function applyFilters() {
   filterParams.from = query.from
   filterParams.to = query.to
 }
+function refresh() {
+  fetch()
+}
 
 async function fetch() {
   loading.value = true
   try {
     const { items: rows, total: t } = await courseService.list({ page: page.value, pageSize }, true)
 
-    allItems.value = rows // lưu toàn bộ
-    items.value = rows // copy qua để render lần đầu
+    // ====== GHÉP TÊN GIÁO VIÊN ======
+    const teacherMap: Record<string, string> = {}
+    teachers.value.forEach((t) => {
+      teacherMap[String(t.id)] = t.name
+    })
+
+    const merged = rows.map((c) => ({
+      ...c,
+      teacherName: teacherMap[String(c.teacherId)] || 'Không rõ',
+      thumbnail: c.thumbnail || c.image_url || DEFAULT_THUMB, // THÊM DÒNG NÀY
+    }))
+
+    allItems.value = merged
+    items.value = merged
     total.value = t
 
     thumbnailMap.value = {}
 
-    for (const c of rows) {
+    for (const c of merged) {
       if (!c.thumbnail) continue
       resolveMediaUrl(c.thumbnail).then((url) => {
         if (url) thumbnailMap.value[String(c.id)] = url

@@ -335,9 +335,11 @@ function normalizeCourseSummary(payload: any): CourseSummary {
   if (!payload) {
     return buildMockDetail(1)
   }
+
   const { slug: subjectSlug, title: subjectTitle } = normalizeSubject(
     payload.subject ?? payload.subject_obj ?? payload.subjectInfo,
   )
+
   const teacherId: ID =
     payload.teacherId ??
     payload.teacher_id ??
@@ -345,29 +347,46 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     payload.ownerId ??
     payload.owner?.id ??
     'unknown'
+
   const teacherName =
     payload.teacherName ??
     payload.owner_name ??
     payload.owner?.full_name ??
-    payload.owner?.email ??
     payload.owner?.username ??
+    payload.owner?.email ??
     'Đang cập nhật'
+
   const createdAt = payload.createdAt ?? payload.created_at ?? new Date().toISOString()
   const updatedAt = payload.updatedAt ?? payload.updated_at ?? createdAt
+
   const thumbnail =
     payload.thumbnail ??
     payload.thumbnail_url ??
     payload.image_url ??
     payload.imageUrl ??
     undefined
+
+  const moduleCount =
+    payload.module_count ??
+    payload.modules?.length ??
+    payload.moduleCount ??
+    0
+
   const lessonsFromModules = Array.isArray(payload.modules)
     ? payload.modules.reduce(
-      (total: number, mod: RawModule) => total + (Array.isArray(mod?.lessons) ? mod.lessons.length : 0),
+      (total: number, m: RawModule) =>
+        total + (Array.isArray(m.lessons) ? m.lessons.length : 0),
       0,
     )
     : 0
-  const lessonsCount = payload.lessonsCount ?? payload.lessons_count ?? lessonsFromModules
+
+  const lessonsCount =
+    payload.lessonsCount ??
+    payload.lessons_count ??
+    lessonsFromModules
+
   const enrollments = payload.enrollments ?? payload.enrollment_count ?? 0
+
   const price =
     payload.price ??
     payload.price_amount ??
@@ -384,6 +403,7 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     teacherId,
     teacherName,
     lessonsCount,
+    moduleCount,
     enrollments,
     status: normalizeStatus(payload.status, payload.published),
     createdAt,
@@ -578,12 +598,12 @@ export const courseService = {
 
   // FILTER OPTIONS
   async listTeachers(): Promise<{ id: ID; name: string }[]> {
-    if (COURSE_USE_MOCK) {
-      return Array.from({ length: 15 }).map((_, i) => ({ id: i + 1, name: `GV ${i + 1}` }))
-    }
     const { data } = await api.get('/account/admin/users/', { params: { role: 'instructor', pageSize: 50 } })
     const users = data.results || data || []
-    return users.map((u: any) => ({ id: u.id, name: u.email || u.username }))
+    return users.map((u: any) => ({
+      id: u.id,
+      name: u.username || u.email
+    }))
   },
   subjects(): { label: string; value: Subject }[] {
     return SUBJECTS.map((s) => ({ value: s, label: subjectLabel(s) }))

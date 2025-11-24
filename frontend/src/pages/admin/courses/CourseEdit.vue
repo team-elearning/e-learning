@@ -645,12 +645,246 @@
                                 </div>
 
                                 <!-- QUIZ -->
-                                <div v-else-if="block.type === 'quiz'" class="space-y-2 text-xs">
-                                  <p class="text-slate-600">
-                                    Phần bài kiểm tra: hiện đang chỉ lưu
-                                    <span class="font-mono">block.payload</span>. Admin có thể dán
-                                    payload quiz chi tiết (nếu có UI riêng) vào đây.
-                                  </p>
+                                <div v-else-if="block.type === 'quiz'" class="space-y-3">
+                                  <!-- Quiz meta -->
+                                  <div class="grid gap-3 sm:grid-cols-[2fr,1fr]">
+                                    <label class="block">
+                                      <span class="label-text">Tiêu đề bài kiểm tra</span>
+                                      <input
+                                        v-model="block.payload.title"
+                                        class="input-field"
+                                        placeholder="Ví dụ: Bài tập tổng hợp Chương 2"
+                                      />
+                                    </label>
+                                    <label class="block">
+                                      <span class="label-text">Thời gian làm bài</span>
+                                      <input
+                                        v-model="block.payload.time_limit"
+                                        class="input-field"
+                                        placeholder="Ví dụ: 00:45:00"
+                                      />
+                                    </label>
+                                  </div>
+
+                                  <!-- Questions -->
+                                  <div class="mt-3">
+                                    <div class="mb-2 flex items-center justify-between">
+                                      <span class="label-text">
+                                        Câu hỏi ({{ block.payload.questions?.length || 0 }})
+                                      </span>
+                                      <button
+                                        type="button"
+                                        class="btn-secondary text-xs"
+                                        @click="addQuestion(block)"
+                                      >
+                                        + Thêm câu hỏi
+                                      </button>
+                                    </div>
+
+                                    <div
+                                      v-if="
+                                        !block.payload.questions ||
+                                        block.payload.questions.length === 0
+                                      "
+                                      class="lesson-card-empty"
+                                    >
+                                      Chưa có câu hỏi nào. Nhấn
+                                      <span class="font-semibold text-slate-700"
+                                        >“Thêm câu hỏi”</span
+                                      >
+                                      để tạo bài kiểm tra.
+                                    </div>
+
+                                    <div v-else class="space-y-3">
+                                      <div
+                                        v-for="(question, qIndex) in block.payload.questions"
+                                        :key="qIndex"
+                                        class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                      >
+                                        <!-- header -->
+                                        <div
+                                          class="mb-2 flex flex-wrap items-center justify-between gap-2"
+                                        >
+                                          <div class="flex items-center gap-2">
+                                            <span
+                                              class="inline-flex h-6 min-w-[1.6rem] items-center justify-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-700"
+                                            >
+                                              C{{ qIndex + 1 }}
+                                            </span>
+                                            <select
+                                              v-model="question.type"
+                                              class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 outline-none"
+                                              @change="resetQuestionPayload(question)"
+                                            >
+                                              <option value="multiple_choice_single">
+                                                Trắc nghiệm 1 đáp án
+                                              </option>
+                                              <option value="multiple_choice_multi">
+                                                Trắc nghiệm nhiều đáp án
+                                              </option>
+                                              <option value="true_false">Đúng / Sai</option>
+                                              <option value="short_answer">Trả lời ngắn</option>
+                                            </select>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            class="text-[11px] font-medium text-rose-600 hover:text-rose-700 hover:underline"
+                                            @click="removeQuestion(block, qIndex)"
+                                          >
+                                            Xoá câu hỏi
+                                          </button>
+                                        </div>
+
+                                        <!-- Prompt -->
+                                        <label class="mb-2 block">
+                                          <span class="label-text text-xs">Nội dung câu hỏi</span>
+                                          <textarea
+                                            v-model="question.prompt.text"
+                                            rows="2"
+                                            class="input-field resize-y text-xs"
+                                            placeholder="Nhập nội dung câu hỏi..."
+                                          ></textarea>
+                                        </label>
+
+                                        <!-- MULTIPLE CHOICE (SINGLE/MULTI) -->
+                                        <div
+                                          v-if="
+                                            question.type === 'multiple_choice_single' ||
+                                            question.type === 'multiple_choice_multi'
+                                          "
+                                          class="space-y-2"
+                                        >
+                                          <div class="flex items-center justify-between">
+                                            <span class="label-text text-xs">Các lựa chọn</span>
+                                            <button
+                                              type="button"
+                                              class="btn-secondary text-[11px]"
+                                              @click="addChoice(question)"
+                                            >
+                                              + Thêm lựa chọn
+                                            </button>
+                                          </div>
+
+                                          <!-- choices list -->
+                                          <div
+                                            v-for="(choice, cIndex) in question.answer_payload
+                                              .choices"
+                                            :key="cIndex"
+                                            class="flex items-center gap-2"
+                                          >
+                                            <span
+                                              class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700"
+                                            >
+                                              {{ choice.id }}
+                                            </span>
+
+                                            <input
+                                              v-model="choice.text"
+                                              class="input-field text-xs flex-1"
+                                              placeholder="Nội dung lựa chọn"
+                                            />
+
+                                            <label
+                                              class="flex items-center gap-1 text-[11px] text-slate-600"
+                                            >
+                                              <input
+                                                v-if="question.type === 'multiple_choice_single'"
+                                                type="radio"
+                                                :name="'q-' + qIndex"
+                                                :checked="choice.is_correct"
+                                                @change="setCorrectChoice(question, cIndex)"
+                                              />
+                                              <input
+                                                v-else
+                                                type="checkbox"
+                                                :checked="choice.is_correct"
+                                                @change="toggleMultiCorrect(choice)"
+                                              />
+                                              <span>Đúng</span>
+                                            </label>
+
+                                            <button
+                                              type="button"
+                                              class="text-[11px] text-rose-600 hover:text-rose-700"
+                                              @click="removeChoice(question, cIndex)"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <!-- TRUE / FALSE -->
+                                        <div v-else-if="question.type === 'true_false'">
+                                          <label class="label-text text-xs">Đáp án đúng</label>
+                                          <div class="mt-1 flex gap-4 text-xs text-slate-700">
+                                            <label class="flex items-center gap-1">
+                                              <input
+                                                type="radio"
+                                                :checked="question.answer_payload.answer === true"
+                                                @change="question.answer_payload.answer = true"
+                                              />
+                                              <span>Đúng</span>
+                                            </label>
+
+                                            <label class="flex items-center gap-1">
+                                              <input
+                                                type="radio"
+                                                :checked="question.answer_payload.answer === false"
+                                                @change="question.answer_payload.answer = false"
+                                              />
+                                              <span>Sai</span>
+                                            </label>
+                                          </div>
+                                        </div>
+
+                                        <!-- SHORT ANSWER -->
+                                        <div v-else-if="question.type === 'short_answer'">
+                                          <div
+                                            class="mb-1 flex items-center justify-between text-xs"
+                                          >
+                                            <span class="label-text"
+                                              >Các đáp án được chấp nhận</span
+                                            >
+                                            <button
+                                              type="button"
+                                              class="btn-secondary text-[11px]"
+                                              @click="addShortAnswer(question)"
+                                            >
+                                              + Thêm đáp án
+                                            </button>
+                                          </div>
+
+                                          <div
+                                            v-for="(ans, aIndex) in question.answer_payload
+                                              .valid_answers"
+                                            :key="aIndex"
+                                            class="mb-1 flex items-center gap-2"
+                                          >
+                                            <input
+                                              v-model="ans.answer"
+                                              class="input-field text-xs"
+                                              placeholder="Đáp án hợp lệ"
+                                            />
+                                            <label
+                                              class="flex items-center gap-1 text-[11px] text-slate-600"
+                                            >
+                                              <input type="checkbox" v-model="ans.case_sensitive" />
+                                              <span>Phân biệt HOA/thường</span>
+                                            </label>
+
+                                            <button
+                                              type="button"
+                                              class="text-[11px] text-rose-600 hover:text-rose-700"
+                                              @click="removeShortAnswer(question, aIndex)"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1214,6 +1448,87 @@ async function handleFileUpload(
       console.error('❌ Lỗi upload file block:', e)
     }
   }
+}
+
+function ensureQuizPayload(block: any) {
+  if (!block.payload) block.payload = {}
+  if (!block.payload.questions) block.payload.questions = []
+  if (!block.payload.title) block.payload.title = ''
+  if (!block.payload.time_limit) block.payload.time_limit = ''
+}
+
+function addQuestion(block: any) {
+  ensureQuizPayload(block)
+  block.payload.questions.push({
+    position: block.payload.questions.length,
+    type: 'multiple_choice_single',
+    prompt: { text: '' },
+    answer_payload: {
+      choices: [
+        { id: 'A', text: '', is_correct: false },
+        { id: 'B', text: '', is_correct: false },
+      ],
+    },
+    hint: { text: '' },
+  })
+}
+
+function removeQuestion(block: any, qIndex: number) {
+  block.payload.questions.splice(qIndex, 1)
+  block.payload.questions.forEach((q: any, idx: number) => (q.position = idx))
+}
+
+function resetQuestionPayload(question: any) {
+  switch (question.type) {
+    case 'multiple_choice_single':
+    case 'multiple_choice_multi':
+      question.answer_payload = {
+        choices: [
+          { id: 'A', text: '', is_correct: false },
+          { id: 'B', text: '', is_correct: false },
+        ],
+      }
+      break
+    case 'true_false':
+      question.answer_payload = { answer: true }
+      break
+    case 'short_answer':
+      question.answer_payload = { valid_answers: [] }
+      break
+  }
+}
+
+function setCorrectChoice(question: any, idx: number) {
+  question.answer_payload.choices.forEach((c: any, i: number) => (c.is_correct = i === idx))
+}
+
+function toggleMultiCorrect(choice: any) {
+  choice.is_correct = !choice.is_correct
+}
+
+function addChoice(question: any) {
+  const idx = question.answer_payload.choices.length
+  question.answer_payload.choices.push({
+    id: String.fromCharCode(65 + idx),
+    text: '',
+    is_correct: false,
+  })
+}
+
+function removeChoice(question: any, idx: number) {
+  question.answer_payload.choices.splice(idx, 1)
+  // reorder A B C...
+  question.answer_payload.choices.forEach((c: any, i: number) => {
+    c.id = String.fromCharCode(65 + i)
+  })
+}
+
+function addShortAnswer(question: any) {
+  question.answer_payload.valid_answers.push({ answer: '', case_sensitive: false })
+}
+
+function removeShortAnswer(question: any, idx: number) {
+  question.answer_payload.valid_answers.splice(idx, 1)
 }
 
 // Chuẩn hoá position cho modules/lessons/blocks trước khi gửi
