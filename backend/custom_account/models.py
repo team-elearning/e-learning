@@ -65,7 +65,7 @@ class Profile(models.Model):
     
     # --- Basic Info ---
     display_name = models.CharField(max_length=150, blank=True, null=True)
-    avatar_url = models.TextField(blank=True, null=True) # Có thể cân nhắc models.ImageField nếu lưu local
+    avatar_id = models.TextField(blank=True, null=True) 
     dob = models.DateField(blank=True, null=True)
     gender = models.CharField(
         max_length=16,

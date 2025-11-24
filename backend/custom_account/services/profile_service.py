@@ -1,10 +1,14 @@
 import logging
 from typing import List
 from rest_framework.exceptions import ValidationError
+from django.db import transaction
+from django.contrib.contenttypes.models import ContentType
 
 from core.exceptions import ProfileNotFoundError
 from custom_account.domains.profile_domain import ProfileDomain
 from custom_account.models import Profile , UserModel
+from media.models import UploadedFile, FileStatus, Component
+from core.exceptions import DomainError
 
 
 
@@ -46,19 +50,66 @@ def create_profile(domain: ProfileDomain) -> ProfileDomain:
     return ProfileDomain.from_model(profile)
 
 
+def _delete_old_avatar(old_file_id: str):
+    """Helper để xóa file cũ, tránh rác ổ cứng"""
+    try:
+        old_file = UploadedFile.objects.get(id=old_file_id)
+        # Xóa file vật lý
+        old_file.file.delete(save=False)
+        # Xóa bản ghi DB
+        old_file.delete()
+    except UploadedFile.DoesNotExist:
+        pass
+
+
+
+@transaction.atomic
 def update_profile(user_id: int, updates: dict) -> ProfileDomain:
-    """Update profile fields via domain validation."""
-    profile = Profile.objects.get(user_id=user_id)
-    domain = ProfileDomain.from_model(profile)
-
+    profile = Profile.objects.select_related('user').get(user_id=user_id)
+    
+    # 1. Tách avatar_id ra xử lý riêng
+    new_avatar_id = updates.pop('avatar_id', None)
+    
+    # 2. Cập nhật các field thông thường (Text)
     for field, value in updates.items():
-        setattr(domain, field, value)
+        if hasattr(profile, field):
+            setattr(profile, field, value)
+            
+    # 3. Logic xử lý Avatar (Claiming Logic)
+    if new_avatar_id:
+        # Case A: User muốn xóa avatar (gửi chuỗi rỗng hoặc null đặc biệt nếu cần)
+        # Ở đây giả sử gửi UUID tức là muốn đổi avatar mới
+        
+        # Tìm file trong bảng UploadedFile
+        try:
+            # Chỉ lấy file STAGING do chính user này up lên
+            # (Security check: Tránh user A lấy UUID file của user B)
+            new_avatar_file = UploadedFile.objects.get(
+                id=new_avatar_id, 
+                uploaded_by_id=user_id,
+                status=FileStatus.STAGING 
+            )
+            
+            # a. Đánh dấu file cũ là rác (để Cron job xóa sau) 
+            # hoặc xóa luôn nếu file lưu local
+            if profile.avatar_id:
+                 _delete_old_avatar(profile.avatar_id)
 
-    domain.validate()
-    for field, value in domain.to_dict().items():
-        setattr(profile, field, value)
+            # b. Commit file mới
+            new_avatar_file.status = FileStatus.COMMITTED
+            new_avatar_file.component = Component.USER_AVATAR # Gán đúng component
+            new_avatar_file.content_type = ContentType.objects.get_for_model(Profile)
+            new_avatar_file.object_id = str(profile.pk) # Link ngược về Profile
+            new_avatar_file.save()
+
+            # c. Lưu vào Profile
+            profile.avatar_id = str(new_avatar_file.id) # Lưu ID hoặc URL tùy bạn
+            # profile.avatar_url = new_avatar_file.file.url 
+
+        except UploadedFile.DoesNotExist:
+            raise DomainError("File ảnh không hợp lệ hoặc phiên upload đã hết hạn.")
+
     profile.save()
-
     return ProfileDomain.from_model(profile)
 
 

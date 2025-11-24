@@ -24,7 +24,7 @@ class ProfileDomain:
         user_id: int,
         # --- Fields from Profile Model ---
         display_name: Optional[str] = None,
-        avatar_url: Optional[str] = None,
+        avatar_id: Optional[str] = None,
         dob: Optional[date] = None,
         gender: Optional[str] = None,
         # --- Fields from User Model (New) ---
@@ -38,7 +38,7 @@ class ProfileDomain:
     ):
         self.user_id = user_id
         self.display_name = display_name
-        self.avatar_url = avatar_url
+        self.avatar_id = avatar_id
         self.dob = dob
         self.gender = gender
         
@@ -96,7 +96,7 @@ class ProfileDomain:
         return cls(
             user_id=model.user_id,
             display_name=model.display_name,
-            avatar_url=model.avatar_url,
+            avatar_id=model.avatar_id,
             dob=model.dob,
             gender=model.gender,
             

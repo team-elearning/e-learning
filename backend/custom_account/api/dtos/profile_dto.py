@@ -11,24 +11,13 @@ class ProfileInput(BaseModel):
 
 class ProfileUpdateInput(BaseModel):
     display_name: str | None = None
-    avatar_url: str | None = None
-    dob: datetime | None = None  
+    avatar_id: UUID | None = None 
+    dob: date | None = None
     gender: str | None = None
-    language: str | None = None
-    metadata: dict | None = None
-
-    def to_dict(self, exclude_none: bool = True) -> dict:
-        """
-        Convert the model to a dictionary.
-        
-        Args:
-            exclude_none (bool): Whether to exclude keys with None values. Defaults to True.
-        
-        Returns:
-            dict: A dictionary representation of the model.
-        """
-        return self.model_dump(exclude_none=exclude_none)
     
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)
+
 
 class ProfilePublicOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -41,7 +30,7 @@ class ProfilePublicOutput(BaseModel):
     
     # --- Profile Info ---
     display_name: str | None = None
-    avatar_url: str | None = None
+    avatar_id: str | None = None
     dob: date | None = None
     gender: str | None = None
     language: str | None = None
@@ -74,7 +63,7 @@ class ProfileAdminOutput(BaseModel):
     
     # --- Profile Info ---
     display_name: str | None = None
-    avatar_url: str | None = None
+    avatar_id: str | None = None
     dob: date | None = None
     gender: str | None = None
     language: str | None = None
