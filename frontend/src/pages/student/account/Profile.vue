@@ -120,10 +120,6 @@
             <div>
               <input v-model.trim="form.email" type="email" class="input" placeholder="you@example.com" />
               <p v-if="errors.email" class="err">{{ errors.email }}</p>
-              <label class="check">
-                <input type="checkbox" v-model="form.emailUpdates" />
-                <span></span> Nhận thông báo qua email
-              </label>
               <span class="helper muted">Email không bắt buộc, có thể để trống.</span>
             </div>
           </div>

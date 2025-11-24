@@ -31,14 +31,14 @@
               :class="{ active: activeTab === 'main' }"
               @click="activeTab = 'main'"
             >
-              Khóa học chính
+              Khóa của tôi
             </button>
             <button
               class="tab"
               :class="{ active: activeTab === 'supp' }"
               @click="activeTab = 'supp'"
             >
-              Khóa học bổ trợ
+              Khóa học mở rộng
             </button>
           </div>
 
@@ -71,8 +71,15 @@
                 <span class="sub">{{ baseList.length }} môn</span>
               </div>
               <div class="rh">
-                <span class="trophy">🏆 {{ getAnimatedTrophy(baseKey) }}/{{ baseTrophies.total }}</span>
-                <button class="ghost sm" type="button" @click="viewAllCourses" :disabled="loadingAll">
+                <span class="trophy"
+                  >🏆 {{ getAnimatedTrophy(baseKey) }}/{{ baseTrophies.total }}</span
+                >
+                <button
+                  class="ghost sm"
+                  type="button"
+                  @click="viewAllCourses"
+                  :disabled="loadingAll"
+                >
                   {{ loadingAll ? 'Đang tải...' : 'Xem tất cả ›' }}
                 </button>
               </div>
@@ -125,8 +132,15 @@
                 <span class="sub">{{ midList.length }} môn</span>
               </div>
               <div class="rh">
-                <span class="trophy">🏆 {{ getAnimatedTrophy(midKey) }}/{{ midTrophies.total }}</span>
-                <button class="ghost sm" type="button" @click="viewAllCourses" :disabled="loadingAll">
+                <span class="trophy"
+                  >🏆 {{ getAnimatedTrophy(midKey) }}/{{ midTrophies.total }}</span
+                >
+                <button
+                  class="ghost sm"
+                  type="button"
+                  @click="viewAllCourses"
+                  :disabled="loadingAll"
+                >
                   {{ loadingAll ? 'Đang tải...' : 'Xem tất cả ›' }}
                 </button>
               </div>
@@ -315,7 +329,7 @@
                 <div
                   class="goal-fill"
                   :style="{
-                    '--progress-target': Math.min(100, (weeklyLessons / 5) * 100) + '%'
+                    '--progress-target': Math.min(100, (weeklyLessons / 5) * 100) + '%',
                   }"
                 ></div>
               </div>
@@ -330,7 +344,7 @@
                 <div
                   class="goal-fill"
                   :style="{
-                    '--progress-target': Math.min(100, (dailyMinutes / 60) * 100) + '%'
+                    '--progress-target': Math.min(100, (dailyMinutes / 60) * 100) + '%',
                   }"
                 ></div>
               </div>
@@ -365,12 +379,12 @@
                 <div class="recent-title">{{ c.title }}</div>
                 <div class="recent-meta">
                   <span class="recent-progress">{{ getAnimatedProgress(c.id, c.progress) }}%</span>
-                    <div class="mini-bar">
-                      <div
-                        class="mini-fill"
-                        :style="{ '--progress-target': Math.min(100, c.progress) + '%' }"
-                      ></div>
-                    </div>
+                  <div class="mini-bar">
+                    <div
+                      class="mini-fill"
+                      :style="{ '--progress-target': Math.min(100, c.progress) + '%' }"
+                    ></div>
+                  </div>
                 </div>
               </div>
             </article>
@@ -378,7 +392,6 @@
         </div>
       </aside>
     </div>
-
   </div>
 </template>
 
@@ -795,7 +808,7 @@ async function playFirst(id: number | string) {
     } else {
       console.log('[playFirst] Đã có detail trong cache')
     }
-    
+
     // Tìm lesson đầu tiên
     let firstLessonId: string | number | null = null
     if (d.sections && d.sections.length > 0) {
@@ -810,19 +823,24 @@ async function playFirst(id: number | string) {
     } else {
       console.warn('[playFirst] Không có sections hoặc sections rỗng')
     }
-    
+
     if (!firstLessonId) {
       console.warn('[playFirst] Không tìm thấy lesson, chuyển đến detail page')
       ElMessage.warning('Khóa học này chưa có bài học nào.')
       openDetail(id)
       return
     }
-    
+
     // Điều hướng đến player
     const routeName = 'student-course-player'
     const routePath = `/student/courses/${id}/player/${firstLessonId}`
-    console.log('[playFirst] Điều hướng đến player:', { routeName, routePath, id, lessonId: firstLessonId })
-    
+    console.log('[playFirst] Điều hướng đến player:', {
+      routeName,
+      routePath,
+      id,
+      lessonId: firstLessonId,
+    })
+
     if (router.hasRoute(routeName)) {
       router.push({ name: routeName, params: { id, lessonId: firstLessonId } })
     } else {
