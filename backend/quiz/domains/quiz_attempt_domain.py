@@ -91,10 +91,18 @@ class SaveAnswerResultDomain:
 class SubmitAttemptResultDomain:
     attempt_id: UUID
     status: str          # 'completed'
+
     score_obtained: float
+    max_score: float       
+    percentage: float
+
+    correct_count: int      # <--- Thêm
+    total_questions: int    # <--- Thêm
+
     passed: bool         # True/False dựa trên pass_score
     completion_time: datetime
     message: str         # "Nộp bài thành công"
+    overall_feedback: str
 
 
 @dataclass
@@ -128,6 +136,30 @@ class AttemptResultDomain:
     score_obtained: float       # Điểm thô
     max_score: float            # Tổng điểm của đề
     is_passed: bool             # Đạt/Trượt
+
+    correct_count: int      
+    total_questions: int   
     
     # Danh sách chi tiết (Có thể rỗng nếu mode Exam không cho xem lại bài)
     questions: List[QuestionReviewDomain] = field(default_factory=list)
+
+
+@dataclass
+class QuizSummaryDomain:
+    # Thông tin cơ bản từ Quiz
+    id: UUID
+    title: str
+    mode: str
+    
+    # Thông tin thời gian (đã xử lý logic hiển thị)
+    time_open: Optional[datetime]
+    time_close: Optional[datetime]
+    time_limit_str: Optional[str]
+    
+    # Trạng thái người dùng & Điểm số
+    user_status: str
+    best_score: Optional[float]
+    attempts_count: int
+    
+    # Logic computed (đã tính toán ở service)
+    is_available: bool

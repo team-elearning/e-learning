@@ -182,19 +182,6 @@ class CourseResumeView(RoleBasedOutputMixin, APIView):
                     {"detail": "Khóa học chưa có nội dung."}, 
                     status=status.HTTP_404_NOT_FOUND
                 )
-
-            # Trả về đúng format {"instance": domain} để đồng bộ với các API khác
-            # Nếu bạn dùng RoleBasedOutputMixin, nó có thể tự serialize `instance`
-            # Nhưng ở đây tôi return dict cho trực quan, bạn có thể chỉnh lại theo mixin của bạn.
-            
-            # Mapping nhanh Domain -> Dict (hoặc dùng Serializer của bạn)
-            # response_data = {
-            #     "block_id": resume_domain.block_id,
-            #     "lesson_id": resume_domain.lesson_id,
-            #     "module_id": resume_domain.module_id,
-            #     "resume_data": resume_domain.resume_data,
-            #     "is_first_start": resume_domain.is_first_start
-            # }
             
             return Response({"instance": resume_domain}, status=status.HTTP_200_OK)
 

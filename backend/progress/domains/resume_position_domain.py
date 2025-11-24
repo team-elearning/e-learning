@@ -24,6 +24,10 @@ class ResumePositionDomain:
     is_first_start: bool = False # True nếu user chưa học gì cả (bắt đầu từ đầu)
     last_accessed: Optional[datetime] = None
 
+    course_progress_percent: float = 0.0  # Ví dụ: 45.5%
+    total_blocks: int = 0                 # Tổng số bài
+    completed_blocks: int = 0             # Số bài đã xong
+
     def to_dict(self):
         """Convert domain -> dict JSON-friendly"""
         return {

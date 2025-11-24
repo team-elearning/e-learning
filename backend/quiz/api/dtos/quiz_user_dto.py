@@ -155,10 +155,19 @@ class SubmitOutput(BaseModel):
 
     attempt_id: UUID
     status: str
-    score_obtained: float = Field(..., description="Điểm số đạt được (Raw score)")
+
+    correct_count: int = Field(..., description="Số câu trả lời đúng")
+    total_questions: int = Field(..., description="Tổng số câu hỏi")
+
+    score_obtained: float = Field(..., description="Điểm đạt được")
+    max_score: float = Field(..., description="Thang điểm tối đa của bài thi (thường là 10)")
+    percentage: float = Field(..., description="Tỷ lệ phần trăm làm đúng (0-100%)")
+
     passed: bool = Field(..., description="Trạng thái Đạt/Trượt dựa trên pass_score của Quiz")
     completion_time: datetime
     message: str
+
+    overall_feedback: Optional[str] = Field(None, description="Lời nhận xét dựa trên điểm số")
 
 
 class QuestionReviewOutput(BaseModel):
@@ -199,6 +208,37 @@ class AttemptResultOutput(BaseModel):
     max_score: float = Field(..., description="Tổng điểm tối đa của đề")
     is_passed: bool = Field(..., description="Trạng thái Đạt/Trượt")
     
+    correct_count: int = Field(..., description="Số câu làm đúng")
+    total_questions: int = Field(..., description="Tổng số câu hỏi")
+
     # Detail list
     questions: List[QuestionReviewOutput] = Field(default_factory=list, description="Chi tiết từng câu hỏi")
+
+
+# ==========================================
+# Quiz Submit
+# ==========================================
+
+class QuizItemOutput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    mode: str  # 'exam' or 'practice'
+    # Thông tin thời gian
+    time_open: Optional[datetime]
+    time_close: Optional[datetime]
+    time_limit_str: Optional[str] # Convert duration to string
+    
+    # Trạng thái người dùng (Logic kiểu Moodle)
+    user_status: str 
+    best_score: Optional[float]
+    attempts_count: int
+    
+    # Computed status của bài thi (Open/Closed)
+    is_available: bool
+
+# class QuizListOutput(BaseModel):
+#     items: List[QuizItemDTO]
+#     count: int
     

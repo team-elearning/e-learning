@@ -494,12 +494,39 @@
                                       Chưa có ảnh nào được chọn
                                     </span>
                                   </div>
-                                  <img
+
+                                  <div>
+                                    <!-- Loading -->
+                                    <p
+                                      v-if="block.payload.is_loading"
+                                      class="text-xs text-slate-500"
+                                    >
+                                      Đang tải ảnh…
+                                    </p>
+
+                                    <!-- Error -->
+                                    <p
+                                      v-else-if="block.payload.load_error"
+                                      class="text-xs text-red-600"
+                                    >
+                                      {{ block.payload.load_error }}
+                                    </p>
+
+                                    <!-- Preview -->
+                                    <img
+                                      v-else-if="block.payload.image_preview"
+                                      :src="block.payload.image_preview"
+                                      alt="Xem trước ảnh"
+                                      class="image-preview-small"
+                                    />
+                                  </div>
+
+                                  <!-- <img
                                     v-if="block.payload.image_preview"
                                     :src="block.payload.image_preview"
                                     alt="Xem trước ảnh"
                                     class="image-preview-small"
-                                  />
+                                  /> -->
                                   <label class="block">
                                     <span class="label-text">Chú thích</span>
                                     <input
@@ -562,12 +589,35 @@
                                       Chưa có video nào được chọn
                                     </span>
                                   </div>
-                                  <video
+                                  <div>
+                                    <p
+                                      v-if="block.payload.is_loading"
+                                      class="text-xs text-slate-500"
+                                    >
+                                      Đang tải video…
+                                    </p>
+
+                                    <p
+                                      v-else-if="block.payload.load_error"
+                                      class="text-xs text-red-600"
+                                    >
+                                      {{ block.payload.load_error }}
+                                    </p>
+
+                                    <video
+                                      v-else-if="block.payload.video_preview"
+                                      :src="block.payload.video_preview"
+                                      controls
+                                      class="video-preview-small"
+                                    ></video>
+                                  </div>
+
+                                  <!-- <video
                                     v-if="block.payload.video_preview"
                                     :src="block.payload.video_preview"
                                     controls
                                     class="video-preview-small"
-                                  ></video>
+                                  ></video> -->
                                   <p class="hint-text">Hỗ trợ: MP4, WebM, MOV. Tối đa 200MB.</p>
                                   <div v-if="block.payload.uploading" class="text-sm text-gray-600">
                                     Đang upload video... {{ block.payload.progress || 0 }}%
@@ -579,6 +629,14 @@
                                   v-else-if="['pdf', 'docx'].includes(block.type)"
                                   class="space-y-3"
                                 >
+                                  <!-- HIỂN THỊ TÊN FILE TỪ BACKEND HOẶC FALLBACK -->
+                                  <p class="text-[11px] text-slate-500">
+                                    {{ getDisplayFilename(block) }}
+                                    <span v-if="block.payload.file_size">
+                                      — {{ Math.round(block.payload.file_size / 1024) }} KB
+                                    </span>
+                                  </p>
+
                                   <div class="file-upload-area">
                                     <input
                                       :ref="
@@ -619,14 +677,18 @@
                                     >
                                       Chọn file {{ block.type.toUpperCase() }}
                                     </button>
+
+                                    <!-- Tên file khi user upload -->
                                     <span v-if="block.payload.file" class="file-info">
                                       {{ block.payload.file.name }} —
                                       {{ Math.round(block.payload.file.size / 1024) }} KB
                                     </span>
+
                                     <span v-else class="file-info text-gray-500">
                                       Chưa có file nào được chọn
                                     </span>
                                   </div>
+
                                   <label v-if="block.type === 'pdf'" class="block">
                                     <span class="label-text">Tên file (tuỳ chọn)</span>
                                     <input
@@ -635,6 +697,16 @@
                                       placeholder="Tóm tắt lý thuyết.pdf"
                                     />
                                   </label>
+
+                                  <label v-if="block.type === 'docx'" class="block">
+                                    <span class="label-text">Tên file (tuỳ chọn)</span>
+                                    <input
+                                      v-model="block.payload.filename"
+                                      class="input-field"
+                                      placeholder="Tóm tắt lý thuyết.docx"
+                                    />
+                                  </label>
+
                                   <p class="hint-text">
                                     {{
                                       block.type === 'pdf'
@@ -645,12 +717,246 @@
                                 </div>
 
                                 <!-- QUIZ -->
-                                <div v-else-if="block.type === 'quiz'" class="space-y-2 text-xs">
-                                  <p class="text-slate-600">
-                                    Phần bài kiểm tra: hiện đang chỉ lưu
-                                    <span class="font-mono">block.payload</span>. Admin có thể dán
-                                    payload quiz chi tiết (nếu có UI riêng) vào đây.
-                                  </p>
+                                <div v-else-if="block.type === 'quiz'" class="space-y-3">
+                                  <!-- Quiz meta -->
+                                  <div class="grid gap-3 sm:grid-cols-[2fr,1fr]">
+                                    <label class="block">
+                                      <span class="label-text">Tiêu đề bài kiểm tra</span>
+                                      <input
+                                        v-model="block.payload.title"
+                                        class="input-field"
+                                        placeholder="Ví dụ: Bài tập tổng hợp Chương 2"
+                                      />
+                                    </label>
+                                    <label class="block">
+                                      <span class="label-text">Thời gian làm bài</span>
+                                      <input
+                                        v-model="block.payload.time_limit"
+                                        class="input-field"
+                                        placeholder="Ví dụ: 00:45:00"
+                                      />
+                                    </label>
+                                  </div>
+
+                                  <!-- Questions -->
+                                  <div class="mt-3">
+                                    <div class="mb-2 flex items-center justify-between">
+                                      <span class="label-text">
+                                        Câu hỏi ({{ block.payload.questions?.length || 0 }})
+                                      </span>
+                                      <button
+                                        type="button"
+                                        class="btn-secondary text-xs"
+                                        @click="addQuestion(block)"
+                                      >
+                                        + Thêm câu hỏi
+                                      </button>
+                                    </div>
+
+                                    <div
+                                      v-if="
+                                        !block.payload.questions ||
+                                        block.payload.questions.length === 0
+                                      "
+                                      class="lesson-card-empty"
+                                    >
+                                      Chưa có câu hỏi nào. Nhấn
+                                      <span class="font-semibold text-slate-700"
+                                        >“Thêm câu hỏi”</span
+                                      >
+                                      để tạo bài kiểm tra.
+                                    </div>
+
+                                    <div v-else class="space-y-3">
+                                      <div
+                                        v-for="(question, qIndex) in block.payload.questions"
+                                        :key="qIndex"
+                                        class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                                      >
+                                        <!-- header -->
+                                        <div
+                                          class="mb-2 flex flex-wrap items-center justify-between gap-2"
+                                        >
+                                          <div class="flex items-center gap-2">
+                                            <span
+                                              class="inline-flex h-6 min-w-[1.6rem] items-center justify-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-700"
+                                            >
+                                              C{{ qIndex + 1 }}
+                                            </span>
+                                            <select
+                                              v-model="question.type"
+                                              class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 outline-none"
+                                              @change="resetQuestionPayload(question)"
+                                            >
+                                              <option value="multiple_choice_single">
+                                                Trắc nghiệm 1 đáp án
+                                              </option>
+                                              <option value="multiple_choice_multi">
+                                                Trắc nghiệm nhiều đáp án
+                                              </option>
+                                              <option value="true_false">Đúng / Sai</option>
+                                              <option value="short_answer">Trả lời ngắn</option>
+                                            </select>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            class="text-[11px] font-medium text-rose-600 hover:text-rose-700 hover:underline"
+                                            @click="removeQuestion(block, qIndex)"
+                                          >
+                                            Xoá câu hỏi
+                                          </button>
+                                        </div>
+
+                                        <!-- Prompt -->
+                                        <label class="mb-2 block">
+                                          <span class="label-text text-xs">Nội dung câu hỏi</span>
+                                          <textarea
+                                            v-model="question.prompt.text"
+                                            rows="2"
+                                            class="input-field resize-y text-xs"
+                                            placeholder="Nhập nội dung câu hỏi..."
+                                          ></textarea>
+                                        </label>
+
+                                        <!-- MULTIPLE CHOICE (SINGLE/MULTI) -->
+                                        <div
+                                          v-if="
+                                            question.type === 'multiple_choice_single' ||
+                                            question.type === 'multiple_choice_multi'
+                                          "
+                                          class="space-y-2"
+                                        >
+                                          <div class="flex items-center justify-between">
+                                            <span class="label-text text-xs">Các lựa chọn</span>
+                                            <button
+                                              type="button"
+                                              class="btn-secondary text-[11px]"
+                                              @click="addChoice(question)"
+                                            >
+                                              + Thêm lựa chọn
+                                            </button>
+                                          </div>
+
+                                          <!-- choices list -->
+                                          <div
+                                            v-for="(choice, cIndex) in question.answer_payload
+                                              .choices"
+                                            :key="cIndex"
+                                            class="flex items-center gap-2"
+                                          >
+                                            <span
+                                              class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700"
+                                            >
+                                              {{ choice.id }}
+                                            </span>
+
+                                            <input
+                                              v-model="choice.text"
+                                              class="input-field text-xs flex-1"
+                                              placeholder="Nội dung lựa chọn"
+                                            />
+
+                                            <label
+                                              class="flex items-center gap-1 text-[11px] text-slate-600"
+                                            >
+                                              <input
+                                                v-if="question.type === 'multiple_choice_single'"
+                                                type="radio"
+                                                :name="'q-' + qIndex"
+                                                :checked="choice.is_correct"
+                                                @change="setCorrectChoice(question, cIndex)"
+                                              />
+                                              <input
+                                                v-else
+                                                type="checkbox"
+                                                :checked="choice.is_correct"
+                                                @change="toggleMultiCorrect(choice)"
+                                              />
+                                              <span>Đúng</span>
+                                            </label>
+
+                                            <button
+                                              type="button"
+                                              class="text-[11px] text-rose-600 hover:text-rose-700"
+                                              @click="removeChoice(question, cIndex)"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <!-- TRUE / FALSE -->
+                                        <div v-else-if="question.type === 'true_false'">
+                                          <label class="label-text text-xs">Đáp án đúng</label>
+                                          <div class="mt-1 flex gap-4 text-xs text-slate-700">
+                                            <label class="flex items-center gap-1">
+                                              <input
+                                                type="radio"
+                                                :checked="question.answer_payload.answer === true"
+                                                @change="question.answer_payload.answer = true"
+                                              />
+                                              <span>Đúng</span>
+                                            </label>
+
+                                            <label class="flex items-center gap-1">
+                                              <input
+                                                type="radio"
+                                                :checked="question.answer_payload.answer === false"
+                                                @change="question.answer_payload.answer = false"
+                                              />
+                                              <span>Sai</span>
+                                            </label>
+                                          </div>
+                                        </div>
+
+                                        <!-- SHORT ANSWER -->
+                                        <div v-else-if="question.type === 'short_answer'">
+                                          <div
+                                            class="mb-1 flex items-center justify-between text-xs"
+                                          >
+                                            <span class="label-text"
+                                              >Các đáp án được chấp nhận</span
+                                            >
+                                            <button
+                                              type="button"
+                                              class="btn-secondary text-[11px]"
+                                              @click="addShortAnswer(question)"
+                                            >
+                                              + Thêm đáp án
+                                            </button>
+                                          </div>
+
+                                          <div
+                                            v-for="(ans, aIndex) in question.answer_payload
+                                              .valid_answers"
+                                            :key="aIndex"
+                                            class="mb-1 flex items-center gap-2"
+                                          >
+                                            <input
+                                              v-model="ans.answer"
+                                              class="input-field text-xs"
+                                              placeholder="Đáp án hợp lệ"
+                                            />
+                                            <label
+                                              class="flex items-center gap-1 text-[11px] text-slate-600"
+                                            >
+                                              <input type="checkbox" v-model="ans.case_sensitive" />
+                                              <span>Phân biệt HOA/thường</span>
+                                            </label>
+
+                                            <button
+                                              type="button"
+                                              class="text-[11px] text-rose-600 hover:text-rose-700"
+                                              @click="removeShortAnswer(question, aIndex)"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -944,9 +1250,7 @@ async function fetchCourse() {
 
   try {
     const { data } = await axios.get<CourseDetail>(`/api/content/admin/courses/${id}/`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: { ...getAuthHeaders() },
     })
 
     course.value = data
@@ -955,15 +1259,13 @@ async function fetchCourse() {
     f.title = data.title || ''
     f.description = data.description || ''
     f.grade = data.grade || '5'
-    // Subject: lấy từ subject nếu có, không thì từ category name
-    f.subject = data.subject || data.categories[0]?.name || data.categories[0]?.slug || ''
+    f.subject = data.subject || data.categories[0]?.name || ''
     f.published = !!data.published
 
-    // tags: từ object -> name
-    f.tags = Array.isArray(data.tags) ? data.tags.map((t) => t.name) : []
+    f.tags = data.tags?.map((t) => t.name) || []
     tagsInput.value = f.tags.join(', ')
 
-    // clone sâu modules để chỉnh sửa mà không đụng vào course gốc
+    // clone modules
     f.modules = (data.modules || []).map((m, mIndex) => ({
       id: m.id,
       title: m.title,
@@ -974,27 +1276,109 @@ async function fetchCourse() {
         position: l.position ?? lIndex,
         content_type: l.content_type,
         published: l.published,
-        content_blocks: l.content_blocks
-          ? (JSON.parse(JSON.stringify(l.content_blocks)) as ContentBlock[])
-          : [],
+        content_blocks: l.content_blocks ? JSON.parse(JSON.stringify(l.content_blocks)) : [],
       })),
     }))
 
-    // cover blob
-    if (data.image_url) {
-      const url = await fetchBlobUrl(data.image_url)
-      if (url) {
-        coverBlobUrl.value = url
+    // ✨ (1) HIỆN GIAO DIỆN NGAY
+    loading.value = false
+
+    // ✨ (2) LOAD MEDIA SONG SONG
+    const tasks: Promise<void>[] = []
+
+    for (const mod of f.modules) {
+      for (const lesson of mod.lessons) {
+        for (const block of lesson.content_blocks) {
+          // thêm loading flag cho từng block
+          block.payload.is_loading = true
+          block.payload.load_error = ''
+
+          tasks.push(
+            (async () => {
+              try {
+                if (block.type === 'image' && block.payload.image_url) {
+                  const fileData = await loadFileFromUrl(block.payload.image_url)
+                  if (fileData) block.payload.image_preview = fileData.previewUrl
+                }
+
+                if (block.type === 'video' && block.payload.video_url) {
+                  const fileData = await loadFileFromUrl(block.payload.video_url)
+                  if (fileData) block.payload.video_preview = fileData.previewUrl
+                }
+
+                if (['pdf', 'docx'].includes(block.type) && block.payload.file_url) {
+                  const fileData = await loadFileFromUrl(block.payload.file_url)
+                  if (fileData) block.payload.file_preview = fileData.previewUrl
+                }
+              } catch (err) {
+                block.payload.load_error = 'Lỗi khi tải nội dung'
+              } finally {
+                block.payload.is_loading = false
+              }
+            })(),
+          )
+        }
       }
     }
+
+    // ✨ chạy song song nhưng KHÔNG BLOCK UI
+    Promise.all(tasks)
+
+    // load cover riêng
+    if (data.image_url) {
+      const url = await fetchBlobUrl(data.image_url)
+      if (url) coverBlobUrl.value = url
+    }
   } catch (e: any) {
-    console.error('❌ Lỗi tải chi tiết khoá học (admin):', e)
-    error.value =
-      e?.response?.data?.detail ||
-      e?.message ||
-      'Không thể tải chi tiết khoá học. Vui lòng thử lại.'
-  } finally {
+    console.error('❌ Lỗi tải khoá học:', e)
+    error.value = e?.response?.data?.detail || 'Không thể tải dữ liệu khoá học.'
     loading.value = false
+  }
+}
+function getDisplayFilename(block: any) {
+  const p = block.payload
+
+  // Nếu có tên file backend trả về
+  if (p.filename && p.filename.trim() !== '') {
+    return p.filename
+  }
+
+  // Nếu user upload file → tên file sẽ nằm trong p.file.name
+  if (p.file && p.file.name) {
+    return p.file.name
+  }
+
+  // Fallback: lấy tên từ file_url (theo ID)
+  if (p.file_url) {
+    const segments = p.file_url.split('/')
+    const id = segments[segments.length - 2]
+    return id + (block.type === 'pdf' ? '.pdf' : '.docx')
+  }
+
+  return 'Tập tin'
+}
+
+async function loadFileFromUrl(url: string) {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'blob',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    const blob = res.data
+    const previewUrl = URL.createObjectURL(blob)
+
+    return {
+      blob,
+      previewUrl,
+      size: blob.size,
+      type: blob.type,
+    }
+  } catch (error) {
+    console.error('❌ Lỗi tải file:', url, error)
+    return null
   }
 }
 
@@ -1214,6 +1598,87 @@ async function handleFileUpload(
       console.error('❌ Lỗi upload file block:', e)
     }
   }
+}
+
+function ensureQuizPayload(block: any) {
+  if (!block.payload) block.payload = {}
+  if (!block.payload.questions) block.payload.questions = []
+  if (!block.payload.title) block.payload.title = ''
+  if (!block.payload.time_limit) block.payload.time_limit = ''
+}
+
+function addQuestion(block: any) {
+  ensureQuizPayload(block)
+  block.payload.questions.push({
+    position: block.payload.questions.length,
+    type: 'multiple_choice_single',
+    prompt: { text: '' },
+    answer_payload: {
+      choices: [
+        { id: 'A', text: '', is_correct: false },
+        { id: 'B', text: '', is_correct: false },
+      ],
+    },
+    hint: { text: '' },
+  })
+}
+
+function removeQuestion(block: any, qIndex: number) {
+  block.payload.questions.splice(qIndex, 1)
+  block.payload.questions.forEach((q: any, idx: number) => (q.position = idx))
+}
+
+function resetQuestionPayload(question: any) {
+  switch (question.type) {
+    case 'multiple_choice_single':
+    case 'multiple_choice_multi':
+      question.answer_payload = {
+        choices: [
+          { id: 'A', text: '', is_correct: false },
+          { id: 'B', text: '', is_correct: false },
+        ],
+      }
+      break
+    case 'true_false':
+      question.answer_payload = { answer: true }
+      break
+    case 'short_answer':
+      question.answer_payload = { valid_answers: [] }
+      break
+  }
+}
+
+function setCorrectChoice(question: any, idx: number) {
+  question.answer_payload.choices.forEach((c: any, i: number) => (c.is_correct = i === idx))
+}
+
+function toggleMultiCorrect(choice: any) {
+  choice.is_correct = !choice.is_correct
+}
+
+function addChoice(question: any) {
+  const idx = question.answer_payload.choices.length
+  question.answer_payload.choices.push({
+    id: String.fromCharCode(65 + idx),
+    text: '',
+    is_correct: false,
+  })
+}
+
+function removeChoice(question: any, idx: number) {
+  question.answer_payload.choices.splice(idx, 1)
+  // reorder A B C...
+  question.answer_payload.choices.forEach((c: any, i: number) => {
+    c.id = String.fromCharCode(65 + i)
+  })
+}
+
+function addShortAnswer(question: any) {
+  question.answer_payload.valid_answers.push({ answer: '', case_sensitive: false })
+}
+
+function removeShortAnswer(question: any, idx: number) {
+  question.answer_payload.valid_answers.splice(idx, 1)
 }
 
 // Chuẩn hoá position cho modules/lessons/blocks trước khi gửi
