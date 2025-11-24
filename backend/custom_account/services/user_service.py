@@ -10,19 +10,19 @@ from core.exceptions import DomainError, UserNotFoundError, IncorrectPasswordErr
 
 
 
+@transaction.atomic
 def register_user(data: dict) -> UserDomain:
     """Register a new user and its profile (aggregate root = User)."""
 
+    profile_data = data.pop('profile', {})
+
     # enforce business invariants (uniqueness)
     if UserModel.objects.filter(username=data['username']).exists():
-        raise DomainError("Username already taken")
+        raise DomainError("Username đã tồn tại.")
     if UserModel.objects.filter(email=data['email']).exists():
-        raise DomainError("Email already taken")
-    
-    phone = data.get('phone')
-    if phone: 
-        if UserModel.objects.filter(phone=phone).exists():
-            raise DomainError("Số điện thoại đã tồn tại.")
+        raise DomainError("Email đã tồn tại.")
+    if data.get('phone') and UserModel.objects.filter(phone=data['phone']).exists():
+        raise DomainError("Số điện thoại đã tồn tại.")
 
     user_domain = UserDomain(username=data['username'],
                              email=data['email'],
@@ -34,10 +34,8 @@ def register_user(data: dict) -> UserDomain:
     user.save()
 
     # create profile aggregate part
+    Profile.objects.create(user=user)
     user_domain.id = user.id
-    profile_domain = user_domain.create_profile()
-    profile_data = data.get('profile', {})
-    Profile.objects.create(user=user, **profile_data)
     return UserDomain.from_model(user)
 
 

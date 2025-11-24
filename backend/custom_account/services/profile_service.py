@@ -2,6 +2,7 @@ import logging
 from typing import List
 from rest_framework.exceptions import ValidationError
 
+from core.exceptions import ProfileNotFoundError
 from custom_account.domains.profile_domain import ProfileDomain
 from custom_account.models import Profile , UserModel
 
@@ -62,8 +63,13 @@ def update_profile(user_id: int, updates: dict) -> ProfileDomain:
 
 
 def get_profile_by_user(user_id: int) -> ProfileDomain:
-    profile = Profile.objects.get(user_id=user_id)
-    return ProfileDomain.from_model(profile)
+    try:
+        # select_related('user') giúp join bảng User ngay trong 1 câu query
+        profile = Profile.objects.select_related('user').get(user_id=user_id)
+        return ProfileDomain.from_model(profile)
+    except Profile.DoesNotExist:
+        # Nếu chưa có profile, có thể ném lỗi hoặc tạo profile rỗng tùy logic
+        raise ProfileNotFoundError("Ko tìm thấy profile")
 
 
 def list_all_profiles() -> List[ProfileDomain]:

@@ -3,13 +3,16 @@ from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
+from custom_account.api.dtos.profile_dto import ProfileInput
+
+
 
 class UserInput(BaseModel):
     username: str
     email: str
     password: str
     phone: str | None = None
-    role: str 
+    role: str = "student"
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
@@ -28,7 +31,7 @@ class UserPublicOutput(BaseModel):
 
     username: str
     email: str
-    created_on: datetime
+    created_on: datetime | None = None
     phone: str | None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
