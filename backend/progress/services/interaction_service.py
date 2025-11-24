@@ -364,7 +364,7 @@ def get_course_resume_position(user, course_id: str) -> Optional[ResumePositionD
     
     target_block = current_block
     resume_data = last_progress.resume_data
-    is_completed = False
+    is_completed = last_progress.is_completed
 
     # [MOODLE STYLE LOGIC]
     # Chỉ Auto-advance nếu block cũ là dạng "Passive" (Video/Text) đã hoàn thành.
@@ -378,7 +378,7 @@ def get_course_resume_position(user, course_id: str) -> Optional[ResumePositionD
             should_auto_advance = True
         
         # Nếu là Quiz -> Không next (để user review kết quả)
-        elif current_block.type == 'quiz':
+        elif current_block.type in ['quiz', 'exercise']:
             should_auto_advance = False
             
     if should_auto_advance:
