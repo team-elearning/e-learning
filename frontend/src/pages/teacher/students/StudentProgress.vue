@@ -229,7 +229,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-// import { userService, type User, type UserStatus, type PageParams } from '@/services/user.service'
+import { userService, type User, type UserStatus, type PageParams } from '@/services/user.service'
 
 const router = useRouter()
 

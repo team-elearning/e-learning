@@ -31,7 +31,7 @@
               :class="{ active: activeTab === 'main' }"
               @click="activeTab = 'main'"
             >
-              Khóa của tôi
+              Khóa học của tôi
             </button>
             <button
               class="tab"
