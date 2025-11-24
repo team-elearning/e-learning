@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime, date
 from uuid import UUID
 
@@ -18,7 +18,7 @@ class ProfileUpdateInput(BaseModel):
     
     # --- User Fields (New) ---
     username: str | None = Field(default=None, min_length=3)
-    email: EmailStr | None = None
+    email: str | None = None
     phone: str | None = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
