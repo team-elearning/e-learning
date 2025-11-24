@@ -18,6 +18,9 @@ class ResourceNotFound(DomainError):
 class UserNotFoundError(ResourceNotFound):
     pass
 
+class ProfileNotFoundError(ResourceNotFound):
+    pass
+
 class CourseNotFoundError(ResourceNotFound):
     pass
 

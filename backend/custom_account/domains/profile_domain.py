@@ -17,26 +17,39 @@ class ProfileDict(TypedDict):
 
 
 class ProfileDomain:
-    """Domain object for user profile."""
+    """Domain object aggregate data from Profile and User models."""
 
     def __init__(
         self,
         user_id: int,
+        # --- Fields from Profile Model ---
         display_name: Optional[str] = None,
         avatar_url: Optional[str] = None,
-        dob: Optional[datetime.date] = None,
+        dob: Optional[date] = None,
         gender: Optional[str] = None,
-        language: str = "vi",
-        metadata: Optional[Dict[str, Any]] = None,
+        # --- Fields from User Model (New) ---
+        username: str = "",
+        email: str = "",
+        role: str = "",
+        phone: Optional[str] = None,
+        is_active: bool = True,
+        # --- Meta ---
+        created_at: Optional[datetime] = None
     ):
         self.user_id = user_id
         self.display_name = display_name
         self.avatar_url = avatar_url
         self.dob = dob
         self.gender = gender
-        self.language = language
-        self.metadata = metadata or {}
-
+        
+        # User info
+        self.username = username
+        self.email = email
+        self.role = role
+        self.phone = phone
+        self.is_active = is_active
+        
+        self.created_at = created_at
 
     def validate(self):
         if self.user_id is None:
@@ -77,15 +90,26 @@ class ProfileDomain:
 
     @classmethod
     def from_model(cls, model: Profile) -> "ProfileDomain":
+        # Truy cập vào quan hệ user (model.user) để lấy data
+        user = model.user 
+        
         return cls(
             user_id=model.user_id,
             display_name=model.display_name,
             avatar_url=model.avatar_url,
             dob=model.dob,
             gender=model.gender,
-            language=model.language,
-            metadata=model.metadata,
+            
+            # Mapping từ bảng User sang Domain
+            username=user.username,
+            email=user.email,
+            role=user.role,
+            phone=user.phone,
+            is_active=user.is_active,
+            
+            created_at=model.created_at
         )
+
     
     
     
