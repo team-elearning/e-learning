@@ -47,8 +47,6 @@ class Quiz(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    is_flagged = models.BooleanField(default=False)
-
     files = GenericRelation('media.UploadedFile')
 
     def __str__(self):
@@ -137,6 +135,8 @@ class UserAnswer(models.Model):
     selected_options = models.JSONField(default=dict, help_text="Dữ liệu câu trả lời của user") # Dùng JSON vì có thể là chọn A, chọn [A, C], hoặc điền text.
     is_correct = models.BooleanField(null=True, default=None) # Có đúng không? (True/False/None - chưa chấm)
     score_obtained = models.DecimalField(max_digits=5, decimal_places=2, default=0) # Điểm đạt được cho riêng câu này
+
+    is_flagged = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('attempt', 'question') # Mỗi lần làm bài, 1 câu chỉ trả lời 1 lần

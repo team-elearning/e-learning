@@ -12,7 +12,7 @@ from core.api.mixins import RoleBasedOutputMixin
 from quiz.models import UserAnswer, Question, QuizAttempt, Quiz
 from quiz.services import quiz_user_service
 from quiz.serializers import QuestionTakingSerializer, QuizAttemptStartSerializer, SaveAnswerSerializer
-from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput
+from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput, SubmitOutput, AttemptResultOutput
 
 
 
@@ -158,9 +158,58 @@ class AttemptSaveAnswerView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# class StudentAttemptSubmitView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def post(self, request, pk):
-#         attempt = submit_attempt(pk, request.user)
-#         return Response({"status": "submitted", "attempt_id": attempt.id}, status=status.HTTP_200_OK)
+class QuizAttemptSubmitView(RoleBasedOutputMixin, APIView):
+    """
+    POST /attempts/<id>/submit/
+    Nhiệm vụ: 
+    - Chốt bài thi (Kết thúc thời gian làm bài).
+    - Tính điểm (Grading) ngay lập tức hoặc queue job chấm.
+    """
+    permission_classes = [IsAuthenticated]
+    output_dto_public = SubmitOutput # DTO trả về điểm sơ bộ hoặc thông báo thành công
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quiz_service = quiz_user_service
+
+    def post(self, request, pk):
+        try:
+            # Gọi service để đổi state -> completed, tính điểm
+            result_domain = self.quiz_service.submit_attempt(pk, request.user)
+            
+            return Response({"instance": result_domain}, status=status.HTTP_200_OK)
+
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AttemptResultView(RoleBasedOutputMixin, APIView):
+    """
+    GET /attempts/<id>/result/
+    Nhiệm vụ: Hiển thị kết quả sau khi nộp.
+    Logic hiển thị (Exam vs Practice) nên nằm trong Service để trả về DTO phù hợp.
+    """
+    permission_classes = [IsAuthenticated]
+    output_dto_public = AttemptResultOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quiz_service = quiz_user_service
+
+    def get(self, request, pk):
+        try:
+            # Service cần check: 
+            # 1. User có phải chủ attempt không?
+            # 2. Attempt đã state='completed' chưa?
+            # 3. Quiz config: show_score=True? show_correct_answer=True?
+            result_context = self.quiz_service.get_attempt_result(pk, request.user)
+            
+            return Response({"instance": result_context}, status=status.HTTP_200_OK)
+            
+        except PermissionDenied as e:
+            return Response({"detail": "Bạn không có quyền xem kết quả này."}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        

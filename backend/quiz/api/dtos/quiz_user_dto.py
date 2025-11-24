@@ -96,6 +96,7 @@ class QuestionTakingOutput(BaseModel):
     # State phục vụ Resume & UX
     current_selection: Optional[Dict[str, Any]] = None
     is_answered: bool
+    is_flagged: Optional[bool] = None
 
 class AttemptTakingOutput(BaseModel):
     """
@@ -140,4 +141,64 @@ class SaveAnswerOutput(BaseModel):
     
     status: str = "saved"
     saved_at: datetime
+
+
+# ==========================================
+# Quiz Submit
+# ==========================================
+
+class SubmitOutput(BaseModel):
+    """
+    DTO trả về cho Client sau khi nộp bài thành công.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_id: UUID
+    status: str
+    score_obtained: float = Field(..., description="Điểm số đạt được (Raw score)")
+    passed: bool = Field(..., description="Trạng thái Đạt/Trượt dựa trên pass_score của Quiz")
+    completion_time: datetime
+    message: str
+
+
+class QuestionReviewOutput(BaseModel):
+    """
+    Chi tiết từng câu: User chọn gì? Đúng hay sai? Đáp án là gì?
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    prompt: Dict[str, Any] = Field(..., description="Nội dung câu hỏi (đề bài)")
+    
+    # User response
+    user_selected: Optional[Any] = Field(None, description="Đáp án user đã chọn (List ID hoặc Text)")
+    is_correct: bool = Field(..., description="Trạng thái đúng/sai để tô màu UI")
+    score_obtained: float = Field(..., description="Điểm đạt được của câu này")
+    
+    # Sensitive Data (Có thể null nếu Exam Mode không cho xem)
+    correct_answer: Optional[Any] = Field(None, description="Đáp án đúng (chỉ hiện khi được phép)")
+    explanation: Optional[str] = Field(None, description="Giải thích chi tiết (chỉ hiện khi được phép)")
+
+
+class AttemptResultOutput(BaseModel):
+    """
+    Output cho màn hình Result Page.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_id: UUID
+    quiz_title: str
+    status: str
+    
+    # Time info
+    time_taken_seconds: int = Field(..., description="Tổng thời gian làm bài (giây)")
+    time_submitted: Optional[datetime] = None
+    
+    # Score info
+    score_obtained: float = Field(..., description="Tổng điểm đạt được")
+    max_score: float = Field(..., description="Tổng điểm tối đa của đề")
+    is_passed: bool = Field(..., description="Trạng thái Đạt/Trượt")
+    
+    # Detail list
+    questions: List[QuestionReviewOutput] = Field(default_factory=list, description="Chi tiết từng câu hỏi")
     
