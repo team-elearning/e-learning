@@ -37,7 +37,11 @@
               type="text"
               placeholder="Tìm khoá học…"
               class="w-full bg-transparent outline-none placeholder:text-slate-400"
+              :maxlength="MAX_SEARCH_LEN"
             />
+          </div>
+          <div v-if="searchError" class="mt-1 text-xs text-rose-600">
+            {{ searchError }}
           </div>
         </div>
 
@@ -287,7 +291,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -302,6 +306,8 @@ const getAuthHeaders = () => {
       }
     : {}
 }
+const MAX_SEARCH_LEN = 255
+const searchError = ref('')
 
 interface CourseItem {
   id: string
@@ -376,6 +382,20 @@ async function loadThumbnail(course: CourseItem) {
     console.error('❌ Lỗi tải thumbnail cho khoá học', course.id, e)
   }
 }
+watch(search, (val) => {
+  if (!val) {
+    searchError.value = ''
+    return
+  }
+
+  if (val.length > MAX_SEARCH_LEN) {
+    // cắt lại cho chắc
+    search.value = val.slice(0, MAX_SEARCH_LEN)
+    searchError.value = `Từ khóa quá dài (tối đa ${MAX_SEARCH_LEN} ký tự).`
+  } else {
+    searchError.value = ''
+  }
+})
 
 // ========== FETCH DATA ==========
 const fetchCourses = async () => {
@@ -414,26 +434,56 @@ const fetchCourses = async () => {
 onMounted(() => {
   fetchCourses()
 })
+function normalize(str?: string | null): string {
+  if (!str) return ''
+  return str
+    .toLowerCase()
+    .normalize('NFD') // tách dấu
+    .replace(/[\u0300-\u036f]/g, '') // xoá dấu tiếng Việt
+    .trim()
+}
 
 // ========== FILTERED COURSES ==========
 const filteredCourses = computed(() => {
   let list = [...courses.value]
 
+  // 1. Lọc theo khối (như cũ)
   if (gradeFilter.value) {
     list = list.filter((c) => c.grade === gradeFilter.value)
   }
 
-  const kw = search.value.trim().toLowerCase()
+  // 2. Search theo tên khóa học + tags
+  const kw = normalize(search.value)
   if (kw) {
+    // tách nhiều từ khóa: "tieng viet 3" -> ["tieng", "viet", "3"]
+    const parts = kw.split(/\s+/).filter(Boolean)
+
     list = list.filter((c) => {
-      const inTitle = c.title?.toLowerCase().includes(kw)
-      const inDesc = c.description?.toLowerCase().includes(kw)
-      const inSubject = c.subject?.toLowerCase().includes(kw)
-      const inTags = (c.tags || []).some((t) => t.toLowerCase().includes(kw))
-      return inTitle || inDesc || inSubject || inTags
+      const titleNorm = normalize(c.title)
+      const tagsNorm = (c.tags || []).map((t) => normalize(t))
+
+      // tách thành tokens theo khoảng trắng
+      const titleTokens = titleNorm.split(/\s+/).filter(Boolean)
+      const tagTokens = tagsNorm
+        .map((t) => t.split(/\s+/))
+        .flat()
+        .filter(Boolean)
+
+      const tokens = [...titleTokens, ...tagTokens]
+
+      // mỗi keyword phải match ít nhất một token (title hoặc tag)
+      return parts.every((p) => {
+        // với keyword ngắn (<=2 ký tự) thì chỉ cho match nếu đứng đầu từ
+        if (p.length <= 2) {
+          return tokens.some((t) => t === p || t.startsWith(p))
+        }
+        // keyword dài hơn thì cho match substring
+        return tokens.some((t) => t.includes(p))
+      })
     })
   }
 
+  // 3. Sort theo tên cho đẹp
   list.sort((a, b) => a.title.localeCompare(b.title, 'vi'))
   return list
 })

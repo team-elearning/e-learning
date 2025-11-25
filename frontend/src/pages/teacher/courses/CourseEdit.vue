@@ -1243,6 +1243,16 @@ const getAuthHeaders = () => {
     : {}
 }
 
+// form gốc để so sánh thay đổi
+const originalForm = ref<{
+  title: string
+  description: string
+  grade: string
+  subject: string
+  tags: string[]
+  modules: Module[]
+} | null>(null)
+
 // ================== TYPES ==================
 interface ContentBlock {
   id?: string
@@ -1475,6 +1485,15 @@ async function fetchCourse() {
         return lesson
       }),
     }))
+    originalForm.value = {
+      title: f.title,
+      description: f.description,
+      grade: f.grade,
+      subject: f.subject,
+      tags: [...f.tags],
+      // clone sâu modules để tránh tham chiếu chung
+      modules: JSON.parse(JSON.stringify(f.modules)),
+    }
 
     // cover blob
     if (data.image_url) {
@@ -1900,6 +1919,45 @@ function normalizePositions() {
     })
   })
 }
+function cleanModules(modules: Module[]): Module[] {
+  return modules.map((m) => ({
+    id: m.id,
+    title: m.title,
+    position: m.position,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      title: l.title,
+      position: l.position,
+      content_type: l.content_type,
+      published: l.published,
+      content_blocks: l.content_blocks.map((b: any) => {
+        const payload = { ...(b.payload || {}) }
+
+        // xoá các field dùng cho UI, không cần gửi lên backend
+        delete payload.image_preview
+        delete payload.video_preview
+        delete payload.file_preview
+        delete payload.uploading
+        delete payload.uploadError
+        delete payload.image_file
+        delete payload.video_file
+        delete payload.file
+        delete payload.progress
+
+        return {
+          id: b.id,
+          type: b.type,
+          position: b.position,
+          payload,
+        }
+      }),
+    })),
+  }))
+}
+
+function shallowEqualJSON(a: any, b: any): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
 
 // ================== SUBMIT (PATCH FULL STRUCTURE) ==================
 async function submit() {
@@ -1911,25 +1969,71 @@ async function submit() {
 
   if (!course.value) return
 
-  // chuẩn hoá position để backend xử lý update/delete/create đúng thứ tự
+  // chuẩn hóa position trước khi so sánh / gửi
   normalizePositions()
 
-  submitting.value = true
-  try {
-    const payload: any = {
-      title: f.title,
-      description: f.description,
-      grade: f.grade ? String(f.grade) : null,
-      subject: f.subject || null,
-      categories: f.subject ? [f.subject] : [],
-      tags: f.tags,
-      modules: f.modules,
-    }
+  const payload: any = {}
+  const base = originalForm.value
+
+  // Nếu không có snapshot (trường hợp hiếm), fallback gửi full như cũ
+  if (!base) {
+    const fullModules = cleanModules(f.modules)
+    payload.title = f.title
+    payload.description = f.description
+    payload.grade = f.grade ? String(f.grade) : null
+    payload.subject = f.subject || null
+    payload.categories = f.subject ? [f.subject] : []
+    payload.tags = f.tags
+    payload.modules = fullModules
 
     if (coverImageId.value) {
       payload.image_id = coverImageId.value
     }
+  } else {
+    // ===== So sánh từng field =====
+    if (f.title !== base.title) {
+      payload.title = f.title
+    }
 
+    if (f.description !== base.description) {
+      payload.description = f.description
+    }
+
+    if (String(f.grade) !== String(base.grade)) {
+      payload.grade = String(f.grade)
+    }
+
+    if ((f.subject || '') !== (base.subject || '')) {
+      payload.subject = f.subject || null
+      payload.categories = f.subject ? [f.subject] : []
+    }
+
+    if (!shallowEqualJSON(f.tags, base.tags)) {
+      payload.tags = f.tags
+    }
+
+    // modules: chỉ gửi nếu khác
+    const currentModulesClean = cleanModules(f.modules)
+    const originalModulesClean = cleanModules(base.modules)
+
+    if (!shallowEqualJSON(currentModulesClean, originalModulesClean)) {
+      payload.modules = currentModulesClean
+    }
+
+    // cover: nếu có image_id mới thì gửi (coi như đã đổi ảnh)
+    if (coverImageId.value) {
+      payload.image_id = coverImageId.value
+    }
+  }
+
+  // Nếu không có field nào thay đổi thì thôi, không gọi API
+  if (Object.keys(payload).length === 0) {
+    showNotification('success', 'Không có thay đổi', 'Không có cập nhật nào để lưu.')
+    return
+  }
+
+  submitting.value = true
+  try {
     await axios.patch(`/api/content/instructor/courses/${course.value.id}/`, payload, {
       headers: {
         'Content-Type': 'application/json',
@@ -1938,22 +2042,35 @@ async function submit() {
     })
 
     showNotification('success', 'Thành công', 'Đã lưu thay đổi khoá học.')
+
+    // Cập nhật lại snapshot gốc theo trạng thái mới
+    const newModulesForSnapshot = payload.modules ?? cleanModules(f.modules) // nếu không gửi modules thì dùng modules hiện tại
+
+    originalForm.value = {
+      title: payload.title ?? f.title,
+      description: payload.description ?? f.description,
+      grade: payload.grade ?? f.grade,
+      subject: payload.subject ?? f.subject,
+      tags: payload.tags ?? [...f.tags],
+      modules: JSON.parse(JSON.stringify(newModulesForSnapshot)),
+    }
+
+    // Cập nhật course local (chỉ những phần có trong payload hoặc lấy từ f)
+    course.value = {
+      ...course.value,
+      title: payload.title ?? course.value.title,
+      description: payload.description ?? course.value.description,
+      grade: payload.grade ?? course.value.grade,
+      subject: payload.subject ?? course.value.subject,
+      categories: payload.categories ?? course.value.categories,
+      tags: payload.tags ?? course.value.tags,
+      modules: newModulesForSnapshot,
+    }
+
     setTimeout(() => {
       notification.open = false
       router.push('/teacher/courses')
     }, 800)
-
-    // sync lại course local
-    course.value = {
-      ...course.value,
-      title: f.title,
-      description: f.description,
-      grade: f.grade,
-      subject: f.subject || null,
-      categories: payload.categories,
-      tags: [...f.tags],
-      modules: JSON.parse(JSON.stringify(f.modules)),
-    }
   } catch (e: any) {
     console.error('❌ Lỗi khi cập nhật khoá học:', e)
     showNotification(

@@ -1049,6 +1049,57 @@
           </div>
         </div>
       </transition>
+      <!-- Notification modal cho upload (giống file tạo mới) -->
+      <transition
+        enter-active-class="transition-opacity duration-150 ease-out"
+        leave-active-class="transition-opacity duration-150 ease-in"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="notificationModal.open"
+          class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          @click.self="notificationModal.open = false"
+        >
+          <div
+            class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl outline-none"
+          >
+            <div class="mb-4 flex items-center gap-3">
+              <div
+                :class="[
+                  'p-2 rounded-full',
+                  notificationModal.type === 'success'
+                    ? 'bg-green-100 text-green-600'
+                    : 'bg-amber-100 text-amber-600',
+                ]"
+              >
+                <span v-if="notificationModal.type === 'success'">✓</span>
+                <span v-else>⚠</span>
+              </div>
+
+              <h3 class="text-lg font-bold text-slate-800">
+                {{ notificationModal.title }}
+              </h3>
+            </div>
+
+            <p class="mb-6 text-slate-700">
+              {{ notificationModal.message }}
+            </p>
+
+            <div class="flex justify-end">
+              <button
+                type="button"
+                class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                @click="notificationModal.open = false"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </main>
   </div>
 </template>
@@ -1060,6 +1111,26 @@ import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
+
+const originalCourse = ref<CourseDetail | null>(null)
+const MAX_IMAGE = 5 * 1024 * 1024 // 5MB
+const MAX_VIDEO = 200 * 1024 * 1024 // 200MB
+const MAX_DOCX = 5 * 1024 * 1024 // 5MB
+const MAX_PDF = 10 * 1024 * 1024 // 10MB
+// Modal thông báo cho upload media (ảnh/video/file)
+const notificationModal = reactive({
+  open: false,
+  type: 'success' as 'success' | 'error',
+  title: '',
+  message: '',
+})
+
+const showModal = (type: 'success' | 'error', title: string, message: string) => {
+  notificationModal.type = type
+  notificationModal.title = title
+  notificationModal.message = message
+  notificationModal.open = true
+}
 
 // ================== AUTH HEADER ==================
 const getAuthHeaders = () => {
@@ -1106,6 +1177,11 @@ interface TagObj {
   name: string
   slug: string
 }
+interface SubjectObj {
+  id: string
+  title: string
+  slug: string
+}
 
 interface CourseDetail {
   id: string
@@ -1113,12 +1189,13 @@ interface CourseDetail {
   description: string
   grade: string | null
   image_url: string | null
-  subject: string | null
+  // subject: string | null
   slug: string
   categories: CategoryObj[]
   tags: TagObj[]
   modules: Module[]
   published: boolean
+  subject: SubjectObj | null // ✅ thay vì string | null
 }
 
 // ================== STATE ==================
@@ -1254,12 +1331,14 @@ async function fetchCourse() {
     })
 
     course.value = data
+    originalCourse.value = JSON.parse(JSON.stringify(data))
 
     // map data -> form
     f.title = data.title || ''
     f.description = data.description || ''
     f.grade = data.grade || '5'
-    f.subject = data.subject || data.categories[0]?.name || ''
+    // Ưu tiên categories[0].name vì trùng với option
+    f.subject = data.categories[0]?.name || (data.subject as any)?.title || ''
     f.published = !!data.published
 
     f.tags = data.tags?.map((t) => t.name) || []
@@ -1411,10 +1490,12 @@ const onPickCover = async (event: Event) => {
   try {
     const res = await uploadMedia(file, 'course_thumbnail', 'image')
     coverImageId.value = res.id
+    // ✅ Thông báo giống file create
+    showModal('success', 'Hoàn tất', 'Upload ảnh bìa thành công!')
   } catch (err) {
     console.error('❌ Lỗi upload ảnh bìa:', err)
     coverImageId.value = null
-    showNotification('error', 'Lỗi', 'Upload ảnh bìa thất bại. Vui lòng thử lại.')
+    showModal('error', 'Lỗi', 'Upload ảnh bìa thất bại. Vui lòng thử lại.')
   }
 }
 
@@ -1551,6 +1632,34 @@ async function handleFileUpload(
 
   const block = f.modules[mIndex].lessons[lIndex].content_blocks[bIndex]
 
+  // ✅ GIỚI HẠN DUNG LƯỢNG GIỐNG FILE CREATE
+  if (kind === 'image' && file.size > MAX_IMAGE) {
+    showModal('error', 'File quá lớn', 'Ảnh phải nhỏ hơn 5MB!')
+    input.value = ''
+    return
+  }
+
+  if (kind === 'video' && file.size > MAX_VIDEO) {
+    showModal('error', 'File quá lớn', 'Video phải nhỏ hơn 200MB!')
+    input.value = ''
+    return
+  }
+
+  if (kind === 'file') {
+    if (block.type === 'pdf' && file.size > MAX_PDF) {
+      showModal('error', 'File quá lớn', 'PDF phải nhỏ hơn 10MB!')
+      input.value = ''
+      return
+    }
+
+    if (block.type === 'docx' && file.size > MAX_DOCX) {
+      showModal('error', 'File quá lớn', 'DOCX phải nhỏ hơn 5MB!')
+      input.value = ''
+      return
+    }
+  }
+
+  // ===== XỬ LÝ UPLOAD NHƯ CŨ + THÊM THÔNG BÁO =====
   if (kind === 'image') {
     block.payload.image_file = file
     if (block.payload.image_preview) {
@@ -1564,8 +1673,12 @@ async function handleFileUpload(
       const res = await uploadMedia(file, 'lesson_material', 'image')
       block.payload.image_id = res.id
       block.payload.image_url = res.url
+
+      // ✅ Thông báo
+      showModal('success', 'Thành công', 'Upload hình ảnh thành công!')
     } catch (e) {
       console.error('❌ Lỗi upload image block:', e)
+      showModal('error', 'Lỗi', 'Upload hình ảnh thất bại, vui lòng thử lại!')
     }
   } else if (kind === 'video') {
     block.payload.video_file = file
@@ -1583,8 +1696,12 @@ async function handleFileUpload(
       block.payload.video_id = res.id
       block.payload.video_url = res.url
       block.payload.progress = 100
+
+      // ✅ Thông báo
+      showModal('success', 'Thành công', 'Upload video hoàn tất!')
     } catch (e) {
       console.error('❌ Lỗi upload video block:', e)
+      showModal('error', 'Lỗi', 'Upload video thất bại, vui lòng thử lại!')
     } finally {
       block.payload.uploading = false
     }
@@ -1594,8 +1711,12 @@ async function handleFileUpload(
       const res = await uploadMedia(file, 'lesson_material', 'file')
       block.payload.file_id = res.id
       block.payload.file_url = res.url
+
+      // ✅ Thông báo
+      showModal('success', 'Thành công', 'Upload file thành công!')
     } catch (e) {
       console.error('❌ Lỗi upload file block:', e)
+      showModal('error', 'Lỗi', 'Upload file thất bại, vui lòng thử lại!')
     }
   }
 }
@@ -1696,6 +1817,63 @@ function normalizePositions() {
   })
 }
 
+function buildModulesPayload() {
+  return f.modules.map((m, mIndex) => ({
+    id: m.id,
+    title: m.title,
+    position: mIndex,
+    lessons: m.lessons.map((l, lIndex) => ({
+      id: l.id,
+      title: l.title,
+      position: lIndex,
+      content_type: l.content_type,
+      published: l.published,
+      content_blocks: l.content_blocks
+        .map((b, bIndex) => {
+          const cloned: any = {
+            id: b.id,
+            type: b.type,
+            position: bIndex,
+            payload: { ...b.payload },
+          }
+
+          // 🧹 Bỏ các field FE dùng tạm (không cần gửi backend)
+          delete cloned.payload.image_file
+          delete cloned.payload.image_preview
+          delete cloned.payload.video_file
+          delete cloned.payload.video_preview
+          delete cloned.payload.file
+          delete cloned.payload.file_preview
+          delete cloned.payload.is_loading
+          delete cloned.payload.load_error
+          delete cloned.payload.uploading
+          delete cloned.payload.progress
+
+          // 🎯 Xử lý riêng block QUIZ
+          if (cloned.type === 'quiz') {
+            const rawId = cloned.payload.quiz_id
+
+            // Treat '', null, undefined, 'None' như là không có id
+            const quizId = rawId === 'None' || rawId === '' || rawId == null ? null : rawId
+
+            if (!quizId) {
+              // đánh dấu để tí nữa filter bỏ hẳn block này
+              cloned._remove = true
+              return cloned
+            }
+
+            // Backend thường chỉ cần quiz_id, không cần cả cấu trúc câu hỏi
+            cloned.payload = { quiz_id: quizId }
+          }
+
+          return cloned
+        })
+        // ❗ LOẠI BỎ quiz không có quiz_id hợp lệ
+        .filter((b: any) => !b._remove),
+    })),
+  }))
+}
+
 // ================== SUBMIT (PATCH FULL STRUCTURE, ADMIN) ==================
 async function submit() {
   titleErr.value = ''
@@ -1704,26 +1882,58 @@ async function submit() {
     return
   }
 
-  if (!course.value) return
+  if (!course.value || !originalCourse.value) return
 
   // chuẩn hoá position
   normalizePositions()
 
   submitting.value = true
   try {
-    const payload: any = {
-      title: f.title,
-      description: f.description,
-      grade: f.grade || null,
-      subject: f.subject || null,
-      categories: f.subject ? [f.subject] : [],
-      tags: f.tags,
-      modules: f.modules,
-      published: f.published,
+    const payload: any = {}
+
+    // So sánh từng field top-level
+    if (f.title !== originalCourse.value.title) {
+      payload.title = f.title
     }
 
+    if ((f.description || '') !== (originalCourse.value.description || '')) {
+      payload.description = f.description
+    }
+
+    if ((f.grade || null) !== (originalCourse.value.grade || null)) {
+      payload.grade = f.grade || null
+    }
+    const originalSubjectTitle = originalCourse.value.subject?.title || null
+
+    if ((f.subject || null) !== originalSubjectTitle) {
+      payload.subject = f.subject || null
+      payload.categories = f.subject ? [f.subject] : []
+    }
+
+    // tags: so sánh mảng tên tag
+    const originalTagNames = (originalCourse.value.tags || []).map((t) => t.name)
+    if (JSON.stringify(f.tags) !== JSON.stringify(originalTagNames)) {
+      payload.tags = f.tags
+    }
+
+    if (!!f.published !== !!originalCourse.value.published) {
+      payload.published = f.published
+    }
+
+    // Nếu có chọn ảnh mới thì thêm image_id
     if (coverImageId.value) {
       payload.image_id = coverImageId.value
+    }
+
+    // 👉 Modules: tạm cho luôn vào nếu em có chỉnh nội dung
+    // (phần dưới anh sẽ thêm helper buildModulesPayload + xử lý quiz)
+    payload.modules = buildModulesPayload()
+
+    // Nếu payload rỗng thì khỏi gọi API
+    if (Object.keys(payload).length === 0) {
+      showNotification('success', 'Không có thay đổi', 'Không có gì để lưu.')
+      submitting.value = false
+      return
     }
 
     await axios.patch(`/api/content/admin/courses/${course.value.id}/`, payload, {
@@ -1735,13 +1945,12 @@ async function submit() {
 
     showNotification('success', 'Thành công', 'Đã lưu thay đổi khoá học.')
 
-    // Cập nhật local
-    course.value = {
-      ...course.value,
+    // Cập nhật lại originalCourse cho lần chỉnh sau
+    originalCourse.value = {
+      ...originalCourse.value,
       ...payload,
     }
 
-    // 👉 CHUYỂN HƯỚNG SAU 0.8S
     setTimeout(() => {
       notification.open = false
       router.push('/admin/courses')
