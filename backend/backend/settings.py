@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_cleanup.apps.CleanupConfig',
     'django.contrib.sites',
     'corsheaders',
 
@@ -302,6 +303,21 @@ SOCIALACCOUNT_PROVIDERS = {
         # }                                                                                                                       
     }                                                                                                                           
 }  
+
+
+# -------------------------------
+# Media files storage (AWS S3)
+# -------------------------------
+# Khi đổi sang AWS, chỉ cần sửa config ở đây, code Models KHÔNG cần sửa
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+AWS_STORAGE_BUCKET_NAME = 'your-bucket'
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+# Quan trọng: Ký tên URL để bảo mật file khóa học
+AWS_QUERYSTRING_AUTH = True 
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+
+
+
 
 # -------------------------------
 # Payments (MoMo) – không cần .env

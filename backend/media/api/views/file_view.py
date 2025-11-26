@@ -1,21 +1,18 @@
 import logging
 import uuid
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from django.http import Http404, HttpResponseRedirect
+from django.core.exceptions import PermissionDenied
 from rest_framework import status, permissions
-from rest_framework import permissions
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
-from django.http import Http404
-from rest_framework.renderers import BaseRenderer
-from django.db import DatabaseError
 from rest_framework.renderers import JSONRenderer
-import json
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
 from core.api.mixins import RoleBasedOutputMixin
 from core.exceptions import DomainError, UserNotFoundError, AccessDeniedError
+from media.serializers import FileUploadInputSerializer, FileUpdateInputSerializer
 from media.api.dtos.file_dto import FileInputDTO, FileOutputDTO, FileUpdateInputDTO
 from media.services import file_service
 
@@ -78,17 +75,17 @@ class FileUploadView(RoleBasedOutputMixin, APIView):
             )
 
 
-class BinaryFileRenderer(BaseRenderer):
-    media_type = 'application/octet-stream'
-    format = 'binary'
+# class BinaryFileRenderer(BaseRenderer):
+#     media_type = 'application/octet-stream'
+#     format = 'binary'
 
-    def render(self, data, media_type=None, renderer_context=None):
-        # NẾU DATA LÀ TỪ ĐIỂN (LỖI) -> Trả về JSON string
-        if isinstance(data, (dict, list)):
-            return json.dumps(data).encode('utf-8')
+#     def render(self, data, media_type=None, renderer_context=None):
+#         # NẾU DATA LÀ TỪ ĐIỂN (LỖI) -> Trả về JSON string
+#         if isinstance(data, (dict, list)):
+#             return json.dumps(data).encode('utf-8')
             
-        # NẾU LÀ FILE -> Trả về nguyên gốc
-        return data
+#         # NẾU LÀ FILE -> Trả về nguyên gốc
+#         return data
     
 
 class PublicDownloadFileView(APIView):
@@ -98,62 +95,47 @@ class PublicDownloadFileView(APIView):
     permission_classes = [IsAuthenticated] # Yêu cầu user phải đăng nhập
 
     # 2. QUAN TRỌNG: Khai báo renderer này để DRF không bọc HTML/JSON vào file
-    renderer_classes = [BinaryFileRenderer, JSONRenderer]
+    renderer_classes = [JSONRenderer]
 
     def get(self, request, file_id):
         try:
-            return file_service.serve_file(request, file_id, request.user)
-            
+            s3_url = file_service.serve_file(request, file_id, request.user)
+            return HttpResponseRedirect(s3_url)
+
         except ValidationError as e:
-            # Lỗi 400: ID sai định dạng
+            # Lỗi ID không đúng định dạng UUID
             return Response(
                 {"error": "BAD_REQUEST", "detail": str(e)}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        except AccessDeniedError as e:
-            # Lỗi 403: Không có quyền (Code service raise PermissionError)
-            # Hoặc lỗi OS Permission
-            if "Server" in str(e): # Lỗi OS
-                 print(f"SYSTEM ERROR: {e}")
-                 return Response({"detail": f"Lỗi hệ thống tập tin - {str(e)}"}, status=500)
+        except PermissionDenied as e:
+            # Service raise PermissionDenied -> Trả về 403
             return Response(
                 {"error": "FORBIDDEN", "detail": str(e)}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
         except (FileNotFoundError, Http404) as e:
-            # Lỗi 404: Không tìm thấy file
+            # Service raise ObjectDoesNotExist -> Trả về 404
             return Response(
-                {"error": "NOT_FOUND", "detail": str(e)}, 
+                {"error": "NOT_FOUND", "detail": f"File không tồn tại hoặc đã bị xóa - {str(e)}"}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        except DatabaseError as e:
-            # Lỗi 503/500: Database sập
-            print(f"DB ERROR: {e}")
+        except OSError as e:
+            # Lỗi kết nối AWS S3 (được Service map từ Exception gốc)
             return Response(
-                {"error": "SERVICE_UNAVAILABLE", "detail": f"Lỗi kết nối cơ sở dữ liệu - {str(e)}"}, 
+                {"error": "SERVICE_UNAVAILABLE", "detail": f"Hệ thống file tạm thời gián đoạn - {str(e)}"}, 
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
-        except OSError as e:
-            # Lỗi 500: Ổ cứng lỗi, file bị lock, v.v.
-            print(f"OS ERROR khi mở file {file_id}: {e}")
-            return Response(
-                {"error": "INTERNAL_SERVER_ERROR", "detail": f"Lỗi đọc ghi file trên server - {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
         except Exception as e:
-            # Lỗi 500: Các lỗi không tên khác (Lỗi code, logic...)
-            # NÊN DÙNG LOGGING thay vì print trong thực tế
+            # Các lỗi không xác định (Code lởm, logic sai...)
             import traceback
-            traceback.print_exc() 
-            print(f"UNEXPECTED ERROR với file {file_id}: {repr(e)}")
-            
+            traceback.print_exc()
             return Response(
-                {"error": "INTERNAL_SERVER_ERROR", "detail": "Đã có lỗi không xác định xảy ra."}, 
+                {"error": "INTERNAL_SERVER_ERROR", "detail": f"Lỗi hệ thống không xác định - {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         

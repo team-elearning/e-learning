@@ -6,7 +6,7 @@ from django.db.models import F, Max
 from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson
 from content.domains.content_block_domain import ContentBlockDomain 
-from quiz.services import quiz_course_service
+from quiz.services.quiz_course_service import create_quiz, patch_quiz
 from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 from quiz.models import Quiz
 
@@ -51,7 +51,7 @@ def list_blocks_for_version(lesson_id: uuid.UUID) -> List[ContentBlockDomain]:
     return block_domains
 
 
-def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
+def create_content_block(lesson: Lesson, data: Dict[str, Any], actor: UserModel) -> Tuple[ContentBlockDomain, List[str]]:
     """
     Tạo ContentBlock theo logic "Router":
     - 'quiz' sẽ được ủy quyền.
@@ -76,7 +76,7 @@ def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentB
     if block_type == 'quiz':
         # --- Hướng QUIZ ---
         # 2a. Ủy quyền tạo Quiz Model
-        new_quiz_domain = quiz_course_service.create_quiz(data=payload)
+        new_quiz_domain = create_quiz(data=payload, actor=actor)
         
         try:
             quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
@@ -98,8 +98,10 @@ def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentB
         elif block_type in ['pdf', 'docx']:
             url_key = 'file_id'
         
-        if url_key and url_key in final_payload:
-            files_to_commit.append(final_payload[url_key])
+        if url_key:
+            file_val = final_payload.get(url_key)
+            if file_val:
+                files_to_commit.append(file_val)
 
     # 3. Tạo ContentBlock (SAU KHI đã có final_payload)
     new_block = ContentBlock.objects.create(
@@ -146,7 +148,7 @@ def patch_content_block(block_id: uuid.UUID, data: Dict[str, Any]) -> Tuple[Cont
                 raise ValueError("ContentBlock 'quiz' bị lỗi, không có 'quiz_id' trong payload.")
             
             # Ủy quyền cho service CSDL
-            updated_quiz_model = quiz_course_service.patch_quiz(
+            updated_quiz_model = patch_quiz(
                 quiz_id=uuid.UUID(current_quiz_id_str),
                 data=payload_data # Gửi DTO patch (title, questions: [...])
             )

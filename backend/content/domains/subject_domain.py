@@ -30,7 +30,7 @@ class SubjectDomain:
     @classmethod
     def from_model(cls, model):
         # model expected to have .id, .title, .slug
-        return cls(title=model.title, slug=model.slug, id=str(model.id))
+        return cls(title=model.title, slug=model.slug, id=str(model.id), )
     
     def to_model(self):
         """

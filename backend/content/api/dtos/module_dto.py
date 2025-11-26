@@ -2,7 +2,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Any
 
-from content.api.dtos.lesson_dto import LessonCreateInput, LessonUpdateInput, LessonPublicOutput
+from content.api.dtos.lesson_dto import LessonCreateInput, LessonUpdateInput, LessonPublicOutput, LessonAdminOutput
 
 
 
@@ -97,7 +97,7 @@ class ModuleAdminOutput(BaseModel):
     id: uuid.UUID
     title: str
     position: int
-    lessons: List[LessonPublicOutput] = []
+    lessons: List[LessonAdminOutput] = []
 
     @field_validator('lessons', mode='before')
     @classmethod

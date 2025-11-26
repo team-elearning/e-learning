@@ -9,14 +9,13 @@ from pydantic import ValidationError as PydanticValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.http import Http404
 
-from content.serializers import CourseCreateSerializer, CoursePatchInputSerializer
-from content.services import course_service     
+from content.serializers import CourseSerializer
+from content.services import course_service
 from content.api.dtos.course_dto import CoursePublicOutput, CourseAdminOutput, CourseCreateInput, CourseUpdateInput
 from core.exceptions import DomainError, CourseNotFoundError
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin, CoursePermissionMixin
 from content.types import CourseFetchStrategy, CourseFilter
-from content.services import enrollment_service
 
 
 
@@ -133,7 +132,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
     def post(self, request, *args, **kwargs):
         """ Tạo course mới (logic y hệt Admin post) """
         
-        serializer = CourseCreateSerializer(data=request.data)
+        serializer = CourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -207,14 +206,8 @@ class AdminCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, APIView
         View chỉ validate input và ủy quyền cho service.
         """
         
-        # 1. Validate Input (Giống hệt POST)
-        # KHÔNG cần lấy instance hay check permission ở đây.
-        # Service 'patch_course' sẽ làm việc đó.
-        
-        # GHI CHÚ: Bạn cần một Serializer (ví dụ: CoursePatchInputSerializer)
-        # chỉ để validate input, KHÔNG phải là ModelSerializer cần 'instance'.
-        # Nó giống hệt 'CourseCreateSerializer' của bạn.
-        serializer = CoursePatchInputSerializer(data=request.data)
+        # 1. Validate Input
+        serializer = CourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -376,7 +369,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
     def post(self, request, *args, **kwargs):
         """ Tạo course mới (logic y hệt Admin post) """
         
-        serializer = CourseCreateSerializer(data=request.data)
+        serializer = CourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -393,7 +386,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             new_course = self.course_service.create_course(
                 data=course_create_dto.model_dump(),
                 created_by=request.user,
-                output_strategy=CourseFetchStrategy.OVERVIEW
+                output_strategy=CourseFetchStrategy.FULL_STRUCTURE
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
@@ -448,14 +441,8 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
         View chỉ validate input và ủy quyền cho service.
         """
         
-        # 1. Validate Input (Giống hệt POST)
-        # KHÔNG cần lấy instance hay check permission ở đây.
-        # Service 'patch_course' sẽ làm việc đó.
-        
-        # GHI CHÚ: Bạn cần một Serializer (ví dụ: CoursePatchInputSerializer)
-        # chỉ để validate input, KHÔNG phải là ModelSerializer cần 'instance'.
-        # Nó giống hệt 'CourseCreateSerializer' của bạn.
-        serializer = CoursePatchInputSerializer(data=request.data)
+        # 1. Validate Input 
+        serializer = CourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data

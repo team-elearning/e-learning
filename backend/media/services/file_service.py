@@ -1,35 +1,32 @@
 import logging
-import uuid
-import os
-import mimetypes
 import magic
+import mimetypes
+import uuid
 from datetime import timedelta
-from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
-from django.core.files.storage import default_storage
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.contenttypes.models import ContentType
-from django.conf import settings
-from django.http import Http404, HttpResponse, HttpResponseForbidden, FileResponse
+from django.core.files.storage import default_storage
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils.encoding import escape_uri_path # Cần cái này để xử lý tiếng Việt
-from django.core.exceptions import ValidationError
-from django.db import DatabaseError
-from django.conf import settings
+from django.utils import timezone
 
-from core.exceptions import DomainError, UserNotFoundError, FileNotFoundError, AccessDeniedError
+from core.exceptions import DomainError, FileNotFoundError
 from custom_account.models import UserModel
-from content.models import Course, Lesson, Enrollment
+from quiz.models import QuizAttempt
+from content.models import Course, Enrollment
 from media.models import UploadedFile, FileStatus, Component
 from media.domains.file_domain import FileDomain
-from quiz.models import QuizAttempt
 
 
 
 User = get_user_model()
 
+# django-storages sẽ tự động chặn việc lưu local và đẩy thẳng lên S3 
+# khi lệnh UploadedFile.objects.create chạy.
 @transaction.atomic
 def create_file_upload(user: UserModel, data: dict) -> FileDomain:
     """
@@ -282,41 +279,42 @@ def cleanup_staging_files(days_old: int) -> dict:
     }
 
 
-@transaction.atomic
-def cleanup_broken_links() -> dict:
-    """
-    Dọn dẹp các bản ghi CSDL mà file vật lý không còn tồn tại.
+# @transaction.atomic
+# def cleanup_broken_links() -> dict:
+#     """
+#     Dọn dẹp các bản ghi CSDL mà file vật lý không còn tồn tại.
     
-    !!! CẢNH BÁO: TÁC VỤ NÀY RẤT CHẬM !!!
-    Nó phải gọi API (S3, v.v.) để kiểm tra TỪNG FILE.
-    Không nên chạy qua API View, mà nên chạy bằng Management Command.
-    """
-    logger.warning("Bắt đầu quét file hỏng (tác vụ chậm)...")
-    broken_files = []
+#     !!! CẢNH BÁO: TÁC VỤ NÀY RẤT CHẬM !!!
+#     Nó phải gọi API (S3, v.v.) để kiểm tra TỪNG FILE.
+#     Không nên chạy qua API View, mà nên chạy bằng Management Command.
+#     """
+#     logger.warning("Bắt đầu quét file hỏng (tác vụ chậm)...")
+#     broken_files = []
     
-    # Lặp qua TẤT CẢ các file, bất kể status
-    for file_record in UploadedFile.objects.all().iterator():
+#     # Lặp qua TẤT CẢ các file, bất kể status
+#     for file_record in UploadedFile.objects.all().iterator():
         
-        # 1. Nếu file field bị rỗng (lỗi data)
-        if not file_record.file:
-            logger.warning(f"Bản ghi {file_record.id} không có file. Đang xóa...")
-            broken_files.append(f"Record_ID_{file_record.id}_missing_file_field")
-            file_record.delete()
-            continue
+#         # 1. Nếu file field bị rỗng (lỗi data)
+#         if not file_record.file:
+#             logger.warning(f"Bản ghi {file_record.id} không có file. Đang xóa...")
+#             broken_files.append(f"Record_ID_{file_record.id}_missing_file_field")
+#             file_record.delete()
+#             continue
             
-        # 2. Nếu file không tồn tại trên storage (S3, local, v.v.)
-        if not default_storage.exists(file_record.file.name):
-            logger.warning(f"File {file_record.file.name} (ID: {file_record.id}) không tồn tại. Đang xóa...")
-            broken_files.append(file_record.file.name)
+#         # 2. Nếu file không tồn tại trên storage (S3, local, v.v.)
+#         if not default_storage.exists(file_record.file.name):
+#             logger.warning(f"File {file_record.file.name} (ID: {file_record.id}) không tồn tại. Đang xóa...")
+#             broken_files.append(file_record.file.name)
             
-            # Chỉ xóa bản ghi CSDL, file vật lý đã mất rồi
-            file_record.delete()
+#             # Chỉ xóa bản ghi CSDL, file vật lý đã mất rồi
+#             file_record.delete()
             
-    logger.info(f"Đã dọn dẹp {len(broken_files)} file hỏng.")
-    return {
-        "deleted_count": len(broken_files),
-        "filenames": broken_files
-    }
+#     logger.info(f"Đã dọn dẹp {len(broken_files)} file hỏng.")
+#     return {
+#         "deleted_count": len(broken_files),
+#         "filenames": broken_files
+#     }
+
 
 def list_all_files() -> list[FileDomain]: # <-- Thay đổi ở đây
         """
@@ -548,79 +546,140 @@ def _is_browser_viewable(mime_type):
 
 def serve_file(request, file_id, user):
     """
-    Xử lý logic check quyền và trả về file response.
+    Service trả về URL để user tải/xem file từ S3.
     """
-    # 1. Lấy object (Nên cache nhẹ chỗ này nếu lượng truy cập lớn)
+    # 1. Lấy object
     try:
         file_obj = get_object_or_404(UploadedFile, id=file_id)
     except UploadedFile.DoesNotExist:
-        raise FileNotFoundError("File không tồn tại trong hệ thống.")
+        raise FileNotFoundError(f"File {file_id} không tồn tại trong hệ thống.")
 
-
-    # 2. Check quyền (Logic nghiệp vụ)
-    # Giả sử bạn có service check quyền riêng
+    # 2. Check quyền (Logic nghiệp vụ giữ nguyên)
     if not user_has_access_to_file(user=user, file_object=file_obj):
-        raise AccessDeniedError("Bạn không có quyền truy cập tài nguyên này.")
+        # Lưu ý: Raise exception để Middleware bắt hoặc return response lỗi
+        # Tùy architecture của bạn, ở đây giả sử return response
+        return PermissionDenied("Bạn không có quyền truy cập tài nguyên này.")
 
-    # 3. BẮT LỖI FILE VẬT LÝ (IO Error)
+    # 3. KHÔNG CHECK os.path.exists
+    # Với S3, việc check tồn tại tốn 1 request mạng. 
+    # Ta tin tưởng vào Database. Nếu DB có mà S3 mất thì S3 sẽ báo lỗi 404 sau.
     if not file_obj.file:
-        # Trường hợp DB có record nhưng trường file bị null
-        raise FileNotFoundError(f"Dữ liệu file bị thiếu trong Database (ID: {file_id}).")
-        
-    if not os.path.exists(file_obj.file.path):
-        # Trường hợp file bị xóa khỏi ổ cứng
-        raise FileNotFoundError(f"File gốc không tồn tại trên ổ đĩa: {file_obj.file.path}")
+         raise FileNotFoundError("Dữ liệu file bị thiếu trong Database.")
 
-    # 4. XÁC ĐỊNH MIME TYPE (Logic quan trọng nhất)
-    real_mime_type = _get_best_mime_type(file_obj=file_obj)
-
-    # --- TRẢ VỀ RESPONSE ---
-    print(f"DEBUG STATUS: {settings.DEBUG}")
-
-    # A. DEV MODE
-    if settings.DEBUG:
-        try:
-            # CÁCH FIX: Dùng file.open() thay vì open()
-            # Điều này giúp Django tự quản lý việc đóng mở file tốt hơn
-            file_handle = file_obj.file.open('rb') 
-            
-            response = FileResponse(file_handle, content_type=real_mime_type)
-            
-            # Thêm Content-Length để Client biết file nặng bao nhiêu mà hứng
-            if file_obj.file_size:
-                response['Content-Length'] = file_obj.file_size
-                
-            return response
-            
-        except FileNotFoundError:
-            raise Http404("File gốc không tìm thấy trên ổ cứng.")
-        except Exception as e:
-            # In lỗi ra để debug nếu có lỗi khác
-            print(f"ERROR serving file: {e}")
-            raise OSError(f"Lỗi khi đọc file: {str(e)}")
-
-    # B. PRODUCTION MODE (Nginx)
-    else:
-        response = HttpResponse()
-        nginx_path = f"/protected_media/{file_obj.file.name}"
-        response['X-Accel-Redirect'] = nginx_path
-        response['Content-Type'] = real_mime_type
-
-        # Tối ưu: Giúp Nginx không phải tính lại dung lượng lần nữa
-        response['Content-Length'] = file_obj.file_size
-
-        # 5. Xử lý hiển thị (Inline vs Attachment)
-        # Inline: Xem trực tiếp trên trình duyệt (Video, Ảnh, PDF)
-        # Attachment: Tải về (Zip, Docx, Exe)
-        disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
-
-        # 5. XỬ LÝ TÊN FILE TIẾNG VIỆT (Chống lỗi UnicodeEncodeError)
-        # Cách chuẩn RFC 5987: filename*=UTF-8''ten_file_ma_hoa
-        safe_filename = escape_uri_path(file_obj.original_filename)
-
-        # Thiết lập Header an toàn cho tiếng Việt
-        # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)
-        # Dùng: filename*=UTF-8''t%C3%AAn%20ti%E1%BA%BFng%20vi%E1%BB%87t.mp4
-        response['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{safe_filename}"
+    # 4. Xử lý logic hiển thị (Download vs Inline) & Tên file tiếng Việt
+    # Logic cũ của bạn set header trên Response, nhưng với S3,
+    # ta phải bảo S3 set header đó thông qua query params của URL.
     
-    return response
+    # Xác định xem nên xem ngay hay tải về
+    real_mime_type = file_obj.mime_type or 'application/octet-stream'
+    disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
+    
+    # Xử lý tên file (filename)
+    # Với S3 presigned url, tham số ResponseContentDisposition sẽ quyết định header trả về
+    filename = file_obj.original_filename
+    
+    # Chuẩn bị tham số cho hàm generate URL của django-storages
+    # Lưu ý: "ResponseContentDisposition" là tham số chuẩn của S3
+    response_headers = {
+        'ResponseContentType': real_mime_type,
+        'ResponseContentDisposition': f'{disposition_type}; filename="{filename}"' 
+        # S3 tự xử lý unicode filename khá tốt, nhưng nếu cần kỹ hơn có thể encode
+    }
+
+    # 5. SINH URL VÀ REDIRECT
+    try:
+        # file_obj.file.url bản chất sẽ gọi S3 API để sinh Presigned URL
+        # Nếu dùng django-storages, có thể truyền parameters vào (tùy version)
+        # Cách đơn giản nhất (mặc định):
+        s3_url = file_obj.file.url
+        
+        # NẾU CẦN CUSTOM HEADER (như tên file tải về), 
+        # bạn cần can thiệp sâu hơn vào storage backend hoặc cấu hình AWS_S3_OBJECT_PARAMETERS.
+        # Nhưng ở mức cơ bản, chỉ cần redirect là đủ:
+    
+        return s3_url
+
+    except Exception as e:
+        # Phòng trường hợp mất kết nối AWS hoặc lỗi config
+        print(f"S3 Error: {e}")
+        raise OSError(f"Không thể kết nối đến hệ thống lưu trữ - {str(e)}")
+
+
+# def serve_file_in_local(request, file_id, user):
+#     """
+#     Xử lý logic check quyền và trả về file response.
+#     """
+#     # 1. Lấy object (Nên cache nhẹ chỗ này nếu lượng truy cập lớn)
+#     try:
+#         file_obj = get_object_or_404(UploadedFile, id=file_id)
+#     except UploadedFile.DoesNotExist:
+#         raise FileNotFoundError("File không tồn tại trong hệ thống.")
+
+
+#     # 2. Check quyền (Logic nghiệp vụ)
+#     # Giả sử bạn có service check quyền riêng
+#     if not user_has_access_to_file(user=user, file_object=file_obj):
+#         raise AccessDeniedError("Bạn không có quyền truy cập tài nguyên này.")
+
+#     # 3. BẮT LỖI FILE VẬT LÝ (IO Error)
+#     if not file_obj.file:
+#         # Trường hợp DB có record nhưng trường file bị null
+#         raise FileNotFoundError(f"Dữ liệu file bị thiếu trong Database (ID: {file_id}).")
+        
+#     if not os.path.exists(file_obj.file.path):
+#         # Trường hợp file bị xóa khỏi ổ cứng
+#         raise FileNotFoundError(f"File gốc không tồn tại trên ổ đĩa: {file_obj.file.path}")
+
+#     # 4. XÁC ĐỊNH MIME TYPE (Logic quan trọng nhất)
+#     real_mime_type = _get_best_mime_type(file_obj=file_obj)
+
+#     # --- TRẢ VỀ RESPONSE ---
+#     print(f"DEBUG STATUS: {settings.DEBUG}")
+
+#     # A. DEV MODE
+#     if settings.DEBUG:
+#         try:
+#             # CÁCH FIX: Dùng file.open() thay vì open()
+#             # Điều này giúp Django tự quản lý việc đóng mở file tốt hơn
+#             file_handle = file_obj.file.open('rb') 
+            
+#             response = FileResponse(file_handle, content_type=real_mime_type)
+            
+#             # Thêm Content-Length để Client biết file nặng bao nhiêu mà hứng
+#             if file_obj.file_size:
+#                 response['Content-Length'] = file_obj.file_size
+                
+#             return response
+            
+#         except FileNotFoundError:
+#             raise Http404("File gốc không tìm thấy trên ổ cứng.")
+#         except Exception as e:
+#             # In lỗi ra để debug nếu có lỗi khác
+#             print(f"ERROR serving file: {e}")
+#             raise OSError(f"Lỗi khi đọc file: {str(e)}")
+
+#     # B. PRODUCTION MODE (Nginx)
+#     else:
+#         response = HttpResponse()
+#         nginx_path = f"/protected_media/{file_obj.file.name}"
+#         response['X-Accel-Redirect'] = nginx_path
+#         response['Content-Type'] = real_mime_type
+
+#         # Tối ưu: Giúp Nginx không phải tính lại dung lượng lần nữa
+#         response['Content-Length'] = file_obj.file_size
+
+#         # 5. Xử lý hiển thị (Inline vs Attachment)
+#         # Inline: Xem trực tiếp trên trình duyệt (Video, Ảnh, PDF)
+#         # Attachment: Tải về (Zip, Docx, Exe)
+#         disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
+
+#         # 5. XỬ LÝ TÊN FILE TIẾNG VIỆT (Chống lỗi UnicodeEncodeError)
+#         # Cách chuẩn RFC 5987: filename*=UTF-8''ten_file_ma_hoa
+#         safe_filename = escape_uri_path(file_obj.original_filename)
+
+#         # Thiết lập Header an toàn cho tiếng Việt
+#         # Thay vì: filename="tên tiếng việt.mp4" (Gây lỗi)
+#         # Dùng: filename*=UTF-8''t%C3%AAn%20ti%E1%BA%BFng%20vi%E1%BB%87t.mp4
+#         response['Content-Disposition'] = f"{disposition_type}; filename*=UTF-8''{safe_filename}"
+    
+#     return response
