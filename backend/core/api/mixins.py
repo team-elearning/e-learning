@@ -8,7 +8,7 @@ from django.http import Http404
 from django.core.exceptions import PermissionDenied
 from django.db.models.query import QuerySet
 
-from content.models import Module, Course, Lesson, ContentBlock, Exploration
+from content.models import Module, Course, Lesson, ContentBlock
 
 
 
@@ -257,41 +257,3 @@ class ContentBlockPermissionMixin:
         
         return block # Trả về để tái sử dụng
     
-
-class ExplorationPermissionMixin:
-    """
-    Mixin này cung cấp hàm helper để kiểm tra xem request.user
-    có phải là Admin hoặc Owner (Instructor) của Exploration hay không.
-    
-    Quyền được xác định bằng cách kiểm tra 'owner' của Exploration.
-    """
-    
-    def check_exploration_permission(self, request, pk):
-        """
-        Kiểm tra quyền (Admin hoặc Exploration Owner) cho một Exploration.
-        Raises Http404 nếu không tìm thấy.
-        Raises PermissionDenied nếu không có quyền.
-        """
-        if not request.user.is_authenticated:
-            raise AuthenticationFailed("Yêu cầu xác thực.")
-            
-        try:
-            # Tối ưu query bằng cách join thẳng đến owner
-            exploration = Exploration.objects.select_related('owner').get(pk=pk)
-            
-        except Exploration.DoesNotExist:
-            raise Http404("Exploration không tìm thấy.")
-            
-        is_admin = request.user.is_staff
-        
-        # Kiểm tra owner
-        is_owner = (
-            hasattr(exploration, 'owner') and
-            exploration.owner == request.user
-        )
-
-        if not (is_admin or is_owner):
-            raise PermissionDenied("Bạn không có quyền chỉnh sửa exploration này.")
-            
-        # Trả về exploration để view có thể tái sử dụng
-        return exploration

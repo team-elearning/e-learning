@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List, Dict, Any
 
 from core.exceptions import DomainValidationError
-from content.domains.commands import AddContentBlockCommand
+# from content.domains.commands import AddContentBlockCommand
 from content.models import ContentBlock
 
 

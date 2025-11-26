@@ -4,10 +4,10 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import Max, F, Case, When, Value, Prefetch
 
-from content.models import Lesson, Module, Enrollment, ContentBlock
+from content.models import Lesson, Module, ContentBlock
 from content.domains.lesson_domain import LessonDomain
 from core.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
-from content.services import content_block_service
+from content.services.content_block_service import create_content_block, patch_content_block
 
 
 
@@ -67,7 +67,7 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
     
     # 4. ỦY QUYỀN cho hàm 'create_content_block' (Hàm 4)
     for block_data in content_blocks_data:
-        block, block_files = content_block_service.create_content_block(
+        block, block_files = create_content_block(
             lesson=new_lesson,
             data=block_data
         )
@@ -129,7 +129,7 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
                     raise ValueError(f"Block {block_id_str} với vị trí {block_position} không thuộc về lesson này.")
                 
                 # Ủy quyền cho hàm patch_content_block (Hàm 2)
-                updated_block_domain, block_files = content_block_service.patch_content_block(
+                updated_block_domain, block_files = patch_content_block(
                     block_id=block_id,
                     data=block_data
                 )
@@ -139,7 +139,7 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
             else:
                 # --- CREATE ---
                 # Ủy quyền cho hàm create_content_block bạn đã cung cấp
-                new_block_domain, block_files = content_block_service.create_content_block(
+                new_block_domain, block_files = create_content_block(
                     lesson=lesson,
                     data=block_data
                 )

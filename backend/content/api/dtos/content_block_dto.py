@@ -77,7 +77,12 @@ class ContentBlockAdminOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
-    lesson_version_id: uuid.UUID 
     type: BlockType
     position: int
     payload: Dict[str, Any]
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """
+        Convert the model to a dictionary.
+        """
+        return self.model_dump(exclude_none=exclude_none)

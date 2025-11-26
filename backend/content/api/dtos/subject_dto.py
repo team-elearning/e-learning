@@ -48,6 +48,7 @@ class SubjectPublicOutput(BaseModel):
         """Chuyển đổi model sang dictionary."""
         return self.model_dump(exclude_none=exclude_none)
 
+
 class SubjectAdminOutput(BaseModel):
     """
     DTO hiển thị Subject cho người dùng 'admin'.
@@ -58,8 +59,6 @@ class SubjectAdminOutput(BaseModel):
     id: UUID  # Subject dùng UUID
     title: str
     slug: str
-    created_on: Optional[datetime] = None
-    updated_on: Optional[datetime] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """Chuyển đổi model sang dictionary."""

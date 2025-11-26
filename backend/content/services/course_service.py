@@ -1,6 +1,6 @@
 import uuid
 import logging
-from typing import Any, Dict, List
+from typing import List
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
 from django.utils.text import slugify
@@ -8,13 +8,12 @@ from django.db.models import Q, Count
 from django.utils import timezone
 
 from custom_account.models import UserModel 
-from media.services import file_service
-from media.models import UploadedFile, FileStatus
+from content.services.module_service import create_module, patch_module
+from media.services.file_service import commit_files_by_ids_for_object
+from media.models import UploadedFile
 from content.domains.course_domain import CourseDomain
-from content.domains.enrollment_domain import EnrollmentDomain
-from content.models import Course, Module, Lesson, Enrollment, Category, Tag, Subject
-from content.services import module_service
-from core.exceptions import DomainError, CourseNotFoundError
+from content.models import Course, Module, Lesson, Category, Tag, Subject
+from core.exceptions import DomainError
 from content.types import CourseFetchStrategy, CourseFilter
 
 
@@ -207,7 +206,7 @@ def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetc
     files_to_commit = [image_id] if image_id else []
     
     for module_data in modules_data:
-        _, mod_files = module_service.create_module(course=course, data=module_data)
+        _, mod_files = create_module(course=course, data=module_data)
         if mod_files:
             files_to_commit.extend(mod_files)
 
@@ -217,7 +216,7 @@ def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetc
     # Nếu created_by là Instructor -> Chỉ commit file chính chủ.
     if files_to_commit:
         try:
-            file_service.commit_files_by_ids_for_object(
+            commit_files_by_ids_for_object(
                 file_ids=files_to_commit, 
                 related_object=course, 
                 actor=created_by 
@@ -376,12 +375,12 @@ def patch_course(
                     raise ValueError(f"Module {mod_id} không thuộc khóa học này.")
 
                 # Gọi đệ quy
-                _, mod_files = module_service.patch_module(module_id=mod_id, data=mod_data)
+                _, mod_files = patch_module(module_id=mod_id, data=mod_data)
                 files_to_commit.extend(mod_files)
                 incoming_ids.add(mod_id)
             else:
                 # -- CREATE --
-                new_mod, mod_files = module_service.create_module(course=course, data=mod_data)
+                new_mod, mod_files = create_module(course=course, data=mod_data)
                 files_to_commit.extend(mod_files)
                 incoming_ids.add(new_mod.id)
 
@@ -394,7 +393,7 @@ def patch_course(
     # Truyền actor vào để Service kiểm tra quyền (Admin được commit tất, Instructor chỉ commit file chính chủ)
     if files_to_commit:
         try:
-            file_service.commit_files_by_ids_for_object(
+            commit_files_by_ids_for_object(
                 file_ids=files_to_commit, 
                 related_object=course, 
                 actor=actor

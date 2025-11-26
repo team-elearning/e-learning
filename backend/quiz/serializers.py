@@ -4,6 +4,33 @@ from quiz.models import Quiz, Question, UserAnswer
 
 
 
+class QuestionSerializer(serializers.Serializer):
+    id = serializers.UUIDField(required=False, allow_null=True)
+    position = serializers.IntegerField(default=0, required=False)
+    type = serializers.ChoiceField(choices=[q_type[0] for q_type in Question.QUESTION_TYPES], default='multiple_choice_single_answer', required=False)
+    prompt = serializers.JSONField(required=False, allow_null=True)
+    answer_payload = serializers.JSONField(required=False, allow_null=True)
+    hint = serializers.JSONField(required=False, allow_null=True)
+
+    def validate_prompt(self, value):
+        # Bạn có thể thêm logic validate cơ bản ở đây
+        # Ví dụ: 'prompt' phải có key 'text'
+        if 'text' not in value and 'image_url' not in value:
+             raise serializers.ValidationError("Prompt phải có 'text' hoặc 'image_url'.")
+        return value
+    
+
+class QuizCourseSerializer(serializers.Serializer):
+    """
+    Validate định nghĩa Quiz được nhúng trong payload.
+    """
+    title = serializers.CharField(max_length=255)
+    time_limit = serializers.DurationField(required=False, allow_null=True)
+    time_open = serializers.DateTimeField(required=False, allow_null=True)
+    time_close = serializers.DateTimeField(required=False, allow_null=True)
+    questions = QuestionSerializer(many=True, required=False, allow_empty=True)
+
+
 class QuestionInputSerializer(serializers.Serializer):
     """
     Serializer cho từng câu hỏi bên trong mảng 'questions'

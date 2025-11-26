@@ -43,6 +43,9 @@ def create_subject(data: Dict[str, Any]) -> SubjectDomain:
 
     if not title:
         raise DomainError("Tiêu đề (title) là bắt buộc.")
+    
+    if Subject.objects.filter(title=title).exists():
+        raise DomainError(f"Tiêu đề '{title}' đã tồn tại.")
 
     # 1. Tạo slug nếu không được cung cấp
     if not slug:
@@ -50,16 +53,10 @@ def create_subject(data: Dict[str, Any]) -> SubjectDomain:
         data['slug'] = slug # Cập nhật lại data dict
     
     # 2. Thực thi các bất biến nghiệp vụ (tính duy nhất)
-    # Model của bạn đã định nghĩa slug là unique=True, 
-    # nhưng kiểm tra ở service layer sẽ trả về lỗi rõ ràng hơn.
     if Subject.objects.filter(slug=slug).exists():
         raise DomainError(f"Slug '{slug}' đã tồn tại.")
-    
-    # (Tùy chọn) Bạn cũng có thể muốn title là duy nhất
-    if Subject.objects.filter(title=title).exists():
-        raise DomainError(f"Tiêu đề '{title}' đã tồn tại.")
 
-    # 3. Tạo Domain (Giả định SubjectDomain có phương thức to_model)
+    # 3. Tạo Domain 
     try:
         subject_domain = SubjectDomain(title=title, slug=slug)
         

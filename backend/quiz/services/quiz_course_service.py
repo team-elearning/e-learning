@@ -9,8 +9,8 @@ import random
 from content.models import Quiz
 from quiz.domains.quiz_domain import QuizDomain, QuestionDomain
 from core.exceptions import DomainError
-from content.services import question_service
-from quiz.models import QuizAttempt, Question
+from content.services.question_service import create_question, patch_question, delete_question
+from quiz.models import Question
 
 
 
@@ -33,7 +33,7 @@ def create_quiz(data: Dict[str, Any]) -> QuizDomain:
     
     # 2. Tạo Questions (con)
     for question_data in questions_data:
-        question_service.create_question(quiz=new_quiz, data=question_data)
+        create_question(quiz=new_quiz, data=question_data)
 
     quiz_with_questions = Quiz.objects.prefetch_related('questions').get(id=new_quiz.id)
     return QuizDomain.from_model(quiz_with_questions)
@@ -92,20 +92,20 @@ def patch_quiz(quiz_id: uuid.UUID, data: Dict[str, Any], user: UserModel) -> Qui
                     raise DomainError(f"Question {question_data.get('prompt')} không thuộc quiz này.")
                 
                 # Ủy quyền cho question_service
-                question_service.patch_question(question_id=question_id, data=question_data)
+                patch_question(question_id=question_id, data=question_data)
                 
                 incoming_question_ids.add(question_id)
             else:
                 # --- CREATE (C) ---
                 # Ủy quyền cho question_service
-                new_question_domain = question_service.create_question(quiz=quiz, data=question_data)
+                new_question_domain = create_question(quiz=quiz, data=question_data)
                 incoming_question_ids.add(uuid.UUID(new_question_domain.id))
 
         # --- DELETE (D) ---
         ids_to_delete = existing_question_ids - incoming_question_ids
         for question_id in ids_to_delete:
             # Ủy quyền cho question_service
-            question_service.delete_question(question_id=question_id)
+            delete_question(question_id=question_id)
             
     # 4. Lấy lại Quiz đã cập nhật (bao gồm questions) để trả về
     quiz_updated = Quiz.objects.prefetch_related('questions').get(id=quiz_id)

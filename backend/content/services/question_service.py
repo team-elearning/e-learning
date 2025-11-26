@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from django.db import transaction
 from django.conf import settings
 

@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from pydantic import ValidationError as PydanticValidationError
 
 from core.exceptions import DomainError
-from content.serializers import QuizPatchInputSerializer
+from quiz.serializers import QuizCourseSerializer
 from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizInstructorOutput, QuizAdminOutput, QuizPublicOutput
 from quiz.services import quiz_course_service
 from core.api.permissions import IsInstructor
@@ -125,9 +125,8 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
         View chỉ validate và ủy quyền.
         """
         
-        # 1. Validate Input bằng DRF Serializer
-        # (Serializer này không phải ModelSerializer, không cần instance)
-        serializer = QuizPatchInputSerializer(data=request.data)
+        # 1. Validate Input
+        serializer = QuizCourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -249,9 +248,8 @@ class IntructorQuizDetailView(RoleBasedOutputMixin, APIView):
         View chỉ validate và ủy quyền.
         """
         
-        # 1. Validate Input bằng DRF Serializer
-        # (Serializer này không phải ModelSerializer, không cần instance)
-        serializer = QuizPatchInputSerializer(data=request.data)
+        # 1. Validate Input
+        serializer = QuizCourseSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
