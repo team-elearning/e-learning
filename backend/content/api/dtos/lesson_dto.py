@@ -18,8 +18,8 @@ class LessonCreateInput(BaseModel):
 
     title: str
     position: int = 0
-    content_type: str
-    published: bool = False
+    # content_type: str
+    # published: bool = False
     content_blocks: List[ContentBlockCreateInput] = []
 
 

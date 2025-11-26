@@ -206,7 +206,7 @@ def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetc
     files_to_commit = [image_id] if image_id else []
     
     for module_data in modules_data:
-        _, mod_files = create_module(course=course, data=module_data)
+        _, mod_files = create_module(course=course, data=module_data, actor=created_by)
         if mod_files:
             files_to_commit.extend(mod_files)
 

@@ -17,10 +17,13 @@ distro==1.9.0
 dj-rest-auth==7.0.1
 Django==5.2.5
 django-allauth==65.13.0
+django-cleanup==9.0.0
+django-cors-headers==4.9.0
 django-filter==25.2
 django-redis==6.0.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+et_xmlfile==2.0.0
 factory_boy==3.3.3
 Faker==37.8.0
 h11==0.16.0
@@ -31,9 +34,11 @@ iniconfig==2.1.0
 jiter==0.11.0
 joblib==1.5.2
 kombu==5.5.4
+lxml==6.0.2
 numpy==2.3.3
 oauthlib==3.3.1
 openai==2.3.0
+openpyxl==3.1.5
 packaging==25.0
 pandas==2.3.3
 pluggy==1.6.0
@@ -48,7 +53,9 @@ pytest==8.4.2
 pytest-django==4.11.1
 pytest-mock==3.15.1
 python-dateutil==2.9.0.post0
+python-docx==1.2.0
 python-dotenv==1.1.1
+python-magic-bin==0.4.14
 pytz==2025.2
 redis==6.4.0
 requests==2.32.5

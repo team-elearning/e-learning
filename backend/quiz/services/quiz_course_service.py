@@ -9,7 +9,7 @@ import random
 from content.models import Quiz
 from quiz.domains.quiz_domain import QuizDomain, QuestionDomain
 from core.exceptions import DomainError
-from content.services.question_service import create_question, patch_question, delete_question
+from quiz.services.question_service import create_question, patch_question, delete_question
 from quiz.models import Question
 
 
@@ -17,7 +17,7 @@ from quiz.models import Question
 UserModel = settings.AUTH_USER_MODEL
 
 @transaction.atomic
-def create_quiz(data: Dict[str, Any]) -> QuizDomain:
+def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
     """
     Tạo Quiz và các Question con từ DTO.
     """
@@ -33,7 +33,7 @@ def create_quiz(data: Dict[str, Any]) -> QuizDomain:
     
     # 2. Tạo Questions (con)
     for question_data in questions_data:
-        create_question(quiz=new_quiz, data=question_data)
+        create_question(quiz=new_quiz, data=question_data, actor=actor)
 
     quiz_with_questions = Quiz.objects.prefetch_related('questions').get(id=new_quiz.id)
     return QuizDomain.from_model(quiz_with_questions)

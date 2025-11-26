@@ -386,7 +386,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             new_course = self.course_service.create_course(
                 data=course_create_dto.model_dump(),
                 created_by=request.user,
-                output_strategy=CourseFetchStrategy.OVERVIEW
+                output_strategy=CourseFetchStrategy.FULL_STRUCTURE
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 

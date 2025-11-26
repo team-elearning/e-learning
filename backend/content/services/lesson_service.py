@@ -4,6 +4,7 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import Max, F, Case, When, Value, Prefetch
 
+from custom_account.models import UserModel
 from content.models import Lesson, Module, ContentBlock
 from content.domains.lesson_domain import LessonDomain
 from core.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
@@ -31,7 +32,7 @@ def list_lessons_for_module(module_id: UUID) -> List[LessonDomain]:
 
 
 
-def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[str]]:
+def create_lesson(module: Module, data: Dict[str, Any], actor: UserModel) -> Tuple[Lesson, List[str]]:
     """
     Tạo Lesson VÀ các ContentBlock con của nó.
     Kết hợp logic từ file mới của bạn.
@@ -50,9 +51,7 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
             max_pos=Max('position')
         )['max_pos'] or 0
         position = 0 if current_max_pos is None else current_max_pos + 1
-    
-    content_type = data.get('content_type', 'lesson') 
-    published = data.get('published', False)
+
     
 
     # 3. Tạo Lesson (data giờ chỉ còn của lesson)
@@ -61,15 +60,14 @@ def create_lesson(module: Module, data: Dict[str, Any]) -> Tuple[Lesson, List[st
         module=module,
         title=title,
         position=position,
-        content_type=content_type,
-        published=published
     )
     
     # 4. ỦY QUYỀN cho hàm 'create_content_block' (Hàm 4)
     for block_data in content_blocks_data:
         block, block_files = create_content_block(
             lesson=new_lesson,
-            data=block_data
+            data=block_data,
+            actor=actor
         )
         files_to_commit.extend(block_files)
 

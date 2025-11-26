@@ -51,7 +51,7 @@ def list_blocks_for_version(lesson_id: uuid.UUID) -> List[ContentBlockDomain]:
     return block_domains
 
 
-def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
+def create_content_block(lesson: Lesson, data: Dict[str, Any], actor: UserModel) -> Tuple[ContentBlockDomain, List[str]]:
     """
     Tạo ContentBlock theo logic "Router":
     - 'quiz' sẽ được ủy quyền.
@@ -76,7 +76,7 @@ def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentB
     if block_type == 'quiz':
         # --- Hướng QUIZ ---
         # 2a. Ủy quyền tạo Quiz Model
-        new_quiz_domain = create_quiz(data=payload)
+        new_quiz_domain = create_quiz(data=payload, actor=actor)
         
         try:
             quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
@@ -98,8 +98,10 @@ def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentB
         elif block_type in ['pdf', 'docx']:
             url_key = 'file_id'
         
-        if url_key and url_key in final_payload:
-            files_to_commit.append(final_payload[url_key])
+        if url_key:
+            file_val = final_payload.get(url_key)
+            if file_val:
+                files_to_commit.append(file_val)
 
     # 3. Tạo ContentBlock (SAU KHI đã có final_payload)
     new_block = ContentBlock.objects.create(

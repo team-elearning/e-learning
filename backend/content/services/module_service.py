@@ -4,13 +4,15 @@ from django.db import transaction
 from django.db.models import Max, F
 from django.core.exceptions import ObjectDoesNotExist
 
+from custom_account.models import UserModel
 from content.services.lesson_service import create_lesson, patch_lesson
 from content.domains.module_domain import ModuleDomain
 from content.models import Module, Course, Lesson
 
 
 
-def create_module(course: Course, data: Dict[str, Any]) -> Tuple[ModuleDomain, List[str]]:
+
+def create_module(course: Course, data: Dict[str, Any], actor: UserModel) -> Tuple[ModuleDomain, List[str]]:
     """
     Tạo một module VÀ CÁC CON (lesson, content_block) của nó.
     Hàm này được gọi BÊN TRONG một transaction (của create_course).
@@ -43,7 +45,8 @@ def create_module(course: Course, data: Dict[str, Any]) -> Tuple[ModuleDomain, L
         # Chúng ta cần một hàm tương tự: _create_lesson
         lesson, lesson_files = create_lesson(
             module=new_module, 
-            data=lesson_data
+            data=lesson_data,
+            actor=actor
         )
         files_to_commit.extend(lesson_files) # Gom file từ các lesson con
     
