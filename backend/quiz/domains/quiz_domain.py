@@ -32,11 +32,7 @@ class QuizDomain:
         if not model:
             return None
         
-        question_domains = []
-        if hasattr(model, 'questions'): # Kiểm tra xem questions đã được prefetch chưa
-            question_domains = [
-                QuestionDomain.from_model(q) for q in model.questions.all()
-            ]
+        question_domains = [QuestionDomain.from_model(q) for q in model.questions.all()]
         
         return cls(
             id=str(model.id),

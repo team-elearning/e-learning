@@ -8,15 +8,48 @@ from pydantic import ValidationError as PydanticValidationError
 
 from core.exceptions import DomainError
 from content.serializers import QuizPatchInputSerializer
-from quiz.api.dtos.quiz_dto import QuizUpdateInput, QuizPublicOutput, QuizAdminOutput
-from quiz.services import quiz_service
+from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizInstructorOutput, QuizAdminOutput, QuizPublicOutput
+from quiz.services import quiz_course_service
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin 
 
 logger = logging.getLogger(__name__)
 
 # ======================================================================
-# 1. LIST VIEW (Chỉ Admin)
+# 1. VIEW (USER)
+# ======================================================================
+
+class QuizCourseAttemptView(RoleBasedOutputMixin, APIView):
+    """
+    GET quizzes/<quiz_id>/
+    Chức năng: Lấy nội dung bài Quiz để hiển thị lên màn hình.
+    """
+    permission_classes = [permissions.IsAuthenticated] # Học viên chỉ cần login
+
+    output_dto_admin = QuizAdminOutput
+    output_dto_public = QuizPublicOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.service = quiz_course_service
+
+    def get(self, request, quiz_id: uuid.UUID, *args, **kwargs):
+        """ Xem màn hình chờ (Info) """
+        try:
+            # 1. Gọi Service lấy Domain Data
+            quiz_domain = self.service.get_quiz_content(
+                quiz_id=quiz_id, 
+                user=request.user
+            )
+            return Response({"instance": quiz_domain}, status=status.HTTP_200_OK)
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ======================================================================
+# 1. VIEW (Admin)
 # ======================================================================
 
 class AdminQuizListView(RoleBasedOutputMixin, APIView):
@@ -33,7 +66,7 @@ class AdminQuizListView(RoleBasedOutputMixin, APIView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Tiêm (inject) service
-        self.quiz_service = quiz_service
+        self.quiz_service = quiz_course_service
 
     def get(self, request, *args, **kwargs):
         """ Lấy list toàn bộ quiz """
@@ -65,7 +98,7 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.quiz_service = quiz_service
+        self.quiz_service = quiz_course_service
 
     def get(self, request, pk: uuid.UUID, *args, **kwargs):
         """ Click 1 Quiz (Bao gồm cả 'questions') """
@@ -170,7 +203,7 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
 
 
 # ======================================================================
-# 2. DETAIL VIEW (GET / PATCH / DELETE)
+# 2. VIEW (INSTRUCTOR)
 # ======================================================================
 
 class IntructorQuizDetailView(RoleBasedOutputMixin, APIView):
@@ -185,11 +218,11 @@ class IntructorQuizDetailView(RoleBasedOutputMixin, APIView):
 
     # (Giả sử) DTO cho Output
     output_dto_admin = QuizAdminOutput
-    output_dto_public = QuizPublicOutput
+    output_dto_public = QuizInstructorOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.quiz_service = quiz_service
+        self.quiz_service = quiz_course_service
 
     def get(self, request, pk: uuid.UUID, *args, **kwargs):
         """ Click 1 Quiz (Bao gồm cả 'questions') """

@@ -3,11 +3,14 @@ import uuid
 from typing import Dict, Any, List
 from django.db import transaction
 from django.conf import settings
+from django.db.models import Case, When, Prefetch
+import random
 
 from content.models import Quiz
-from quiz.domains.quiz_domain import QuizDomain
+from quiz.domains.quiz_domain import QuizDomain, QuestionDomain
 from core.exceptions import DomainError
 from content.services import question_service
+from quiz.models import QuizAttempt, Question
 
 
 
@@ -130,6 +133,35 @@ def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
     # from_model giờ đã tự động lồng 'questions'
     return QuizDomain.from_model(quiz)
 
+
+def get_quiz_content(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
+    """
+    Lấy nội dung Quiz + Questions (Read-only).
+    Không xử lý trạng thái làm bài.
+    """
+    try:
+        # 1. Fetch Quiz & Prefetch Questions để tối ưu query
+        # Order by position để câu hỏi luôn ra đúng thứ tự soạn thảo
+        quiz = Quiz.objects.prefetch_related(
+            Prefetch('questions', queryset=Question.objects.order_by('position'))
+        ).get(id=quiz_id)
+
+    except Quiz.DoesNotExist:
+        raise DomainError("Bài học không tồn tại.")
+
+    # 2. Check quyền truy cập (Quan trọng)
+    # Ví dụ: User phải enroll khóa học chứa quiz này rồi
+    if not _check_access_permission(quiz, user):
+            raise DomainError("Bạn chưa có quyền truy cập bài học này.")
+
+    # 3. Convert to Domain
+    return QuizDomain.from_model(quiz)
+
+def _check_access_permission(quiz: Quiz, user: UserModel) -> bool:
+    # Logic check xem user đã mua khóa học chứa quiz này chưa
+    # Code của bạn ở đây...
+    return True
+    
 
 def list_all_quizzes() -> List[QuizDomain]:
     """

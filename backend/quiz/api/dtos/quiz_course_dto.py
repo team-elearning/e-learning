@@ -43,7 +43,39 @@ class QuizUpdateInput(BaseModel):
     questions: Optional[List[QuestionUpdateInput]] = None
 
 
+# ------------------------
+# OUTPUT DTOs
+# ------------------------
 class QuestionPublicOutput(BaseModel):
+    """
+    DTO Output cho một Câu hỏi (Question)
+    Dùng để lồng vào QuizPublicOutput.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    position: int
+    type: str
+    prompt: Dict[str, Any]
+    hint: Optional[Dict[str, Any]] = None
+    
+    # Bạn không cần 'from_model' ở đây, 
+    # Pydantic sẽ tự động map các trường từ model Question
+
+
+class QuizPublicOutput(BaseModel):
+    """
+    DTO Output chi tiết cho Quiz (dành cho Student).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    # Tự động lồng DTO Question con
+    questions: List[QuestionPublicOutput] = []
+    
+
+class QuestionInstructorOutput(BaseModel):
     """
     DTO Output cho một Câu hỏi (Question)
     Dùng để lồng vào QuizPublicOutput.
@@ -61,7 +93,7 @@ class QuestionPublicOutput(BaseModel):
     # Pydantic sẽ tự động map các trường từ model Question
 
 
-class QuizPublicOutput(BaseModel):
+class QuizInstructorOutput(BaseModel):
     """
     DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
     """
@@ -74,7 +106,7 @@ class QuizPublicOutput(BaseModel):
     time_close: Optional[datetime]
     
     # Tự động lồng DTO Question con
-    questions: List[QuestionPublicOutput] = []
+    questions: List[QuestionInstructorOutput] = []
 
     @field_serializer('time_limit')
     def serialize_time_limit(self, td: Optional[timedelta]) -> Optional[int]:
@@ -88,7 +120,7 @@ class QuizPublicOutput(BaseModel):
         return int(td.total_seconds())
 
 
-class QuizAdminOutput(QuizPublicOutput):
+class QuizAdminOutput(QuizInstructorOutput):
     """
     DTO Output chi tiết cho Quiz (dành cho Admin).
     Hiện tại giống hệt Public, nhưng nên tách riêng

@@ -6,7 +6,7 @@ from django.db.models import F, Max
 from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson
 from content.domains.content_block_domain import ContentBlockDomain 
-from quiz.services import quiz_service
+from quiz.services import quiz_course_service
 from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 from quiz.models import Quiz
 
@@ -76,7 +76,7 @@ def create_content_block(lesson: Lesson, data: Dict[str, Any]) -> Tuple[ContentB
     if block_type == 'quiz':
         # --- Hướng QUIZ ---
         # 2a. Ủy quyền tạo Quiz Model
-        new_quiz_domain = quiz_service.create_quiz(data=payload)
+        new_quiz_domain = quiz_course_service.create_quiz(data=payload)
         
         try:
             quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
@@ -146,7 +146,7 @@ def patch_content_block(block_id: uuid.UUID, data: Dict[str, Any]) -> Tuple[Cont
                 raise ValueError("ContentBlock 'quiz' bị lỗi, không có 'quiz_id' trong payload.")
             
             # Ủy quyền cho service CSDL
-            updated_quiz_model = quiz_service.patch_quiz(
+            updated_quiz_model = quiz_course_service.patch_quiz(
                 quiz_id=uuid.UUID(current_quiz_id_str),
                 data=payload_data # Gửi DTO patch (title, questions: [...])
             )

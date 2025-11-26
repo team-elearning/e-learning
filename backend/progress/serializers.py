@@ -21,3 +21,8 @@ class BlockCompletionInputSerializer(serializers.Serializer):
     block_id = serializers.UUIDField()
     # Có thể gửi kèm lý do hoặc metadata nếu cần (ví dụ: checksum)
     force_complete = serializers.BooleanField(default=False, required=False)
+
+
+class StartQuizInputSerializer(serializers.Serializer):
+    """Validate đầu vào"""
+    quiz_id = serializers.UUIDField()
