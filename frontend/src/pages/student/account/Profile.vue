@@ -217,6 +217,8 @@ import { computed, onMounted, reactive, ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.store'
 import { authService, type UpdateProfileDto } from '@/services/auth.service'
+import api from '@/config/axios'
+import { mediaService } from '@/services/media.service'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -232,7 +234,49 @@ function goChangePwd() {
 }
 
 const defaultAvatar = 'https://i.pravatar.cc/80?img=10'
-const currentAvatar = computed(() => auth.user?.avatar || auth.user?.avatarUrl || defaultAvatar)
+const avatarBlobUrl = ref<string>('')
+
+// Load avatar qua axios để gửi kèm token
+const loadAvatar = async () => {
+  const avatarId = auth.user?.avatarId
+  if (!avatarId) {
+    avatarBlobUrl.value = ''
+    return
+  }
+  
+  try {
+    const response = await api.get(`/media/files/${avatarId}/`, {
+      responseType: 'blob'
+    })
+    avatarBlobUrl.value = URL.createObjectURL(response.data)
+  } catch (error: any) {
+    // Nếu lỗi 401, không log error (user sẽ bị redirect đến login)
+    if (error?.response?.status !== 401) {
+      console.error('Failed to load avatar:', error)
+    }
+    avatarBlobUrl.value = ''
+  }
+}
+
+// Watch avatarId changes
+watch(() => auth.user?.avatarId, () => {
+  loadAvatar()
+}, { immediate: true })
+
+const currentAvatar = computed(() => {
+  // Nếu có avatarPreview (đang upload), dùng preview
+  if (avatarPreview.value) {
+    return avatarPreview.value
+  }
+  
+  // Nếu đã load blob URL từ API
+  if (avatarBlobUrl.value) {
+    return avatarBlobUrl.value
+  }
+  
+  // Fallback: default avatar
+  return defaultAvatar
+})
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarFile = ref<File | null>(null)
@@ -309,8 +353,10 @@ function parseDobString(raw?: string | null) {
 }
 
 function applyProfileToForm(data: any) {
-  form.username = data?.name || data?.username || form.username
-  form.fullname = data?.displayName || data?.name || data?.username || form.fullname
+  // Username không bao giờ được thay đổi - chỉ lấy từ data.username
+  form.username = data?.username || form.username
+  // Fullname lấy từ displayName hoặc name
+  form.fullname = data?.displayName || data?.name || form.fullname
   form.phone = data?.phone || form.phone
   form.email = data?.email || form.email
   form.gender =
@@ -410,10 +456,17 @@ async function saveProfile() {
       email: form.email || auth.user?.email,
       phone: form.phone,
       gender: form.gender,
-      avatar: avatarPreview.value || auth.user?.avatar,
-      avatarUrl: avatarPreview.value || auth.user?.avatarUrl || auth.user?.avatar,
       dob: `${dob.year}-${String(dob.month).padStart(2, '0')}-${String(dob.day).padStart(2, '0')}`,
       language: auth.user?.language,
+    }
+    if (avatarFile.value) {
+      const uploaded = await mediaService.upload(avatarFile.value)
+      if (uploaded?.id) {
+        payload.avatarId = uploaded.id
+      }
+    } else if (auth.user?.avatarId) {
+      // Giữ nguyên avatarId cũ nếu không upload ảnh mới
+      payload.avatarId = auth.user.avatarId
     }
     await auth.updateProfile(payload as any)
     await fetchProfile() // đồng bộ lại với dữ liệu vừa lưu trên server

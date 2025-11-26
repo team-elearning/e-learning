@@ -21,13 +21,14 @@ export interface CourseSummary {
   teacherId: ID
   teacherName: string
   lessonsCount: number
+  moduleCount?: number
   enrollments: number
   status: CourseStatus
   createdAt: string
   updatedAt: string
   thumbnail?: string
   price?: number
-  categories?: { name: string }[] // Added categories property
+  categories?: { name: string }[]
 }
 
 export interface Lesson {
@@ -388,7 +389,7 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     0
 
   const lessonsFromModules = Array.isArray(payload.modules)
-    ? payload.modules.reduce((total, m) => total + (m.lessons?.length || 0), 0)
+    ? payload.modules.reduce((total: number, m: any) => total + (m.lessons?.length || 0), 0)
     : 0
 
   const lessonsCount =

@@ -1,5 +1,9 @@
 // src/store/exam.store.ts
 import { defineStore } from 'pinia'
+import api from '@/config/axios'
+
+/** ========= CONFIG ========= */
+const USE_API = true // Đổi thành false để dùng mock
 
 /** ========= Types ========= */
 export type ExamLevel = 'basic' | 'advanced'
@@ -67,7 +71,7 @@ export const useExamStore = defineStore('exam', {
   },
 
   actions: {
-    /** Lấy 1 trang dữ liệu (mock) – KHÔNG dùng default param với this */
+    /** Lấy 1 trang dữ liệu (API hoặc mock) – KHÔNG dùng default param với this */
     async fetchExamsPage(page?: number, pageSize?: number) {
       // gán mặc định bên trong để tránh lỗi this chưa bind
       page = page ?? this.page
@@ -76,26 +80,61 @@ export const useExamStore = defineStore('exam', {
       this.loading = true
       this.error = ''
       try {
-        // filter trong mock
-        let list = POOL.slice()
+        if (USE_API) {
+          // Gọi API thật
+          const params: any = { mode: 'practice', page, page_size: pageSize }
+          if (this.q) params.q = this.q
+          if (this.level) params.level = this.level
 
-        if (this.q) {
-          const key = norm(this.q)
-          list = list.filter((e) => norm(e.title).includes(key))
+          console.log('🔍 Fetching exams with params:', params)
+          const { data } = await api.get('/quiz/', { params })
+          console.log('📦 API Response:', data)
+          
+          // Map response từ backend - Handle RoleBasedOutputMixin format
+          const results = data.instance || data.results || data
+          console.log('📋 Results to map:', results, 'Type:', Array.isArray(results))
+          
+          if (!Array.isArray(results)) {
+            console.error('❌ Results is not an array!', results)
+            this.exams = []
+            this.total = 0
+            return
+          }
+          
+          this.exams = results.map((exam: any) => ({
+            id: exam.id,
+            title: exam.title,
+            level: exam.level || 'basic',
+            durationSec: exam.duration_sec || exam.durationSec || 1200,
+            passCount: exam.pass_count || exam.passCount || 12,
+            questionsCount: exam.questions_count || exam.questionsCount || 0,
+          }))
+          console.log('✅ Mapped exams:', this.exams.length, 'items')
+          this.total = data.count || this.exams.length
+          this.page = page
+          this.pageSize = pageSize
+        } else {
+          // MOCK mode
+          let list = POOL.slice()
+
+          if (this.q) {
+            const key = norm(this.q)
+            list = list.filter((e) => norm(e.title).includes(key))
+          }
+          if (this.level) {
+            list = list.filter((e) => e.level === this.level)
+          }
+
+          // tính phân trang
+          this.total = list.length
+          const start = (page - 1) * pageSize
+          const pageItems = list.slice(start, start + pageSize)
+
+          // set state
+          this.exams = pageItems
+          this.page = page
+          this.pageSize = pageSize
         }
-        if (this.level) {
-          list = list.filter((e) => e.level === this.level)
-        }
-
-        // tính phân trang
-        this.total = list.length
-        const start = (page - 1) * pageSize
-        const pageItems = list.slice(start, start + pageSize)
-
-        // set state
-        this.exams = pageItems
-        this.page = page
-        this.pageSize = pageSize
       } catch (e: any) {
         this.error = e?.message || String(e)
       } finally {

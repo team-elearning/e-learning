@@ -550,11 +550,23 @@
                       </p>
                     </div>
 
-                    <span
-                      class="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
-                    >
-                      {{ questionTypeLabel(q.type) }}
-                    </span>
+                    <!-- Type + nút xoá -->
+                    <div class="flex flex-col items-end gap-1">
+                      <span
+                        class="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
+                      >
+                        {{ questionTypeLabel(q.type) }}
+                      </span>
+
+                      <button
+                        v-if="quizEditMode"
+                        type="button"
+                        class="text-[11px] font-medium text-rose-600 hover:text-rose-700 hover:underline"
+                        @click="removeQuizQuestion(qIndex)"
+                      >
+                        Xoá câu hỏi
+                      </button>
+                    </div>
                   </div>
 
                   <!-- multiple choice -->
@@ -1345,6 +1357,19 @@ function addQuizBlank(q: QuizQuestion) {
 function removeQuizBlank(q: QuizQuestion, index: number) {
   if (!q.answer_payload?.blanks) return
   q.answer_payload.blanks.splice(index, 1)
+}
+
+function removeQuizQuestion(index: number) {
+  if (!quizModal.value.data) return
+  const questions = quizModal.value.data.questions
+  if (!Array.isArray(questions)) return
+
+  questions.splice(index, 1)
+
+  // đánh lại position cho đẹp & đồng bộ
+  questions.forEach((q, i) => {
+    q.position = i
+  })
 }
 </script>
 
