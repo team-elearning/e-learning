@@ -14,32 +14,32 @@ from content.models import Course
 
 def user_directory_path(instance, filename):
     """
-    Tạo đường dẫn upload file có cấu trúc, dựa trên component và người dùng.
-    VD: course_thumbnail/user_1/ten_file.jpg
-    VD: lesson_material/user_1/ten_file.pdf
+    Hàm tạo đường dẫn file theo 2 trạng thái:
+    - STAGING: lưu tạm trước khi gắn vào object
+    - COMMITTED: lưu cố định khi đã được sử dụng (course, lesson, user...)
     """
-    
-    # 1. Lấy component (dùng 'general' nếu bị trống)
-    # instance.component sẽ là 'course_thumbnail', 'lesson_material', v.v.
-    component_path = instance.component or 'general'
-    
-    # 2. Lấy ID người dùng (dùng 'unknown' nếu vì lý do nào đó user bị null)
-    user_id = 'unknown'
-    if instance.uploaded_by:
-        user_id = instance.uploaded_by.id
-        
-    user_path = f'user_{user_id}'
 
-    # 4. Trích xuất tên file và extension
-    # (Để làm sạch tên file nếu cần)
-    filename_base, filename_ext = os.path.splitext(filename)
-    
-    # Có thể dùng 'uuid.uuid4()' thay cho 'filename' ở đây nếu muốn
-    # đảm bảo tên file không bao giờ trùng lặp và an toàn.
-    filename = f"{uuid.uuid4()}{filename_ext}"
+    import uuid
+    from .models import FileStatus  # cần import để so sánh
 
-    # Trả về cấu trúc thư mục mới
-    return os.path.join(component_path, user_path, filename)
+    # 1. Component: user_avatar, course_thumbnail, lesson_material,...
+    component = instance.component or "general"
+
+    # 2. Trạng thái file: staging / committed
+    status = instance.status or FileStatus.STAGING
+
+    # 3. Tạo tên file mới an toàn
+    base, ext = os.path.splitext(filename)
+    filename = f"{uuid.uuid4()}{ext}"
+
+    # 4. Nếu là file STAGING → vào thư mục staging + random folder
+    if status == FileStatus.STAGING:
+        return f"media/staging/{component}/{uuid.uuid4()}/{filename}"
+
+    # 5. Nếu là file COMMITTED → gom theo object_id
+    object_id = instance.object_id or "unknown"
+    return f"media/committed/{component}/{object_id}/{filename}"
+
 
 class FileStatus(models.TextChoices):
     STAGING = 'staging', 'Đang chờ' 
