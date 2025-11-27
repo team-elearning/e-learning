@@ -11,8 +11,12 @@
             <CardHeader title="Thao tác nhanh" />
             <div class="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 sm:gap-3 sm:p-4">
               <QuickAction label="Tạo khoá học" :onClick="goCreateCourse"><IconPlus /></QuickAction>
-              <QuickAction label="Chấm điểm bài tập" :onClick="goGradeAssignments"><IconClipboard /></QuickAction>
-              <QuickAction label="Tạo bài kiểm tra" :onClick="goCreateExam"><IconFile /></QuickAction>
+              <QuickAction label="Chấm điểm bài tập" :onClick="goGradeAssignments"
+                ><IconClipboard
+              /></QuickAction>
+              <QuickAction label="Tạo bài kiểm tra" :onClick="goCreateExam"
+                ><IconFile
+              /></QuickAction>
               <QuickAction label="Xem báo cáo" :onClick="goReports"><IconChart /></QuickAction>
             </div>
           </Card>
@@ -22,7 +26,9 @@
             <CardHeader title="Khoá học của tôi" />
             <div class="space-y-2 p-3 sm:space-y-3 sm:p-4">
               <template v-if="loading">
-                <div class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                <div
+                  class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500"
+                >
                   Đang tải dữ liệu...
                 </div>
               </template>
@@ -39,7 +45,10 @@
                 />
               </template>
 
-              <div v-else class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+              <div
+                v-else
+                class="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500"
+              >
                 Chưa có khoá học nào.
               </div>
             </div>
@@ -97,7 +106,7 @@ async function loadCourses() {
       title: c.title,
       enrolled: c.enrollments,
       lessons: c.lessonsCount,
-      status: c.status as Status
+      status: c.status as Status,
     }))
   } catch {
     source.value = Array.from({ length: 5 }, (_, i) => ({
@@ -105,7 +114,7 @@ async function loadCourses() {
       title: `Khoá học #${i + 1}`,
       enrolled: 20 + i * 7,
       lessons: 8 + i * 3,
-      status: (i % 2 === 0 ? 'published' : 'draft') as Status
+      status: (i % 2 === 0 ? 'published' : 'draft') as Status,
     }))
   } finally {
     loading.value = false
@@ -169,7 +178,7 @@ const Card = defineComponent({
         {slots.default?.()}
       </div>
     )
-  }
+  },
 })
 
 const CardHeader = defineComponent({
@@ -181,14 +190,14 @@ const CardHeader = defineComponent({
         <h2 class="text-sm font-semibold sm:text-base">{p.title}</h2>
       </div>
     )
-  }
+  },
 })
 
 const QuickAction = defineComponent({
   name: 'QuickAction',
   props: {
     label: String,
-    onClick: Function as PropType<() => void>
+    onClick: Function as PropType<() => void>,
   },
   setup(props, { slots }) {
     return () => (
@@ -205,7 +214,7 @@ const QuickAction = defineComponent({
         </div>
       </button>
     )
-  }
+  },
 })
 
 const Sparkline = defineComponent({
@@ -229,10 +238,16 @@ const Sparkline = defineComponent({
     })
     return () => (
       <svg viewBox="0 0 120 36" class="block h-7 w-20 leading-none sm:h-9 sm:w-28">
-        <path d={d.value} fill="none" stroke="currentColor" style={{ strokeWidth: 2 }} class="text-slate-700" />
+        <path
+          d={d.value}
+          fill="none"
+          stroke="currentColor"
+          style={{ strokeWidth: 2 }}
+          class="text-slate-700"
+        />
       </svg>
     )
-  }
+  },
 })
 
 const CourseItem = defineComponent({
@@ -242,7 +257,7 @@ const CourseItem = defineComponent({
     students: Number,
     status: String,
     data: { type: Array as PropType<Pt[]>, required: true },
-    onClick: Function as PropType<() => void>
+    onClick: Function as PropType<() => void>,
   },
   setup(p) {
     return () => (
@@ -259,13 +274,15 @@ const CourseItem = defineComponent({
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {p.status ? (
-            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-xs whitespace-nowrap">{p.status}</span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-xs whitespace-nowrap">
+              {p.status}
+            </span>
           ) : null}
           <IconChevron class="text-slate-400 h-4 w-4 sm:h-5 sm:w-5" />
         </div>
       </div>
     )
-  }
+  },
 })
 
 const UpcomingItem = defineComponent({
@@ -283,14 +300,14 @@ const UpcomingItem = defineComponent({
         <div class="text-[10px] text-slate-500 sm:text-xs whitespace-nowrap ml-2">{p.time}</div>
       </div>
     )
-  }
+  },
 })
 
 const Stat = defineComponent({
   name: 'Stat',
   props: {
     k: { type: String, required: true },
-    v: { type: Number, default: 0 }
+    v: { type: Number, default: 0 },
   },
   setup(p) {
     const fmt = (n: number) => new Intl.NumberFormat('vi-VN').format(n)
@@ -300,7 +317,7 @@ const Stat = defineComponent({
         <div class="text-[10px] text-slate-500 sm:text-xs">{p.k}</div>
       </div>
     )
-  }
+  },
 })
 
 const IconPlus = () => (
@@ -311,7 +328,10 @@ const IconPlus = () => (
 const IconClipboard = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="h-full w-full">
     <rect x="8" y="2" width="8" height="4" rx="1" style={{ strokeWidth: 2 }} />
-    <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" style={{ strokeWidth: 2 }} />
+    <path
+      d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"
+      style={{ strokeWidth: 2 }}
+    />
   </svg>
 )
 const IconFile = () => (
@@ -342,14 +362,14 @@ function statusLabel(s: Status) {
   return s === 'published'
     ? 'Đang dạy'
     : s === 'draft'
-    ? 'Nháp'
-    : s === 'archived'
-    ? 'Lưu trữ'
-    : s === 'pending_review'
-    ? 'Chờ duyệt'
-    : s === 'rejected'
-    ? 'Bị từ chối'
-    : s
+      ? 'Nháp'
+      : s === 'archived'
+        ? 'Lưu trữ'
+        : s === 'pending_review'
+          ? 'Chờ duyệt'
+          : s === 'rejected'
+            ? 'Bị từ chối'
+            : s
 }
 
 const router = useRouter()
@@ -357,7 +377,8 @@ function openCourse(id: number) {
   router.push({ path: `/teacher/courses/${id}` })
 }
 const has = (name: string) => router.getRoutes().some((r) => r.name === (name as any))
-const go = (name: string, path: string) => (has(name) ? router.push({ name }) : router.push({ path }))
+const go = (name: string, path: string) =>
+  has(name) ? router.push({ name }) : router.push({ path })
 function goCreateCourse() {
   go('teacher-course-new', '/teacher/courses/new')
 }
@@ -365,7 +386,9 @@ function goGradeAssignments() {
   go('teacher-exams', '/teacher/exams')
 }
 function goCreateExam() {
-  has('teacher-exam-new') ? router.push({ name: 'teacher-exam-new' }) : router.push({ path: '/teacher/exams' })
+  has('teacher-exam-new')
+    ? router.push({ name: 'teacher-exam-new' })
+    : router.push({ path: '/teacher/exams' })
 }
 function goReports() {
   go('teacher-reports', '/teacher/reports')

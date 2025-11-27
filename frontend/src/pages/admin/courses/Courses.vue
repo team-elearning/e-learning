@@ -352,7 +352,7 @@ async function fetch() {
   } finally {
     loading.value = false
   }
-  console.log('CATEGORIES:', merged[0].categories)
+  // console.log('CATEGORIES:', merged[0].categories)
 }
 
 function goDetail(row: CourseSummary) {
