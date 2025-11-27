@@ -162,8 +162,8 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = Path('/var/www/elearning/staticfiles')
 
-MEDIA_URL = os.getenv("MEDIA_URL", "")
-MEDIA_ROOT = BASE_DIR.parent.parent / 'media'
+# MEDIA_URL = os.getenv("MEDIA_URL", "")
+# MEDIA_ROOT = BASE_DIR.parent.parent / 'media'
 
 # -------------------------------
 # Email / SMTP
