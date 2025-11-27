@@ -682,6 +682,75 @@
                     </template>
                   </div>
 
+                  <!-- short_answer -->
+                  <div v-else-if="q.type === 'short_answer'" class="space-y-1 text-xs">
+                    <!-- EDIT MODE -->
+                    <template v-if="quizEditMode">
+                      <p class="font-medium text-slate-700 mb-1">Các đáp án hợp lệ:</p>
+
+                      <div
+                        v-for="(ans, aIndex) in q.answer_payload?.valid_answers || []"
+                        :key="aIndex"
+                        class="flex items-center gap-2 mb-1"
+                      >
+                        <input
+                          v-model="ans.answer"
+                          class="input-field flex-1 !px-2 !py-1 text-[11px]"
+                          placeholder="Đáp án"
+                        />
+                        <label class="flex items-center gap-1 text-[11px] text-slate-700">
+                          <input type="checkbox" v-model="ans.case_sensitive" />
+                          <span>Phân biệt hoa thường</span>
+                        </label>
+
+                        <button
+                          type="button"
+                          class="px-1 text-xs text-rose-600 hover:text-rose-700"
+                          @click="removeQuizShortAnswer(q, aIndex)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="btn-secondary text-xs mt-1"
+                        @click="addQuizShortAnswer(q)"
+                      >
+                        + Thêm đáp án
+                      </button>
+                    </template>
+
+                    <!-- VIEW MODE -->
+                    <template v-else>
+                      <p class="font-medium text-slate-700 mb-1">Các đáp án được chấp nhận:</p>
+                      <ul class="list-disc pl-5 space-y-0.5">
+                        <li
+                          v-for="(ans, aIndex) in q.answer_payload?.valid_answers || []"
+                          :key="aIndex"
+                          class="text-slate-700"
+                        >
+                          <span class="font-semibold">{{ ans.answer }}</span>
+                          <span
+                            v-if="ans.case_sensitive"
+                            class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                          >
+                            Phân biệt hoa thường
+                          </span>
+                        </li>
+                      </ul>
+
+                      <p
+                        v-if="
+                          !q.answer_payload?.valid_answers || !q.answer_payload.valid_answers.length
+                        "
+                        class="text-[11px] text-slate-500"
+                      >
+                        Chưa cấu hình đáp án cho câu hỏi tự luận ngắn này.
+                      </p>
+                    </template>
+                  </div>
+
                   <!-- fill in the blank -->
                   <div v-else-if="q.type === 'fill_in_the_blank'" class="space-y-1 text-xs">
                     <template v-if="quizEditMode">
@@ -989,6 +1058,8 @@ function questionTypeLabel(type: string) {
       return 'Đúng / Sai'
     case 'fill_in_the_blank':
       return 'Điền vào chỗ trống'
+    case 'short_answer':
+      return 'Tự luận ngắn'
     default:
       return type
   }
@@ -1370,6 +1441,25 @@ function removeQuizQuestion(index: number) {
   questions.forEach((q, i) => {
     q.position = i
   })
+}
+function ensureShortAnswersArray(q: QuizQuestion) {
+  if (!q.answer_payload) q.answer_payload = {}
+  if (!Array.isArray(q.answer_payload.valid_answers)) {
+    q.answer_payload.valid_answers = []
+  }
+}
+
+function addQuizShortAnswer(q: QuizQuestion) {
+  ensureShortAnswersArray(q)
+  q.answer_payload.valid_answers.push({
+    answer: '',
+    case_sensitive: false,
+  })
+}
+
+function removeQuizShortAnswer(q: QuizQuestion, index: number) {
+  if (!q.answer_payload?.valid_answers) return
+  q.answer_payload.valid_answers.splice(index, 1)
 }
 </script>
 
