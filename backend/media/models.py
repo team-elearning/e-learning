@@ -12,33 +12,21 @@ import mimetypes
 from content.models import Course
 
 
+
 def user_directory_path(instance, filename):
-    """
-    Hàm tạo đường dẫn file theo 2 trạng thái:
-    - STAGING: lưu tạm trước khi gắn vào object
-    - COMMITTED: lưu cố định khi đã được sử dụng (course, lesson, user...)
-    """
-
     import uuid
-    from .models import FileStatus  # cần import để so sánh
-
-    # 1. Component: user_avatar, course_thumbnail, lesson_material,...
+    from datetime import datetime
+    
+    # 1. Component
     component = instance.component or "general"
-
-    # 2. Trạng thái file: staging / committed
-    status = instance.status or FileStatus.STAGING
-
-    # 3. Tạo tên file mới an toàn
-    base, ext = os.path.splitext(filename)
-    filename = f"{uuid.uuid4()}{ext}"
-
-    # 4. Nếu là file STAGING → vào thư mục staging + random folder
-    if status == FileStatus.STAGING:
-        return f"media/staging/{component}/{uuid.uuid4()}/{filename}"
-
-    # 5. Nếu là file COMMITTED → gom theo object_id
-    object_id = instance.object_id or "unknown"
-    return f"media/committed/{component}/{object_id}/{filename}"
+    
+    # 2. Tạo tên file
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    
+    # Tổ chức theo Component và Thời gian.
+    today = datetime.now()
+    return f"media/{component}/{today.year}/{today.month}/{filename}"
 
 
 class FileStatus(models.TextChoices):
@@ -97,63 +85,78 @@ class UploadedFile(models.Model):
         return self.original_filename or self.file.name
 
     @property
-    def url_raw(self):
-        if self.file:
-            return self.file.url
-        return None
-    
-    @property
     def url(self):
         """
-        Trả về URL "gác cổng" an toàn để truy cập file này.
-        """
-        if not self.id:
-            return None
-        # Luôn trả về URL của API, không bao giờ trả về file.url trực tiếp
-        return f"/api/media/files/{self.id}/"
-
-    @property
-    def admin_url(self):
-        """
-        Property riêng cho Admin/Frontend preview 
-        khi cần link /media/ trực tiếp.
+        Trả về URL cho Frontend dùng.
         """
         if not self.file:
             return None
-        return self.file.url
-    
-    def save(self, *args, **kwargs):
-        # --- TỰ ĐỘNG LƯU MIME TYPE & SIZE (Giải quyết vấn đề 2) ---
-        if self.file:
-            # 1. Tính toán Mime Type nếu chưa có
-            if not self.mime_type:
-                # Cách 1: Nhanh, dùng đuôi file (Built-in)
-                guessed_type, _ = mimetypes.guess_type(self.file.name)
-                self.mime_type = guessed_type or 'application/octet-stream'
-                
-                # Cách 2: Chính xác, đọc header file (Cần thư viện python-magic)
-                # if not self.mime_type and hasattr(self.file, 'read'):
-                #     initial_pos = self.file.tell()
-                #     self.file.seek(0)
-                #     self.mime_type = magic.from_buffer(self.file.read(2048), mime=True)
-                #     self.file.seek(initial_pos)
+            
+        # NẾU LÀ PUBLIC COMPONENT (Avatar, Thumbnail)
+        if self.component in [Component.USER_AVATAR, Component.COURSE_THUMBNAIL, Component.SITE_LOGO]:
+            # Trả về URL trực tiếp, loại bỏ Query Params (Signature) (VD: https://bucket.s3.amazonaws.com/media/avatar/xyz.jpg)
+            # YÊU CẦU: Folder trên S3 chứa các file này phải được set Policy Public Read.
+            url = self.file.url
+            if "?" in url:
+                url = url.split("?")[0] # Cắt bỏ phần chữ ký ?AWS...
+            return url
 
-            # 2. Lưu file size
-            if self.file_size == 0:
-                try:
-                    self.file_size = self.file.size
-                except:
-                    pass
-        
-        super().save(*args, **kwargs)
+        # NẾU LÀ PRIVATE (Bài giảng)
+        # Trả về URL "Gác cổng" API của bạn để check quyền
+        return f"/api/media/files/{self.id}/"
     
-@receiver(post_delete, sender=UploadedFile)
-def auto_delete_file_on_db_delete(sender, instance, **kwargs):
-    """
-    Khi một bản ghi UploadedFile bị xóa khỏi DB, 
-    hàm này tự động xóa file vật lý tương ứng trên S3/Disk.
-    """
-    if instance.file:
-        instance.file.delete(save=False)
+#     @property
+#     def url(self):
+#         """
+#         Trả về URL "gác cổng" an toàn để truy cập file này.
+#         """
+#         if not self.id:
+#             return None
+#         # Luôn trả về URL của API, không bao giờ trả về file.url trực tiếp
+#         return f"/api/media/files/{self.id}/"
+
+#     @property
+#     def admin_url(self):
+#         """
+#         Property riêng cho Admin/Frontend preview 
+#         khi cần link /media/ trực tiếp.
+#         """
+#         if not self.file:
+#             return None
+#         return self.file.url
+    
+#     def save(self, *args, **kwargs):
+#         # --- TỰ ĐỘNG LƯU MIME TYPE & SIZE (Giải quyết vấn đề 2) ---
+#         if self.file:
+#             # 1. Tính toán Mime Type nếu chưa có
+#             if not self.mime_type:
+#                 # Cách 1: Nhanh, dùng đuôi file (Built-in)
+#                 guessed_type, _ = mimetypes.guess_type(self.file.name)
+#                 self.mime_type = guessed_type or 'application/octet-stream'
+                
+#                 # Cách 2: Chính xác, đọc header file (Cần thư viện python-magic)
+#                 # if not self.mime_type and hasattr(self.file, 'read'):
+#                 #     initial_pos = self.file.tell()
+#                 #     self.file.seek(0)
+#                 #     self.mime_type = magic.from_buffer(self.file.read(2048), mime=True)
+#                 #     self.file.seek(initial_pos)
+
+#             # 2. Lưu file size
+#             if self.file_size == 0:
+#                 try:
+#                     self.file_size = self.file.size
+#                 except:
+#                     pass
+        
+#         super().save(*args, **kwargs)
+    
+# @receiver(post_delete, sender=UploadedFile)
+# def auto_delete_file_on_db_delete(sender, instance, **kwargs):
+#     """
+#     Khi một bản ghi UploadedFile bị xóa khỏi DB, 
+#     hàm này tự động xóa file vật lý tương ứng trên S3/Disk.
+#     """
+#     if instance.file:
+#         instance.file.delete(save=False)
     
 

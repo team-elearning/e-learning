@@ -4,7 +4,7 @@ from typing import List
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
 from django.utils.text import slugify
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Prefetch
 from django.utils import timezone
 
 from custom_account.models import UserModel 
@@ -12,7 +12,7 @@ from content.services.module_service import create_module, patch_module
 from media.services.file_service import commit_files_by_ids_for_object
 from media.models import UploadedFile
 from content.domains.course_domain import CourseDomain
-from content.models import Course, Module, Lesson, Category, Tag, Subject
+from content.models import Course, Module, Lesson, Category, Tag, Subject, ContentBlock
 from core.exceptions import DomainError
 from content.types import CourseFetchStrategy, CourseFilter
 
@@ -32,60 +32,86 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
     # --- A. ÁP DỤNG BỘ LỌC (FILTERS) ---
     if filters.course_id:
         query_set = query_set.filter(id=filters.course_id)
-    
     if filters.ids:
         query_set = query_set.filter(id__in=filters.ids)
-
     if filters.owner:
         query_set = query_set.filter(owner=filters.owner)
-
     if filters.published_only:
         query_set = query_set.filter(published=True)
-
     if filters.search_term:
         query_set = query_set.filter(title__icontains=filters.search_term)
-
     if filters.enrolled_user:
         # Logic: Tìm khóa học mà user đã ghi danh
         query_set = query_set.filter(enrollments__user=filters.enrolled_user).distinct()
 
     # --- B. TỐI ƯU HÓA QUERY (STRATEGY) ---
     # 1. Luôn lấy các quan hệ nhẹ
-    query_set = query_set.prefetch_related('categories', 'tags', 'files')
+    query_set = query_set.prefetch_related('categories', 'tags')
 
-    # 2. Tùy chọn theo chiến lược
-    if strategy == CourseFetchStrategy.OVERVIEW:
-        # [SOLUTION] Dùng annotate để đếm số module.
-        # Database sẽ thực hiện lệnh COUNT và gán vào thuộc tính ảo 'module_count' cho mỗi object.
-        # distinct=True là cần thiết nếu query của bạn có join với bảng khác (ví dụ enrollments) để tránh đếm trùng.
+    # 2. Xử lý Files (Ảnh bìa)
+    # Moodle Tip: Chỉ lấy file ảnh để tránh load nhầm file nặng
+    query_set = query_set.prefetch_related(
+        'categories',
+        'tags',
+        Prefetch('files', query_set=UploadedFile.objects.filter(
+            Q(file__iendswith='.jpg') | Q(file__iendswith='.png') | Q(file__iendswith='.webp')
+        ))
+    )
+
+    # 3. Chiến lược riêng biệt
+    if strategy == CourseFetchStrategy.CATALOG_LIST:
+        # Màn hình List: Chỉ cần đếm số Module (nhanh), không load object Module
         query_set = query_set.annotate(module_count=Count('modules', distinct=True))
 
-    elif strategy == CourseFetchStrategy.FULL_STRUCTURE:
-        # Cần lấy cả cây bài học (Modules -> Lessons)
-        # Dùng cho trang học hoặc trang edit của giáo viên
-        query_set = query_set.prefetch_related('modules__lessons')
-        # Nếu cần check owner/subject chi tiết thì select thêm
-        query_set = query_set.select_related('owner', 'subject')
+    elif strategy == CourseFetchStrategy.ADMIN_LIST:
+        # Admin List: Cần thông tin Owner, User Enrolled count
+        query_set = query_set.select_related('owner')
+        query_set = query_set.annotate(
+            module_count=Count('modules', distinct=True),
+            student_count=Count('enrollments', distinct=True) # Ví dụ thêm
+        )
 
-    elif strategy == CourseFetchStrategy.ADMIN_DETAIL:
-        # Admin cần full object của owner và subject
-        query_set = query_set.select_related('owner', 'subject')
-        query_set = query_set.prefetch_related('modules__lessons')
+    elif strategy in (CourseFetchStrategy.SYLLABUS_PREVIEW):
+        # Các màn hình chi tiết: Cần load cấu trúc cây (Module -> Lesson)
+        
+        # Tối ưu sâu: Prefetch Module và Lesson bên trong
+        query_set = query_set.prefetch_related(
+            'modules',
+            'modules__lessons',
+            Prefetch(
+                'modules__lessons__content_blocks',
+                # QUAN TRỌNG: defer payload để nhẹ json
+                query_set=ContentBlock.objects.defer('payload', 'files')
+            )
+        )
+        
+    elif strategy in (CourseFetchStrategy.LEARNING_DETAIL, CourseFetchStrategy.ADMIN_DETAIL):
+        # Admin Detail cũng cần full content để kiểm duyệt
+        query_set = query_set.prefetch_related(
+            'modules',
+            'modules__lessons',
+            # QUAN TRỌNG: Không defer gì cả, lấy hết
+            'modules__lessons__content_blocks' 
+        )
 
-    # Mặc định sort
+        # Logic riêng cho Admin (lấy thêm owner/subject full object)
+        if strategy == CourseFetchStrategy.ADMIN_DETAIL:
+            query_set = query_set.select_related('owner', 'subject')
+
+    # Sort mặc định
     return query_set.order_by('-created_at')
 
 
-def _map_to_domain(instance, strategy: CourseFetchStrategy) -> CourseDomain:
-    """
-    Hàm nội bộ: Chọn Factory Method phù hợp của Domain.
-    """
-    if strategy == CourseFetchStrategy.ADMIN_DETAIL:
-        return CourseDomain.from_model_admin(instance)
-    elif strategy == CourseFetchStrategy.FULL_STRUCTURE:
-        return CourseDomain.from_model(instance) # Hàm này load full modules
-    else:
-        return CourseDomain.from_model_overview(instance)
+# def _map_to_domain(instance, strategy: CourseFetchStrategy) -> CourseDomain:
+#     """
+#     Hàm nội bộ: Chọn Factory Method phù hợp của Domain.
+#     """
+#     if strategy == CourseFetchStrategy.ADMIN_DETAIL:
+#         return CourseDomain.from_model_admin(instance)
+#     elif strategy == CourseFetchStrategy.FULL_STRUCTURE:
+#         return CourseDomain.from_model(instance) # Hàm này load full modules
+#     else:
+#         return CourseDomain.from_model_overview(instance)
 
 # ==========================================
 # PUBLIC INTERFACE (GET)
@@ -93,20 +119,20 @@ def _map_to_domain(instance, strategy: CourseFetchStrategy) -> CourseDomain:
 
 logger = logging.getLogger(__name__)
 
-def get_courses(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFetchStrategy.OVERVIEW) -> List[CourseDomain]:
+def get_courses(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFetchStrategy.CATALOG_LIST) -> List[CourseDomain]:
     """
     Lấy danh sách khóa học (List).
     Không bao giờ raise lỗi Not Found, chỉ trả về list rỗng.
     """
     try:
         query_set = _build_queryset(filters, strategy)
-        return [_map_to_domain(course, strategy) for course in query_set]
+        return [CourseDomain.factory(course, strategy) for course in query_set]
     except Exception as e:
         logger.error(f"Error listing courses: {e}", exc_info=True)
         raise DomainError(f"Lỗi hệ thống khi lấy danh sách khóa học: {str(e)}")
 
 
-def get_course_single(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFetchStrategy.FULL_STRUCTURE) -> CourseDomain:
+def get_course_single(filters: CourseFilter, strategy: CourseFetchStrategy = CourseFetchStrategy.LEARNING_DETAIL) -> CourseDomain:
     """
     Lấy chi tiết 1 khóa học (Detail).
     Raise DomainError nếu không tìm thấy (hoặc không thỏa mãn filter).
@@ -114,14 +140,14 @@ def get_course_single(filters: CourseFilter, strategy: CourseFetchStrategy = Cou
     try:
         query_set = _build_queryset(filters, strategy)
         course = query_set.get() # Sẽ raise DoesNotExist hoặc MultipleObjectsReturned
-        return _map_to_domain(course, strategy)
+        return CourseDomain.factory(course, strategy)
     
     except Course.DoesNotExist:
         # Context hóa lỗi: Nếu filter có owner -> User ko có quyền hoặc ID sai
-        if filters.owner:
-            raise DomainError("Không tìm thấy khóa học hoặc bạn không có quyền truy cập.")
         if filters.enrolled_user:
             raise DomainError("Bạn chưa ghi danh vào khóa học này.")
+        if filters.course_id:
+             raise DomainError("Không tìm thấy khóa học.")
         raise DomainError("Không tìm thấy khóa học.")
         
     except Exception as e:
@@ -134,7 +160,7 @@ def get_course_single(filters: CourseFilter, strategy: CourseFetchStrategy = Cou
 # ==========================================
 
 @transaction.atomic
-def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.OVERVIEW) -> CourseDomain:
+def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.LEARNING_DETAIL) -> CourseDomain:
     """
     Hàm tạo khóa học dùng chung cho cả Admin và Instructor.
     
@@ -226,7 +252,7 @@ def create_course(data: dict, created_by: UserModel, output_strategy: CourseFetc
 
     # 7. Trả về Domain theo Strategy yêu cầu
     # Tái sử dụng hàm map của bạn (nhớ import hàm _map_to_domain hoặc để static method)
-    return _map_to_domain(course, output_strategy)
+    return CourseDomain.factory(course, output_strategy)
 
 
 # ==========================================
@@ -238,7 +264,7 @@ def patch_course(
     course_id: uuid.UUID, 
     data: dict, 
     actor: UserModel, 
-    output_strategy: CourseFetchStrategy = CourseFetchStrategy.FULL_STRUCTURE
+    output_strategy: CourseFetchStrategy = CourseFetchStrategy.LEARNING_DETAIL
 ) -> CourseDomain:
     """
     Hàm cập nhật khóa học dùng chung (Admin & Instructor).
@@ -543,7 +569,7 @@ def publish_course(
     return get_course_single(
         filters=CourseFilter(course_id=course_id), 
         # Admin có thể xem AdminDetail, nhưng thường Overview là đủ cho nút toggle
-        strategy=CourseFetchStrategy.OVERVIEW 
+        strategy=CourseFetchStrategy.FULL_STRUCTURE
     )
 
     

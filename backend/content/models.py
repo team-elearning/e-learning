@@ -21,6 +21,7 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+
 class Tag(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
@@ -33,6 +34,7 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class Subject(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -156,6 +158,7 @@ class Enrollment(models.Model):
 
 class ContentBlock(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255, blank=True, null=True, help_text="Tiêu đề hiển thị trên mục lục (VD: Video hướng dẫn)")
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='content_blocks', default=1)
     type = models.CharField(
         max_length=32,

@@ -23,13 +23,13 @@ class CategoryDomain:
             slug=model.slug,
         )
 
-    def apply_updates(self, updates: Dict[str, Any]):
-        """Apply validated updates to the domain object."""
-        if "name" in updates:
-            self.name = updates["name"]
-        if "slug" in updates:
-            self.slug = updates["slug"]
+    # def apply_updates(self, updates: Dict[str, Any]):
+    #     """Apply validated updates to the domain object."""
+    #     if "name" in updates:
+    #         self.name = updates["name"]
+    #     if "slug" in updates:
+    #         self.slug = updates["slug"]
 
-    def can_be_deleted(self) -> bool:
-        """Business rule placeholder — return False if category has dependencies."""
-        return True
+    # def can_be_deleted(self) -> bool:
+    #     """Business rule placeholder — return False if category has dependencies."""
+    #     return True

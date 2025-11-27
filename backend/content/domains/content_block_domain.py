@@ -21,8 +21,9 @@ class ContentBlockDomain:
     
     # (Bạn có thể giữ lại các hằng số MAX_LENGTH...)
 
-    def __init__(self, lesson_id: str, type: str, position: int = 0, payload: Optional[Dict[str, Any]] = None, id: Optional[str] = None):
+    def __init__(self, lesson_id: str, type: str, position: int = 0, title: str = None, payload: Optional[Dict[str, Any]] = None, id: Optional[str] = None):
         self.id = id or str(uuid.uuid4())
+        self.title = title
         self.lesson_id = lesson_id
         self.type = type
         self.position = int(position)
@@ -90,15 +91,35 @@ class ContentBlockDomain:
             "payload": self.payload 
         }
 
+    @staticmethod
+    def _map_icon(block_type):
+        """Helper để frontend biết hiển thị icon gì"""
+        icons = {
+            'video': 'play-circle',
+            'quiz': 'help-circle',
+            'pdf': 'file-text',
+            'text': 'align-left',
+            'image': 'image'
+        }
+        return icons.get(block_type, 'box')
+
     @classmethod
-    def from_model(cls, model):
+    def from_model(cls, model, lite_mode: bool = False):
         """
         Khởi tạo Domain object từ Model.
         Xử lý và "làm giàu" payload ngay tại thời điểm này.
         """
-        if not model.lesson_id:
-            raise ValueError("ContentBlock model is missing lesson_id.")
+        base_data = {
+            "id": str(model.id),
+            "type": model.type,
+            "position": model.position,
+            "title": model.title,
+            "icon_key": cls._map_icon(model.type) 
+        }
         
+        if lite_mode:
+            return cls(**base_data, payload=None)
+
         # 1. Lấy payload thô từ CSDL
         raw_payload = model.payload
         
@@ -160,17 +181,17 @@ class ContentBlockDomain:
             payload=self.payload
         )
     
-    # (Hàm apply_updates của bạn có thể giữ nguyên)
-    def apply_updates(self, updates: Dict[str, Any]):
-        has_payload_update = False
+    # # (Hàm apply_updates của bạn có thể giữ nguyên)
+    # def apply_updates(self, updates: Dict[str, Any]):
+    #     has_payload_update = False
         
-        for key, value in updates.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-                if key == 'payload':
-                    has_payload_update = True
+    #     for key, value in updates.items():
+    #         if hasattr(self, key):
+    #             setattr(self, key, value)
+    #             if key == 'payload':
+    #                 has_payload_update = True
 
-        self.validate_basic()
+    #     self.validate_basic()
         
-        if has_payload_update or 'type' in updates:
-            self.validate_payload()
+    #     if has_payload_update or 'type' in updates:
+    #         self.validate_payload()
