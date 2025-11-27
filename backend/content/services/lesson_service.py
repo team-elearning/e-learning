@@ -14,21 +14,21 @@ from content.services.content_block_service import create_content_block, patch_c
 
 logger = logging.getLogger(__name__)
 
-def list_lessons_for_module(module_id: UUID) -> List[LessonDomain]:
-    """
-    Lấy danh sách tất cả các bài học cho một module cụ thể,
-    được sắp xếp theo thứ tự.
-    """
-    # 1. Kiểm tra xem module có tồn tại không
-    if not Module.objects.filter(pk=module_id).exists():
-        raise ModuleNotFoundError("Module not found.")
+# def list_lessons_for_module(module_id: UUID) -> List[LessonDomain]:
+#     """
+#     Lấy danh sách tất cả các bài học cho một module cụ thể,
+#     được sắp xếp theo thứ tự.
+#     """
+#     # 1. Kiểm tra xem module có tồn tại không
+#     if not Module.objects.filter(pk=module_id).exists():
+#         raise ModuleNotFoundError("Module not found.")
 
-    # 2. Lấy các bài học và sắp xếp
-    lessons = Lesson.objects.filter(module_id=module_id).prefetch_related('content_blocks').order_by('order')
+#     # 2. Lấy các bài học và sắp xếp
+#     lessons = Lesson.objects.filter(module_id=module_id).prefetch_related('content_blocks').order_by('order')
 
-    # 3. Chuyển đổi sang Domain (giống như list_all_users_for_admin)
-    lesson_domains = [LessonDomain.from_model(lesson) for lesson in lessons]
-    return lesson_domains
+#     # 3. Chuyển đổi sang Domain (giống như list_all_users_for_admin)
+#     lesson_domains = [LessonDomain.from_model(lesson) for lesson in lessons]
+#     return lesson_domains
 
 
 
@@ -154,70 +154,70 @@ def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, L
     return LessonDomain.from_model(lesson), files_to_commit
 
 
-@transaction.atomic
-def delete_lesson(lesson_id: UUID):
-    """
-    Xóa một bài học và cập nhật lại thứ tự của các bài học còn lại.
-    """
-    # 1. Tìm bài học
-    try:
-        lesson = Lesson.objects.get(pk=lesson_id)
-    except Lesson.DoesNotExist:
-        raise LessonNotFoundError("Lesson not found.")
+# @transaction.atomic
+# def delete_lesson(lesson_id: UUID):
+#     """
+#     Xóa một bài học và cập nhật lại thứ tự của các bài học còn lại.
+#     """
+#     # 1. Tìm bài học
+#     try:
+#         lesson = Lesson.objects.get(pk=lesson_id)
+#     except Lesson.DoesNotExist:
+#         raise LessonNotFoundError("Lesson not found.")
 
-    module_id = lesson.module_id
-    deleted_order = lesson.order
+#     module_id = lesson.module_id
+#     deleted_order = lesson.order
 
-    # 2. Xóa bài học (giống như delete_user)
-    lesson.delete()
+#     # 2. Xóa bài học (giống như delete_user)
+#     lesson.delete()
 
-    # 3. Xử lý logic nghiệp vụ: Lấp đầy khoảng trống thứ tự
-    # Giảm 'order' của tất cả các bài học sau bài bị xóa đi 1
-    Lesson.objects.filter(
-        module_id=module_id, 
-        order__gt=deleted_order
-    ).update(order=F('order') - 1)
+#     # 3. Xử lý logic nghiệp vụ: Lấp đầy khoảng trống thứ tự
+#     # Giảm 'order' của tất cả các bài học sau bài bị xóa đi 1
+#     Lesson.objects.filter(
+#         module_id=module_id, 
+#         order__gt=deleted_order
+#     ).update(order=F('order') - 1)
 
 
-@transaction.atomic
-def reorder_lessons(module_id: UUID, lesson_ids: List[UUID]):
-    """
-    Sắp xếp lại thứ tự của tất cả các bài học trong một module
-    dựa trên một danh sách ID đã định sẵn.
-    """
-    # Kiểm tra module
-    try:
-        module = Module.objects.get(pk=module_id)
-    except Module.DoesNotExist:
-        raise ModuleNotFoundError("Module not found.")
+# @transaction.atomic
+# def reorder_lessons(module_id: UUID, lesson_ids: List[UUID]):
+#     """
+#     Sắp xếp lại thứ tự của tất cả các bài học trong một module
+#     dựa trên một danh sách ID đã định sẵn.
+#     """
+#     # Kiểm tra module
+#     try:
+#         module = Module.objects.get(pk=module_id)
+#     except Module.DoesNotExist:
+#         raise ModuleNotFoundError("Module not found.")
 
-    # Logic nghiệp vụ: Xác thực danh sách
-    # Lấy tất cả ID bài học hiện tại trong module
-    current_lesson_ids = set(
-        Lesson.objects.filter(module=module).values_list('id', flat=True)
-    )
+#     # Logic nghiệp vụ: Xác thực danh sách
+#     # Lấy tất cả ID bài học hiện tại trong module
+#     current_lesson_ids = set(
+#         Lesson.objects.filter(module=module).values_list('id', flat=True)
+#     )
     
-    # Lấy các ID từ input
-    new_lesson_ids_set = set(lesson_ids)
+#     # Lấy các ID từ input
+#     new_lesson_ids_set = set(lesson_ids)
 
-    # Kiểm tra xem hai set có khớp nhau không
-    if current_lesson_ids != new_lesson_ids_set:
-        logger.warning(f"Reorder failed: Mismatch. Current: {current_lesson_ids}, New: {new_lesson_ids_set}")
-        raise DomainError("Danh sách bài học không đầy đủ hoặc chứa ID không hợp lệ cho module này.")
+#     # Kiểm tra xem hai set có khớp nhau không
+#     if current_lesson_ids != new_lesson_ids_set:
+#         logger.warning(f"Reorder failed: Mismatch. Current: {current_lesson_ids}, New: {new_lesson_ids_set}")
+#         raise DomainError("Danh sách bài học không đầy đủ hoặc chứa ID không hợp lệ cho module này.")
         
-    # Thực hiện cập nhật thứ tự
-    # Sử dụng Case/When để cập nhật hàng loạt (hiệu quả hơn N truy vấn)
-    when_clauses = [
-        When(pk=lesson_id, then=Value(index + 1)) 
-        for index, lesson_id in enumerate(lesson_ids)
-    ]
+#     # Thực hiện cập nhật thứ tự
+#     # Sử dụng Case/When để cập nhật hàng loạt (hiệu quả hơn N truy vấn)
+#     when_clauses = [
+#         When(pk=lesson_id, then=Value(index + 1)) 
+#         for index, lesson_id in enumerate(lesson_ids)
+#     ]
     
-    if not when_clauses:
-        return # Không có gì để cập nhật
+#     if not when_clauses:
+#         return # Không có gì để cập nhật
 
-    Lesson.objects.filter(
-        module_id=module_id
-    ).update(order=Case(*when_clauses))
+#     Lesson.objects.filter(
+#         module_id=module_id
+#     ).update(order=Case(*when_clauses))
 
 
 # def get_published_lesson_content(user, lesson_id: str):

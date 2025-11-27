@@ -12,8 +12,8 @@ from dj_rest_auth.views import PasswordResetConfirmView
 
 from custom_account.api.dtos.user_dto import UserInput, UserPublicOutput, UserAdminOutput
 from core.api.mixins import RoleBasedOutputMixin
-from custom_account.serializers import (RegisterSerializer, ResetPasswordSerializer)
-from custom_account.services import user_service, auth_service
+from custom_account.serializers import RegisterSerializer
+from custom_account.services import user_service
 from core.exceptions import DomainError
 
 
