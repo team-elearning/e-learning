@@ -177,31 +177,31 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@eduriot.fit")
 
-# -------------------------------
-# Celery / Redis
-# -------------------------------
-REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"{REDIS_URL}/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"{REDIS_URL}/0")
+# # -------------------------------
+# # Celery / Redis
+# # -------------------------------
+# REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
+# CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"{REDIS_URL}/0")
+# CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"{REDIS_URL}/0")
 
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
-CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 1800
-CELERY_TASK_SOFT_TIME_LIMIT = 1200
+# CELERY_ACCEPT_CONTENT = ['json']
+# CELERY_TASK_SERIALIZER = 'json'
+# CELERY_RESULT_SERIALIZER = 'json'
+# CELERY_TIMEZONE = 'UTC'
+# CELERY_TASK_TRACK_STARTED = True
+# CELERY_TASK_TIME_LIMIT = 1800
+# CELERY_TASK_SOFT_TIME_LIMIT = 1200
 
-# -------------------------------
-# Cache (Redis)
-# -------------------------------
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f'{REDIS_URL}/1',
-        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
-    }
-}
+# # -------------------------------
+# # Cache (Redis)
+# # -------------------------------
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django_redis.cache.RedisCache',
+#         'LOCATION': f'{REDIS_URL}/1',
+#         'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+#     }
+# }
 
 # -------------------------------
 # AI / OpenAI
@@ -311,13 +311,32 @@ SOCIALACCOUNT_PROVIDERS = {
 # Khi đổi sang AWS, chỉ cần sửa config ở đây, code Models KHÔNG cần sửa
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
-AWS_STORAGE_BUCKET_NAME = "e-learning-vue-2025"
-AWS_S3_REGION_NAME = "ap-southeast-2"
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
 AWS_QUERYSTRING_AUTH = True   # private files use signed URLs
 AWS_DEFAULT_ACL = None
 AWS_S3_FILE_OVERWRITE = False
+
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+
+# ID của Public Key trên CloudFront (Ví dụ: K2JX...)
+AWS_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID", "")
+
+# Đường dẫn tuyệt đối tới file .pem
+AWS_CLOUDFRONT_KEY_PATH = BASE_DIR / 'cloudfront-private-key.pem'
+
+# 1. Dùng CloudFront (CDN) để tải file nhanh như gió
+# Thay vì user tải trực tiếp từ bucket S3, họ sẽ tải từ Edge location gần nhất (Hà Nội/HCM)
+AWS_S3_CUSTOM_DOMAIN = 'd2t4m4nzg5dowd.cloudfront.net' # Map với CloudFront Distribution
+
+# 2. Cache control (Để browser user không phải tải lại ảnh/logo nhiều lần)
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
 
 
 

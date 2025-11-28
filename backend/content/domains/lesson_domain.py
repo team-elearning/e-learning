@@ -72,7 +72,7 @@ class LessonDomain:
         }
 
     @classmethod
-    def from_model(cls, model):
+    def from_model(cls, model, lite_mode: bool = False):
         """Tạo domain từ model Lesson, lồng ContentBlock"""
         lesson_domain = cls(
             id=str(model.id),
@@ -83,10 +83,12 @@ class LessonDomain:
             # published=model.published
         )
         
+        blocks_sorted = sorted(model.content_blocks.all(), key=lambda x: x.position)
+        
         # Service phải prefetch '...__content_blocks'
-        for cb_model in model.content_blocks.all():
+        for cb_model in blocks_sorted:
             lesson_domain.content_blocks.append(
-                ContentBlockDomain.from_model(cb_model)
+                ContentBlockDomain.from_model(cb_model, lite_mode=lite_mode)
             )
             
         return lesson_domain

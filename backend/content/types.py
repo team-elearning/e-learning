@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
 from typing import Optional, List
 import uuid
 
@@ -9,9 +9,20 @@ from custom_account.models import UserModel
 
 # 1. Enum Chiến lược: Quyết định độ sâu dữ liệu
 class CourseFetchStrategy(str, Enum):
-    OVERVIEW = 'overview'           # Nhẹ nhất: Cho danh sách
-    FULL_STRUCTURE = 'full_struct'  # Vừa phải: Cho màn hình học/sửa nội dung
-    ADMIN_DETAIL = 'admin_detail'   # Nặng nhất: Cho Admin soi chi tiết User/Subject
+    # 1. Màn hình danh sách (User/Guest) - Nhẹ nhất
+    CATALOG_LIST = auto()
+    
+    # 2. Màn hình chi tiết giới thiệu (User chưa mua) - Metadata + Mục lục (ko nội dung)
+    SYLLABUS_PREVIEW = auto()
+    
+    # 3. Màn hình vào học (User đã mua) - Full nội dung
+    LEARNING_DETAIL = auto()
+    
+    # 4. Màn hình quản lý danh sách (Admin) - Cần sort/filter, stats hệ thống
+    ADMIN_LIST = auto()
+    
+    # 5. Màn hình chi tiết quản lý (Admin) - Full tất cả để debug/audit
+    ADMIN_DETAIL = auto()
 
 
 # 2. Dataclass Bộ lọc: Quyết định lấy bản ghi nào

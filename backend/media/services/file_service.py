@@ -1,8 +1,15 @@
+import base64
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
 import logging
+import json
 import magic
 import mimetypes
 import uuid
-from datetime import timedelta
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from datetime import timedelta, datetime, timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
@@ -12,7 +19,6 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
 from core.exceptions import DomainError, FileNotFoundError
 from custom_account.models import UserModel
@@ -20,89 +26,211 @@ from quiz.models import QuizAttempt
 from content.models import Course, Enrollment
 from media.models import UploadedFile, FileStatus, Component
 from media.domains.file_domain import FileDomain
+from media.domains.presigned_upload_domain import PresignedUploadDomain
 
 
 
 User = get_user_model()
 
-# django-storages sẽ tự động chặn việc lưu local và đẩy thẳng lên S3 
-# khi lệnh UploadedFile.objects.create chạy.
+# # django-storages sẽ tự động chặn việc lưu local và đẩy thẳng lên S3 
+# # khi lệnh UploadedFile.objects.create chạy.
+# @transaction.atomic
+# def create_file_upload(user: UserModel, data: dict) -> FileDomain:
+#     """
+#     Service xử lý nghiệp vụ upload file.
+#     Nhận user_id (từ request.user) và data (từ Pydantic Input DTO).
+    
+#     QUAN TRỌNG: Trả về Model Instance (UploadedFile) 
+#     để RoleBasedOutputMixin có thể đọc attributes và @property.
+#     """
+    
+#     # Giải nén dữ liệu từ dict
+#     file_data = data.get('file')
+#     content_type_str = data.get('content_type_str')
+#     object_id = data.get('object_id')
+#     component = data.get('component')
+
+#     if not all([file_data, content_type_str, component is not None]):
+#         raise DomainError("Dữ liệu input (file, content_type, component) bị thiếu.")
+    
+#     # Lấy kích thước file (byte)
+#     file_size = getattr(file_data, 'size', 0)
+
+#     if file_size > settings.MAX_FILE_SIZE_BYTES:
+#         # Đổi ra MB để báo lỗi cho thân thiện
+#         size_in_mb = round(file_size / (1024 * 1024), 2)
+#         raise DomainError(
+#             f"File quá lớn ({size_in_mb}MB). Giới hạn tối đa là {settings.MAX_FILE_SIZE_MB}MB."
+#         )
+
+#     if content_type_str and object_id is not None:
+#         try:
+#             app_label, model_name = content_type_str.split('.')
+#             content_type = ContentType.objects.get(app_label=app_label, model=model_name)
+#         except (ContentType.DoesNotExist, ValueError, AttributeError):
+#             raise DomainError(f"Content_type không hợp lệ: '{content_type_str}'.")
+
+#         try:
+#             ParentModel = content_type.model_class()
+#             if not ParentModel.objects.filter(pk=object_id).exists():
+#                 raise DomainError(f"Không tìm thấy đối tượng '{content_type_str}' với ID {object_id}.")
+#         except Exception as e:
+#             raise DomainError(f"Lỗi khi kiểm tra đối tượng cha: {e}")
+#     else:
+#         content_type = None
+
+#     # --- NEW: LOGIC TÍNH MIME TYPE ---
+#     # 1. Ưu tiên lấy từ header file mà trình duyệt gửi lên (file_data.content_type)
+#     #    Đây là cách nhanh nhất vì file đang nằm trong RAM/Temp
+#     mime_type = getattr(file_data, 'content_type', None)
+
+#     # 2. Nếu không có, dùng mimetypes đoán qua tên file (fallback an toàn)
+#     if not mime_type:
+#         mime_type, _ = mimetypes.guess_type(file_data.name)
+    
+#     # 3. Nếu vẫn không ra, đặt mặc định
+#     if not mime_type:
+#         mime_type = 'application/octet-stream'
+
+#     # --- [MỚI] LOGIC LẤY FILE SIZE ---
+#     # file_data.size trả về kích thước bằng byte (int)
+#     file_size = getattr(file_data, 'size', 0)
+
+#     saved_file_model = UploadedFile.objects.create(
+#         file=file_data,
+#         original_filename=file_data.name,
+#         uploaded_by=user,
+#         content_type=content_type,
+#         object_id=object_id,
+#         component=component,
+#         status=FileStatus.STAGING,
+
+#         mime_type=mime_type,
+#         file_size=file_size
+#     )
+    
+#     return FileDomain.from_model(saved_file_model)
+
+
 @transaction.atomic
-def create_file_upload(user: UserModel, data: dict) -> FileDomain:
+def initiate_file_upload(user, data: dict) -> dict:
     """
-    Service xử lý nghiệp vụ upload file.
-    Nhận user_id (từ request.user) và data (từ Pydantic Input DTO).
-    
-    QUAN TRỌNG: Trả về Model Instance (UploadedFile) 
-    để RoleBasedOutputMixin có thể đọc attributes và @property.
+    1. Tạo bản ghi UploadedFile (Status = STAGING)
+    2. Sinh ra Presigned URL để Client tự upload lên S3
     """
-    
-    # Giải nén dữ liệu từ dict
-    file_data = data.get('file')
-    content_type_str = data.get('content_type_str')
-    object_id = data.get('object_id')
+    original_filename = data.get('filename') # Client gửi tên file lên
+    file_type = data.get('file_type')       # Client gửi mime type (video/mp4)
+    file_size = data.get('file_size')       # Client gửi size dự kiến
     component = data.get('component')
-
-    if not all([file_data, content_type_str, component is not None]):
-        raise DomainError("Dữ liệu input (file, content_type, component) bị thiếu.")
     
-    # Lấy kích thước file (byte)
-    file_size = getattr(file_data, 'size', 0)
+    # 1. Tạo tên file vật lý (key trên S3)
+    ext = original_filename.split('.')[-1]
+    file_uuid = uuid.uuid4()
+    s3_key = f"media/{component}/{datetime.now().year}/{file_uuid}.{ext}"
 
-    if file_size > settings.MAX_FILE_SIZE_BYTES:
-        # Đổi ra MB để báo lỗi cho thân thiện
-        size_in_mb = round(file_size / (1024 * 1024), 2)
-        raise DomainError(
-            f"File quá lớn ({size_in_mb}MB). Giới hạn tối đa là {settings.MAX_FILE_SIZE_MB}MB."
-        )
-
-    if content_type_str and object_id is not None:
-        try:
-            app_label, model_name = content_type_str.split('.')
-            content_type = ContentType.objects.get(app_label=app_label, model=model_name)
-        except (ContentType.DoesNotExist, ValueError, AttributeError):
-            raise DomainError(f"Content_type không hợp lệ: '{content_type_str}'.")
-
-        try:
-            ParentModel = content_type.model_class()
-            if not ParentModel.objects.filter(pk=object_id).exists():
-                raise DomainError(f"Không tìm thấy đối tượng '{content_type_str}' với ID {object_id}.")
-        except Exception as e:
-            raise DomainError(f"Lỗi khi kiểm tra đối tượng cha: {e}")
-    else:
-        content_type = None
-
-    # --- NEW: LOGIC TÍNH MIME TYPE ---
-    # 1. Ưu tiên lấy từ header file mà trình duyệt gửi lên (file_data.content_type)
-    #    Đây là cách nhanh nhất vì file đang nằm trong RAM/Temp
-    mime_type = getattr(file_data, 'content_type', None)
-
-    # 2. Nếu không có, dùng mimetypes đoán qua tên file (fallback an toàn)
-    if not mime_type:
-        mime_type, _ = mimetypes.guess_type(file_data.name)
-    
-    # 3. Nếu vẫn không ra, đặt mặc định
-    if not mime_type:
-        mime_type = 'application/octet-stream'
-
-    # --- [MỚI] LOGIC LẤY FILE SIZE ---
-    # file_data.size trả về kích thước bằng byte (int)
-    file_size = getattr(file_data, 'size', 0)
-
-    saved_file_model = UploadedFile.objects.create(
-        file=file_data,
-        original_filename=file_data.name,
+    # 2. Tạo bản ghi trong DB (Lưu ý: Field 'file' lúc này chưa có file thật)
+    # Chúng ta lưu đường dẫn string vào field file.
+    instance = UploadedFile.objects.create(
+        id=file_uuid,
         uploaded_by=user,
-        content_type=content_type,
-        object_id=object_id,
+        original_filename=original_filename,
+        mime_type=file_type,
+        file_size=file_size, # Size dự kiến
         component=component,
         status=FileStatus.STAGING,
-
-        mime_type=mime_type,
-        file_size=file_size
+        file=s3_key # Django S3 Storage sẽ hiểu đây là path
     )
-    
-    return FileDomain.from_model(saved_file_model)
+
+    # 3. Gọi AWS S3 SDK để tạo Presigned URL
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
+        config=Config(signature_version='s3v4')
+    )
+
+    # Cấu hình params cho URL
+    # ACL='private' để đảm bảo file tải lên không bị public lung tung
+    presigned_data = s3_client.generate_presigned_post(
+        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+        Key=s3_key,
+        Fields={
+            'acl': 'private', 
+            'Content-Type': file_type
+        },
+        Conditions=[
+            {'acl': 'private'},
+            {'Content-Type': file_type},
+            ['content-length-range', 0, settings.MAX_FILE_SIZE_BYTES] # Validate size ngay tại S3
+        ],
+        ExpiresIn=3600 # Link hết hạn sau 1 giờ
+    )
+
+    return PresignedUploadDomain(
+        file_id=instance.id,
+        upload_url=presigned_data['url'],
+        upload_fields=presigned_data['fields']
+    )
+
+
+def confirm_file_upload(user, file_id: str) -> FileDomain:
+    """
+    Xác nhận file đã lên S3 thành công.
+    Chuyển trạng thái từ STAGING -> COMMITTED (hoặc READY).
+    """
+    # 1. Query & Validate Owner
+    try:
+        file_obj = UploadedFile.objects.get(pk=file_id)
+    except UploadedFile.DoesNotExist:
+        raise DomainError(f"File {file_id} không tồn tại.")
+
+    if file_obj.uploaded_by != user:
+        raise PermissionDenied("Bạn không có quyền xác nhận file này.")
+
+    if file_obj.status == FileStatus.COMMITTED:
+        # Nếu đã confirm rồi thì trả về luôn, tránh lỗi
+        return FileDomain.from_model(file_obj)
+
+    # 2. CHECK S3 HEAD OBJECT (Cực nhanh - chỉ vài chục ms)
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
+    )
+
+    try:
+        # file_obj.file.name chính là key (path) trên S3
+        # Hàm này sẽ throw Exception nếu file không tìm thấy
+        response = s3_client.head_object(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=file_obj.file.name 
+        )
+        
+        # 2.1. Lấy thông tin thực tế từ S3 cập nhật vào DB
+        # Đây là bước quan trọng: Client lúc Init có thể khai báo size ảo.
+        # Ta lấy size thật từ S3 để lưu DB cho chuẩn.
+        real_size = response.get('ContentLength', 0)
+        
+        if real_size == 0:
+             raise DomainError("File trên hệ thống rỗng (0 bytes). Vui lòng upload lại.")
+             
+        file_obj.file_size = real_size
+
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == "404":
+            raise DomainError("Không tìm thấy file trên hệ thống lưu trữ. Bạn đã upload chưa?")
+        else:
+            # Lỗi khác (Mạng, Permission...)
+            raise DomainError(f"Lỗi kiểm tra file trên S3: {error_code}")
+
+    # 3. Update DB
+    file_obj.status = FileStatus.STAGING # Hoặc trạng thái trung gian 'UPLOADED' chờ job quét virus
+    file_obj.save(update_fields=['status', 'file_size'])
+
+    return FileDomain.from_model(file_obj)
 
 
 @transaction.atomic
@@ -317,34 +445,34 @@ def cleanup_staging_files(days_old: int) -> dict:
 
 
 def list_all_files() -> list[FileDomain]: # <-- Thay đổi ở đây
-        """
-        Lấy một QuerySet của TẤT CẢ các file,
-        sắp xếp theo ngày mới nhất.
-        
-        """
-        logger.info("Service: Lấy danh sách tất cả file và chuyển sang Domain.")
-        
-        # Lấy tất cả model từ CSDL 
-        all_file_models = UploadedFile.objects.select_related(
-            'uploaded_by'
-        ).all().order_by('-uploaded_at')
+    """
+    Lấy một QuerySet của TẤT CẢ các file,
+    sắp xếp theo ngày mới nhất.
+    
+    """
+    logger.info("Service: Lấy danh sách tất cả file và chuyển sang Domain.")
+    
+    # Lấy tất cả model từ CSDL 
+    all_file_models = UploadedFile.objects.select_related(
+        'uploaded_by'
+    ).all().order_by('-uploaded_at')
 
-        # Chuyển đổi QuerySet[Model] -> list[Domain]
-        all_file_domains = [
-            FileDomain.from_model(model) for model in all_file_models
-        ]
-        
-        # 3. Trả về list các domain object
-        return all_file_domains
+    # Chuyển đổi QuerySet[Model] -> list[Domain]
+    all_file_domains = [
+        FileDomain.from_model(model) for model in all_file_models
+    ]
+    
+    # 3. Trả về list các domain object
+    return all_file_domains
 
 
 def get_file_model(file_id: uuid.UUID) -> UploadedFile:
-        """Hàm helper nội bộ để lấy model (tránh lặp code)."""
-        try:
-            return UploadedFile.objects.get(pk=file_id)
-        except UploadedFile.DoesNotExist:
-          
-            raise FileNotFoundError(f"Không tìm thấy file với ID: {file_id}")
+    """Hàm helper nội bộ để lấy model (tránh lặp code)."""
+    try:
+        return UploadedFile.objects.get(pk=file_id)
+    except UploadedFile.DoesNotExist:
+        
+        raise FileNotFoundError(f"Không tìm thấy file với ID: {file_id}")
 
 
 def get_file_by_id(file_id: uuid.UUID) -> FileDomain:
@@ -544,65 +672,93 @@ def _is_browser_viewable(mime_type):
     return mime_type in viewable_types
 
 
+def generate_cloudfront_signed_url(object_key):
+    """
+    Hàm sinh URL có chữ ký CloudFront.
+    Input: object_key (VD: media/lesson/video.mp4)
+    Output: https://d2t4....cloudfront.net/media/lesson/video.mp4?Policy=...&Signature=...
+    """
+    
+    # 1. Ghép URL gốc
+    base_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{object_key}"
+    
+    # 2. Thời gian hết hạn (Ví dụ: 1 tiếng)
+    expire_date = datetime.now(timezone.utc) + timedelta(hours=1)
+    expire_timestamp = int(expire_date.timestamp())
+
+    # 3. Tạo Policy (Luật cho phép truy cập)
+    # Luật: Cho phép xem resource này nếu thời gian < expire_timestamp
+    policy_dict = {
+        "Statement": [{
+            "Resource": base_url,
+            "Condition": {
+                "DateLessThan": {"AWS:EpochTime": expire_timestamp}
+            }
+        }]
+    }
+    policy_json = json.dumps(policy_dict, separators=(',', ':'))
+
+    # 4. Đọc Private Key và Ký tên
+    try:
+        with open(settings.AWS_CLOUDFRONT_KEY_PATH, 'rb') as key_file:
+            private_key = serialization.load_pem_private_key(
+                key_file.read(),
+                password=None
+            )
+    except FileNotFoundError:
+        raise Exception(f"Không tìm thấy private key tại: {settings.AWS_CLOUDFRONT_KEY_PATH}")
+
+    # Ký Policy bằng thuật toán SHA1 (CloudFront yêu cầu)
+    signature = private_key.sign(
+        policy_json.encode('utf-8'),
+        padding.PKCS1v15(),
+        hashes.SHA1()
+    )
+
+    # 5. Mã hóa Base64 an toàn cho URL (Thay thế ký tự đặc biệt)
+    def cloudfront_base64(data):
+        return base64.b64encode(data).decode('utf-8').translate(str.maketrans('+=/', '-_~'))
+
+    encoded_policy = cloudfront_base64(policy_json.encode('utf-8'))
+    encoded_signature = cloudfront_base64(signature)
+    
+    # 6. Ghép thành URL cuối cùng
+    signed_url = f"{base_url}?Policy={encoded_policy}&Signature={encoded_signature}&Key-Pair-Id={settings.AWS_CLOUDFRONT_KEY_ID}"
+    
+    return signed_url
+
+
 def serve_file(request, file_id, user):
     """
-    Service trả về URL để user tải/xem file từ S3.
+    Service trả về URL CloudFront Signed (Tốc độ cao).
     """
-    # 1. Lấy object
+    # 1. Lấy object & Check DB
     try:
         file_obj = get_object_or_404(UploadedFile, id=file_id)
     except UploadedFile.DoesNotExist:
-        raise FileNotFoundError(f"File {file_id} không tồn tại trong hệ thống.")
+        raise FileNotFoundError(f"File {file_id} không tồn tại.")
 
-    # 2. Check quyền (Logic nghiệp vụ giữ nguyên)
+    # 2. Check quyền (Giữ nguyên logic của bạn)
     if not user_has_access_to_file(user=user, file_object=file_obj):
-        # Lưu ý: Raise exception để Middleware bắt hoặc return response lỗi
-        # Tùy architecture của bạn, ở đây giả sử return response
         return PermissionDenied("Bạn không có quyền truy cập tài nguyên này.")
 
-    # 3. KHÔNG CHECK os.path.exists
-    # Với S3, việc check tồn tại tốn 1 request mạng. 
-    # Ta tin tưởng vào Database. Nếu DB có mà S3 mất thì S3 sẽ báo lỗi 404 sau.
     if not file_obj.file:
          raise FileNotFoundError("Dữ liệu file bị thiếu trong Database.")
 
-    # 4. Xử lý logic hiển thị (Download vs Inline) & Tên file tiếng Việt
-    # Logic cũ của bạn set header trên Response, nhưng với S3,
-    # ta phải bảo S3 set header đó thông qua query params của URL.
-    
-    # Xác định xem nên xem ngay hay tải về
-    real_mime_type = file_obj.mime_type or 'application/octet-stream'
-    disposition_type = 'inline' if _is_browser_viewable(real_mime_type) else 'attachment'
-    
-    # Xử lý tên file (filename)
-    # Với S3 presigned url, tham số ResponseContentDisposition sẽ quyết định header trả về
-    filename = file_obj.original_filename
-    
-    # Chuẩn bị tham số cho hàm generate URL của django-storages
-    # Lưu ý: "ResponseContentDisposition" là tham số chuẩn của S3
-    response_headers = {
-        'ResponseContentType': real_mime_type,
-        'ResponseContentDisposition': f'{disposition_type}; filename="{filename}"' 
-        # S3 tự xử lý unicode filename khá tốt, nhưng nếu cần kỹ hơn có thể encode
-    }
-
-    # 5. SINH URL VÀ REDIRECT
+    # 3. SINH URL CLOUDFRONT (Thay thế hoàn toàn đoạn boto3 cũ)
     try:
-        # file_obj.file.url bản chất sẽ gọi S3 API để sinh Presigned URL
-        # Nếu dùng django-storages, có thể truyền parameters vào (tùy version)
-        # Cách đơn giản nhất (mặc định):
-        s3_url = file_obj.file.url
+        # Lấy đường dẫn file (VD: media/2025/abc.mp4)
+        s3_key = file_obj.file.name
         
-        # NẾU CẦN CUSTOM HEADER (như tên file tải về), 
-        # bạn cần can thiệp sâu hơn vào storage backend hoặc cấu hình AWS_S3_OBJECT_PARAMETERS.
-        # Nhưng ở mức cơ bản, chỉ cần redirect là đủ:
-    
-        return s3_url
+        # Gọi hàm ký tên
+        signed_url = generate_cloudfront_signed_url(s3_key)
+        print("hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", signed_url)
+        return signed_url
 
     except Exception as e:
-        # Phòng trường hợp mất kết nối AWS hoặc lỗi config
-        print(f"S3 Error: {e}")
-        raise OSError(f"Không thể kết nối đến hệ thống lưu trữ - {str(e)}")
+        print(f"CloudFront Signing Error: {e}")
+        # Log lỗi chi tiết để debug
+        raise OSError(f"Lỗi khi tạo đường dẫn tải file: {str(e)}")
 
 
 # def serve_file_in_local(request, file_id, user):

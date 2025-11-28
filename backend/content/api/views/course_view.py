@@ -48,13 +48,59 @@ class PublicCourseListView(RoleBasedOutputMixin, APIView):
         try:
             courses_list = self.course_service.get_courses(
                 filters=CourseFilter(published_only=True),
-                strategy=CourseFetchStrategy.OVERVIEW
+                strategy=CourseFetchStrategy.CATALOG_LIST
             )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Lỗi trong PublicCourseListView (GET): {e}", exc_info=True)
             return Response(
                 {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class PublicCourseSyllabusView(RoleBasedOutputMixin, APIView):
+    """
+    GET /courses/<pk>/syllabus/ - Xem mục lục/giới thiệu (Preview).
+    Dùng cho màn hình "Giới thiệu khóa học" trước khi mua.
+    """
+    # IsAuthenticated: User phải login mới xem được (hoặc IsAllowAny nếu muốn public hoàn toàn)
+    permission_classes = [permissions.IsAuthenticated]
+
+    # Cấu hình DTO output
+    # Domain trả về data "nhẹ" (lite_mode=True), DTO chỉ việc serialize
+    output_dto_public = CoursePublicOutput 
+    output_dto_admin  = CourseAdminOutput 
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.course_service = course_service
+
+    def get(self, request, pk: uuid.UUID, *args, **kwargs):
+        """
+        Lấy syllabus (cấu trúc bài học, không có payload nội dung).
+        """
+        try:
+            # 1. Gọi Service với Strategy SYLLABUS_PREVIEW
+            # Lưu ý: Không truyền 'enrolled_user' vào filter vì chưa mua cũng được xem syllabus
+            course = self.course_service.get_course_single(
+                filters=CourseFilter(
+                    course_id=pk, 
+                    published_only=True # Chỉ xem được course đã public
+                ), 
+                strategy=CourseFetchStrategy.SYLLABUS_PREVIEW
+            )
+            
+            # 2. Return instance (Mixin sẽ tự map sang DTO)
+            return Response({"instance": course}, status=status.HTTP_200_OK)
+        
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            logger.error(f"Lỗi trong PublicCourseSyllabusView (GET): {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
@@ -80,7 +126,7 @@ class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
         try:
             course = self.course_service.get_course_single(
                 filters=CourseFilter(course_id=pk, enrolled_user=request.user), # Check đã enroll chưa
-                strategy=CourseFetchStrategy.FULL_STRUCTURE # Lấy bài học để học
+                strategy=CourseFetchStrategy.LEARNING_DETAIL
             )
             return Response({"instance": course}, status=status.HTTP_200_OK)
         
@@ -122,7 +168,7 @@ class AdminCourseListCreateView(RoleBasedOutputMixin, APIView):
         try:
             courses_list = self.course_service.get_courses(
                 filters=CourseFilter(),
-                strategy=CourseFetchStrategy.OVERVIEW
+                strategy=CourseFetchStrategy.ADMIN_LIST
             )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
@@ -359,7 +405,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
         try:
             courses_list = self.course_service.get_courses(
                 filters=CourseFilter(owner=request.user), # Tự động check quyền owner
-                strategy=CourseFetchStrategy.OVERVIEW
+                strategy=CourseFetchStrategy.CATALOG_LIST
             )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:
@@ -386,7 +432,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, APIView):
             new_course = self.course_service.create_course(
                 data=course_create_dto.model_dump(),
                 created_by=request.user,
-                output_strategy=CourseFetchStrategy.FULL_STRUCTURE
+                output_strategy=CourseFetchStrategy.LEARNING_DETAIL
             )
             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
         except DomainError as e: 
@@ -421,7 +467,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             #    Hàm này đã bao gồm cả check quyền owner
             course = self.course_service.get_course_single(
                 filters=CourseFilter(course_id=pk, owner=request.user), # Tự động check quyền owner
-                strategy=CourseFetchStrategy.FULL_STRUCTURE # Lấy full modules để edit
+                strategy=CourseFetchStrategy.LEARNING_DETAIL
             )
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)
@@ -472,7 +518,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
             try:
                 instance = self.course_service.get_course_single(
                     filters=CourseFilter(course_id=pk, owner=request.user), # Tự động check quyền owner
-                    strategy=CourseFetchStrategy.FULL_STRUCTURE
+                    strategy=CourseFetchStrategy.LEARNING_DETAIL
                 )
                 return Response({"instance": instance}, status=status.HTTP_200_OK)
             except (DomainError, ValueError) as e:
@@ -486,7 +532,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, CoursePermissionMixin, AP
                 course_id=pk,
                 data=patch_data, # Dùng dict đã lọc
                 actor=request.user,
-                output_strategy=CourseFetchStrategy.FULL_STRUCTURE
+                output_strategy=CourseFetchStrategy.LEARNING_DETAIL
             )
             # 'updated_course' là một CourseDomain đã được cập nhật
             return Response({"instance": updated_course}, status=status.HTTP_200_OK)
