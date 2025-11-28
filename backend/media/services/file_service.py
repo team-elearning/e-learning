@@ -4,7 +4,6 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 import logging
 import json
-import magic
 import mimetypes
 import uuid
 from cryptography.hazmat.primitives import serialization, hashes
@@ -14,7 +13,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.storage import default_storage
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
@@ -740,7 +738,7 @@ def serve_file(request, file_id, user):
 
     # 2. Check quyền (Giữ nguyên logic của bạn)
     if not user_has_access_to_file(user=user, file_object=file_obj):
-        return PermissionDenied("Bạn không có quyền truy cập tài nguyên này.")
+        raise PermissionDenied("Bạn không có quyền truy cập tài nguyên này.")
 
     if not file_obj.file:
          raise FileNotFoundError("Dữ liệu file bị thiếu trong Database.")
@@ -752,7 +750,6 @@ def serve_file(request, file_id, user):
         
         # Gọi hàm ký tên
         signed_url = generate_cloudfront_signed_url(s3_key)
-        print("hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", signed_url)
         return signed_url
 
     except Exception as e:
