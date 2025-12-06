@@ -1,25 +1,24 @@
-# import uuid
-# from pydantic import ValidationError
-# from rest_framework import status, permissions
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework import permissions, status
-# from rest_framework.views import APIView
-# from rest_framework.exceptions import PermissionDenied
-# from django.http import Http404
+import logging
+import uuid
+from pydantic import ValidationError
+from rest_framework import status, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import permissions, status
+from rest_framework.views import APIView
 
-# from content.serializers import ModuleSerializer
-# from core.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, CoursePermissionMixin
-# from content.services import module_service
-# from content.domains.module_domain import ModuleDomain
-# from core.exceptions import DomainError
-# from content.serializers import ModuleSerializer
-# from core.api.permissions import IsInstructor
-# from content.api.dtos.module_dto import ModuleInput, ModulePublicOutput, ModuleAdminOutput, ModuleUpdateInput
-# from content.serializers import ModuleSerializer, ModuleReorderSerializer
-# from content.models import Course, Module
+from content.api.dtos.module_dto import ModuleInput, ModulePublicOutput, ModuleAdminOutput
+from content.serializers import ModuleSerializer, ModuleReorderSerializer
+from content.services import module_service
+from content.domains.module_domain import ModuleDomain
+from content.models import Module, Course
+from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
+from core.exceptions import DomainError
+from core.api.permissions import IsInstructor, IsCourseOwner
 
 
+
+logger = logging.getLogger(__name__)
 
 # # Helper để kiểm tra sự tồn tại của Course
 # def get_course_or_404(course_id: uuid.UUID):
@@ -576,80 +575,232 @@
 #             ) 
 
 
-# # class ModuleListCreateView(RoleBasedOutputMixin, APIView):
-# #     """
-# #     GET /courses/<uuid:course_id>/modules/
-# #     POST /courses/<uuid:course_id>/modules/
-# #     """
-# #     permission_classes = [permissions.IsAuthenticated, permissions.OR(permissions.IsAdminUser, permissions.AND(IsInstructor, IsCourseOwner))]
+class InstructorModuleListCreateView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET instructor/courses/<uuid:course_id>/modules/
+    POST instructor/courses/<uuid:course_id>/modules/
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+
+    permission_lookup = {'course_id': Course}
     
-# #     output_dto_public = ModulePublicOutput 
-# #     output_dto_admin  = ModuleAdminOutput  
+    output_dto_public = ModulePublicOutput 
+    output_dto_admin  = ModuleAdminOutput  
 
-# #     def __init__(self, *args, **kwargs):
-# #         super().__init__(*args, **kwargs)
-# #         # Giả định module_service được inject
-# #         self.module_service = module_service 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Giả định module_service được inject
+        self.module_service = module_service 
 
-# #     def get(self, request, course_id: uuid.UUID):
-# #         """
-# #         Lấy danh sách tất cả module cho một khóa học.
-# #         """
-# #         try:
-# #             # Service trả về một list các DOMAIN ENTITIES (ModuleDomain)
-# #             module_domains: list[ModuleDomain] = self.module_service.list_modules_for_course(
-# #                 course_id=course_id
-# #             )
-# #             return Response({"instance": module_domains}, status=status.HTTP_200_OK)
-# #         except DomainError as e: # Ví dụ: Course không tìm thấy
-# #             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-# #         except Exception as e:
-# #             # logger.error(f"Lỗi không xác định khi lấy danh sách module: {e}", exc_info=True)
-# #             return Response(
-# #                 {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
-# #                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-# #             )
+    def get(self, request, course_id: uuid.UUID):
+        """
+        Lấy danh sách tất cả module cho một khóa học.
+        """
+        try:
+            # Service trả về một list các DOMAIN ENTITIES (ModuleDomain)
+            module_domains: list[ModuleDomain] = self.module_service.get_modules(course_id=course_id)
+            return Response({"instance": module_domains}, status=status.HTTP_200_OK)
+        except DomainError as e: 
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # logger.error(f"Lỗi không xác định khi lấy danh sách module: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-# #     def post(self, request, course_id: uuid.UUID, *args, **kwargs):
-# #         """
-# #         Tạo một module mới cho khóa học.
-# #         (Theo cấu trúc của AdminUserListView)
-# #         """
+    def post(self, request, course_id: uuid.UUID, *args, **kwargs):
+        """
+        Tạo một module mới cho khóa học.
+        (Theo cấu trúc của AdminUserListView)
+        """
         
-# #         # 1. Validate định dạng input thô (dùng DRF Serializer)
-# #         serializer = ModuleSerializer(data=request.data)
-# #         try:
-# #             serializer.is_valid(raise_exception=True)
-# #             validated_data = serializer.validated_data
-# #         except Exception:
-# #             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # 1. Validate định dạng input thô (dùng DRF Serializer)
+        serializer = ModuleSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# #         # 2. Tạo Input DTO từ data đã validate
-# #         try:
-# #             # DTO này xử lý validation logic/business (Pydantic)
-# #             module_create_dto = ModuleInput(**validated_data)
-# #         except ValidationError as e: # Bắt lỗi validation của Pydantic
-# #             return Response({"detail": f"Dữ liệu đầu vào không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+        # 2. Tạo Input DTO từ data đã validate
+        try:
+            # DTO này xử lý validation logic/business (Pydantic)
+            module_create_dto = ModuleInput(**validated_data)
+        except ValidationError as e: # Bắt lỗi validation của Pydantic
+            return Response({"detail": f"Dữ liệu đầu vào không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
-# #         # 3. Gọi Service
-# #         try:
-# #             new_module_domain: ModuleDomain = self.module_service.create_module(
-# #                 course_id=course_id, 
-# #                 data=module_create_dto.to_dict()
-# #             )
+        # 3. Gọi Service
+        try:
+            new_module_domain: ModuleDomain = self.module_service.create_module(
+                course_id=course_id, 
+                data=module_create_dto.to_dict()
+            )
             
-# #             return Response(
-# #                 {"instance": new_module_domain}, 
-# #                 status=status.HTTP_201_CREATED
-# #             )
+            return Response(
+                {"instance": new_module_domain}, 
+                status=status.HTTP_201_CREATED
+            )
         
-# #         except DomainError as e: # Bắt lỗi business (ví dụ: "Course không tồn tại")
-# #             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except DomainError as e: # Bắt lỗi business (ví dụ: "Course không tồn tại")
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-# #         except Exception as e:
-# #             # logger.error(f"Lỗi không xác định khi tạo module: {e}", exc_info=True)
-# #             return Response({"detail": "Lỗi không xác định xảy ra trong quá trình tạo module."}, 
-# #                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            # logger.error(f"Lỗi không xác định khi tạo module: {e}", exc_info=True)
+            return Response({"detail": f"Lỗi không xác định xảy ra trong quá trình tạo module - {str(e)}"}, 
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InstructorModuleDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /instructor/modules/{module_id}/ - Chi tiết module
+    PATCH /instructor/modules/{module_id}/ - Update module
+    DELETE /instructor/modules/{module_id}/ - Xóa module
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+
+    permission_lookup = {'module_id': Module}
+    
+    output_dto_public = ModulePublicOutput
+    output_dto_admin = ModuleAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.module_service = module_service
+
+    def get(self, request, module_id, *args, **kwargs):
+        """Lấy chi tiết module"""
+        try:
+            module = self.module_service.get_module_detail(
+                module_id=module_id,
+            )
+            return Response({"instance": module}, status=status.HTTP_200_OK)
+        except Module.DoesNotExist:
+            return Response(
+                {"detail": "Module không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy module: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def patch(self, request, module_id, *args, **kwargs):
+        """Update thông tin module"""
+        serializer = ModuleSerializer(data=request.data)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            module_update_dto = ModuleInput(**validated_data)
+
+            updated_module = self.module_service.update_module(
+                module_id=module_id,
+                data=module_update_dto.to_dict(),
+            )
+            return Response({"instance": updated_module}, status=status.HTTP_200_OK)
+            
+        except Module.DoesNotExist:
+            return Response(
+                {"detail": "Module không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Lỗi khi update module: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, module_id, *args, **kwargs):
+        """Xóa module"""
+        try:
+            self.module_service.delete_module(
+                module_id=module_id,
+            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except Module.DoesNotExist:
+            return Response(
+                {"detail": "Module không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Lỗi khi xóa module: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class InstructorModuleReorderView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    PUT instructor/courses/<uuid:course_id>/modules/reorder/
+    Sắp xếp lại vị trí các module trong khóa học.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+
+    # Permission check sẽ tự động tìm Course dựa vào course_id trong URL
+    permission_lookup = {'course_id': Course}
+
+    # Định nghĩa Output DTO (nếu muốn trả về danh sách sau khi sort)
+    output_dto_public = ModulePublicOutput
+    output_dto_admin  = ModuleAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.module_service = module_service
+
+    def put(self, request, course_id: uuid.UUID, *args, **kwargs):
+        """
+        Nhận vào danh sách module_ids theo thứ tự mới và cập nhật.
+        """
+        # 1. Validate Input bằng DRF Serializer
+        serializer = ModuleReorderSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Gọi Service
+        try:
+            # Service trả về list các ModuleDomain đã sắp xếp
+            sorted_module_domains = self.module_service.reorder_modules(
+                course_id=course_id,
+                module_id_list=validated_data['module_ids'],
+            )
+
+            # 3. Trả về kết quả
+            # Trả về danh sách mới nhất để Frontend cập nhật UI ngay lập tức mà không cần reload
+            return Response(
+                {"instance": sorted_module_domains, "detail": "Cập nhật thứ tự thành công."},
+                status=status.HTTP_200_OK
+            )
+
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            # logger.error(f"Lỗi khi reorder module: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi hệ thống: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # # class ModuleDetailView(RoleBasedOutputMixin, APIView):

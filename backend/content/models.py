@@ -81,7 +81,6 @@ class Module(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     title = models.CharField(max_length=255)
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Module')
@@ -97,13 +96,6 @@ class Lesson(models.Model):
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='lessons')
     title = models.CharField(max_length=255)
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    # content_type = models.CharField(
-    #     max_length=32,
-    #     default='lesson',
-    #     choices=[('lesson', ('Lesson')), ('exercise', ('Exercise')), ('video', ('video'))]
-    # )
-    # published = models.BooleanField(default=True)
-    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Lesson')
@@ -163,15 +155,17 @@ class ContentBlock(models.Model):
     type = models.CharField(
         max_length=32,
         choices=[
-            ('text', ('Text')), ('image', ('Image')), ('video', ('Video')),
-            ('quiz', ('Quiz')), 
+            ('rich_text', ('Rich Text')),
+            ('video', ('Video')),
             ('pdf', ('PDF Document')),   
             ('docx', ('Word Document')),
             ('file', ('File')),
+            ('quiz', ('Quiz')), 
+            ('audio', ('Audio'))
         ]
     )
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    payload = models.JSONField(default=dict)  # e.g., {'text': '...', 'audio_url': '...', 'tts_text': '...', 'captions_url': '...'}
+    payload = models.JSONField(default=dict)  
     quiz_ref = models.ForeignKey(
         Quiz,
         on_delete=models.CASCADE, # Hoặc CASCADE nếu bạn muốn

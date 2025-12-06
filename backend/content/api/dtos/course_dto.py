@@ -1,6 +1,6 @@
 import uuid
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict
 from pydantic import field_validator
 from datetime import datetime
 
@@ -11,11 +11,33 @@ from content.api.dtos.module_dto import ModuleCreateInput, ModuleUpdateInput, Mo
 
 
 
-class CourseCreateInput(BaseModel):
+class CourseMetadataCreateInput(BaseModel):
     """
     DTO mới để TẠO một course từ cấu trúc JSON lồng nhau.
     """
-    model_config = ConfigDict(from_attributes=True)
+
+    title: str = Field(min_length=2, max_length=255)
+    slug: Optional[str] = Field(None, max_length=255)
+    subject: Optional[str] = None
+    description: Optional[str] = None
+    grade: Optional[str] = None
+    published: bool = False
+    
+    # M2M relationships
+    categories: List[str] = []
+    tags: List[str] = []
+
+    # File reference
+    image_id: Optional[str] = None
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)
+    
+
+class CourseTemplateCreateInput(BaseModel):
+    """
+    DTO mới để TẠO một course từ cấu trúc JSON lồng nhau.
+    """
 
     title: str = Field(min_length=3, max_length=255)
     description: Optional[str] = None
@@ -44,26 +66,147 @@ class CourseCreateInput(BaseModel):
         return self.model_dump(exclude_none=exclude_none)
     
 
-class CourseUpdateInput(BaseModel):
+class CourseMetadataUpdateInput(BaseModel):
     """
-    DTO Input chính cho PATCH.
-    MỌI TRƯỜNG đều là 'Optional'.
+    DTO mới để TẠO một course từ cấu trúc JSON lồng nhau.
     """
-    title: Optional[str] = None
-    image_id: Optional[str] = None
-    description: Optional[str] = None
-    
-    # Thêm trường 'subject'
-    subject: Optional[str] = None
 
-    categories: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
-    
+    title: Optional[str] = Field(None, min_length=2, max_length=255)
+    slug: Optional[str] = Field(None, max_length=255)
+    subject: Optional[str] = None
+    description: Optional[str] = None
     grade: Optional[str] = None
     published: Optional[bool] = None
     
-    # Lồng nhau
-    modules: Optional[List[ModuleUpdateInput]] = None
+    # M2M relationships
+    categories: Optional[List[str]] = []
+    tags: Optional[List[str]] = []
+
+    # File reference
+    image_id: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return self.model_dump(exclude_unset=True)
+
+
+# class CourseUpdateInput(BaseModel):
+#     """
+#     DTO Input chính cho PATCH.
+#     MỌI TRƯỜNG đều là 'Optional'.
+#     """
+#     title: Optional[str] = None
+#     image_id: Optional[str] = None
+#     description: Optional[str] = None
+    
+#     # Thêm trường 'subject'
+#     subject: Optional[str] = None
+
+#     categories: Optional[List[str]] = None
+#     tags: Optional[List[str]] = None
+    
+#     grade: Optional[str] = None
+#     published: Optional[bool] = None
+    
+#     # Lồng nhau
+#     modules: Optional[List[ModuleUpdateInput]] = None
+
+
+# ==========================================
+# PUBLIC INTERFACE (GET)
+# ==========================================
+
+class CourseCatalogPublicOutput(BaseModel):
+    """
+    DTO Output cho TOÀN BỘ cấu trúc khóa học.
+    Kế thừa từ DTO public của bạn và thêm modules.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    # --- Các trường metadata (giống DTO của bạn) ---
+    id: uuid.UUID
+    title: str
+    description: Optional[str]
+    grade: Optional[str]
+    published: bool
+    
+    # Giả sử bạn muốn public các trường này
+    image_url: Optional[str] = None
+    subject: Optional[SubjectPublicOutput] = None
+    slug: str
+    categories: List[str] = Field(default=[], alias="category_names")
+    tags: List[str] = Field(default=[], alias="tag_names")
+    
+    # --- THÊM CẤU TRÚC LỒNG NHAU ---
+    module_count: int
+    modules: List[ModulePublicOutput] = []
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)
+    
+
+class CourseCatalogAdminOutput(BaseModel):
+    """
+    DTO Output cho Admin/Instructor.
+    Bao gồm TOÀN BỘ cấu trúc khóa học và các metadata quản trị.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    # --- Các trường Metadata (giống Public) ---
+    id: uuid.UUID
+    title: str
+    description: Optional[str]
+    grade: Optional[str]
+    slug: str
+    image_url: Optional[str] = None
+    
+    # --- Các trường quản trị (Admin-only) ---
+    published: bool
+    published_at: Optional[datetime] = None # Thêm trường này từ domain
+    
+    # Thông tin chi tiết về chủ sở hữu
+    owner_id: uuid.UUID | None = None
+    
+    # --- Các quan hệ (Sử dụng DTO đầy đủ) ---
+    subject: Optional[SubjectAdminOutput] = None
+    
+    # Admin cần DTO đầy đủ (CategoryOutput) chứ không phải List[str]
+    categories: List[CategoryOutput] = [] 
+    tags: List[TagOutput] = []
+    
+    # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
+    # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
+    module_count: int
+    modules: List[ModuleAdminOutput] = []
+
+    # --- Validator (Rất quan trọng) ---
+    @field_validator('categories', 'tags', 'modules', mode='before')
+    @classmethod
+    def convert_manager_to_list(cls, v: Any) -> list:
+        """
+        Chuyển đổi Django RelatedManager (ví dụ: model.tags) 
+        thành một list trước khi Pydantic validate.
+        Điều này rất quan trọng khi dùng from_attributes=True
+        """
+        if hasattr(v, 'all'):
+            # Đây là một Manager (ví dụ: course.modules.all())
+            return list(v.all())
+        if isinstance(v, list):
+            # Đây đã là một list (ví dụ: từ CourseDomain)
+            return v
+        # Trả về list rỗng nếu không có gì
+        return []
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """Helper để chuyển đổi DTO sang dict, bỏ qua các giá trị None."""
+        return self.model_dump(exclude_none=exclude_none)
+
+
+class CourseStatsOutput(BaseModel):
+    total_modules: Optional[int]
+    total_lessons: Optional[int]
+    total_videos: Optional[int]
+    total_quizzes: Optional[int]
+    duration_display: Optional[str]
 
 
 class CoursePublicOutput(BaseModel):
@@ -89,6 +232,7 @@ class CoursePublicOutput(BaseModel):
     
     # --- THÊM CẤU TRÚC LỒNG NHAU ---
     module_count: int
+    stats: Optional[CourseStatsOutput] = None
     modules: List[ModulePublicOutput] = []
 
     def to_dict(self, exclude_none: bool = True) -> dict:
@@ -137,6 +281,7 @@ class CourseAdminOutput(BaseModel):
     # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
     # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
     module_count: int
+    stats: Optional[CourseStatsOutput] = None
     modules: List[ModuleAdminOutput] = []
 
     # --- Validator (Rất quan trọng) ---

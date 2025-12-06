@@ -49,7 +49,7 @@ class FileUploadInitSerializer(serializers.Serializer):
 #         return attrs
 
 
-# class FileUpdateInputSerializer(serializers.Serializer):
-#     # Phải khớp với Pydantic DTO
-#     component = serializers.CharField(required=False)
-#     status = serializers.ChoiceField(choices=FileStatus.choices, required=False)
+class FileUpdateInputSerializer(serializers.Serializer):
+    # Phải khớp với Pydantic DTO
+    component = serializers.CharField(required=False)
+    status = serializers.ChoiceField(choices=FileStatus.choices, required=False)

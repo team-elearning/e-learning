@@ -1,5 +1,5 @@
 from django.urls import path
-from media.api.views.file_view import FileUploadInitView, FileUploadConfirmView, CleanupStagingFilesView, PublicDownloadFileView
+from media.api.views.file_view import FileUploadInitView, FileUploadConfirmView, PublicDownloadFileView, ListAllFilesView, FileDetailView
 
 urlpatterns = [
     # Public
@@ -9,7 +9,7 @@ urlpatterns = [
 
 
     # Admin
-    path('admin/cleanup/', CleanupStagingFilesView.as_view(), name='admin-cleanup-files'),
-    # path('admin/files/', ListAllFilesView.as_view(), name='admin-list-files'),
-    # path('admin/files/<uuid:file_id>/', FileDetailView.as_view(), name='admin-file-detail'),
+    # path('admin/cleanup/', CleanupStagingFilesView.as_view(), name='admin-cleanup-files'),
+    path('admin/files/', ListAllFilesView.as_view(), name='admin-list-files'),
+    path('admin/files/<uuid:file_id>/', FileDetailView.as_view(), name='admin-file-detail'),
 ]

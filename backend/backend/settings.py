@@ -45,9 +45,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_cleanup.apps.CleanupConfig',
     'django.contrib.sites',
     'corsheaders',
+    'storages',
 
     # Third-party
     'rest_framework',
@@ -81,15 +81,35 @@ INSTALLED_APPS = [
 # Middleware
 # -------------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    # 1. Security nên luôn ở đầu để bảo vệ request sớm nhất
     'django.middleware.security.SecurityMiddleware',
+
+    # 2. CORS phải chạy sớm để trình duyệt check pre-flight request
+    'corsheaders.middleware.CorsMiddleware',
+
+    # 3. Session: Tạo ra "cái túi" chứa dữ liệu phiên làm việc
     'django.contrib.sessions.middleware.SessionMiddleware',
+
+    # 4. Locale & Common
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
+
+    # 5. CSRF: Chống giả mạo request (cần chạy sau Session)
     'django.middleware.csrf.CsrfViewMiddleware',
+
+    # 6. Authentication: Xác thực user (cần Session để hoạt động)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
+
+    # 7. Messages: Thông báo (cần Session và Auth)
     'django.contrib.messages.middleware.MessageMiddleware',
+
+    # 8. Clickjacking protection
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    # 9. Allauth (cần chạy sau Auth của Django)
+    'allauth.account.middleware.AccountMiddleware',
+
+    # 10. Custom Middleware của bạn (thường để cuối cùng để bắt mọi thứ)
     'infrastructure.middleware.GlobalExceptionMiddleware',
 ]
 
@@ -235,7 +255,7 @@ LOGGING = {
 # -------------------------------
 # Locale / Time
 # -------------------------------
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'vi'
 TIME_ZONE = 'Asia/Ho_Chi_Minh'
 USE_I18N = True
 USE_TZ = True
@@ -308,35 +328,62 @@ SOCIALACCOUNT_PROVIDERS = {
 # -------------------------------
 # Media files storage (AWS S3)
 # -------------------------------
-# Khi đổi sang AWS, chỉ cần sửa config ở đây, code Models KHÔNG cần sửa
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-
-AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
-AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "")
-AWS_S3_SIGNATURE_VERSION = "s3v4"
-
-AWS_QUERYSTRING_AUTH = True   # private files use signed URLs
-AWS_DEFAULT_ACL = None
-AWS_S3_FILE_OVERWRITE = False
-
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-
-# ID của Public Key trên CloudFront (Ví dụ: K2JX...)
-AWS_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID", "")
-
-# Đường dẫn tuyệt đối tới file .pem
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "")
+AWS_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID")
+AWS_S3_CUSTOM_DOMAIN = 'd2t4m4nzg5dowd.cloudfront.net'
 AWS_CLOUDFRONT_KEY_PATH = BASE_DIR / 'cloudfront-private-key.pem'
+CLOUDFRONT_KEY_DATA = None 
 
-# 1. Dùng CloudFront (CDN) để tải file nhanh như gió
-# Thay vì user tải trực tiếp từ bucket S3, họ sẽ tải từ Edge location gần nhất (Hà Nội/HCM)
-AWS_S3_CUSTOM_DOMAIN = 'd2t4m4nzg5dowd.cloudfront.net' # Map với CloudFront Distribution
+# Logic: Mở file ra và đọc nội dung
+try:
+    if AWS_CLOUDFRONT_KEY_PATH.exists():
+        with open(AWS_CLOUDFRONT_KEY_PATH, 'rb') as f:
+            CLOUDFRONT_KEY_DATA = f.read() # <--- Đọc thành bytes
+    else:
+        print(f"⚠️ CẢNH BÁO: Không tìm thấy file key tại {AWS_CLOUDFRONT_KEY_PATH}")
+except Exception as e:
+    print(f"⚠️ Lỗi khi đọc key: {e}")
 
-# 2. Cache control (Để browser user không phải tải lại ảnh/logo nhiều lần)
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',
+
+STORAGES = {
+    # 1. Cấu hình cho MEDIA (File user upload) -> Dùng S3
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "access_key": AWS_ACCESS_KEY_ID,     
+            "secret_key": AWS_SECRET_ACCESS_KEY,  
+            "bucket_name": AWS_STORAGE_BUCKET_NAME,
+            "region_name": AWS_S3_REGION_NAME,
+            "custom_domain": AWS_S3_CUSTOM_DOMAIN,
+            "signature_version": "s3v4",
+            
+            # CloudFront & Custom Domain (QUAN TRỌNG ĐỂ CÓ URL ĐẸP)
+            "custom_domain": "d2t4m4nzg5dowd.cloudfront.net",
+
+            "cloudfront_key_id": AWS_CLOUDFRONT_KEY_ID,
+            "cloudfront_key": CLOUDFRONT_KEY_DATA,
+            
+            # Các config phụ
+            "querystring_auth": True, # False nếu bạn muốn public hoàn toàn (nhưng bạn đang có cả private file)
+            "file_overwrite": False,  # Không đè file cũ nếu trùng tên
+            "default_acl": None,      # Để S3 quản lý quyền, không set ACL từng file
+            
+            # Cache Control
+            "object_parameters": {
+                'CacheControl': 'max-age=86400',
+            },
+        },
+    },
+
+    # 2. Cấu hình cho STATIC (CSS/JS của hệ thống) 
+    # Nếu bạn vẫn muốn lưu static ở local thì để như này:
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
 }
-
 
 
 

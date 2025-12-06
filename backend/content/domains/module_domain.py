@@ -67,7 +67,7 @@ class ModuleDomain:
         }
 
     @classmethod
-    def from_model(cls, model, lite_mode: bool = False):
+    def from_model(cls, model):
         """Tạo domain từ model Module, lồng Lesson"""
         module_domain = cls(
             id=str(model.id),
@@ -75,12 +75,25 @@ class ModuleDomain:
             title=model.title,
             position=model.position
         )
-        
+
         # Service phải prefetch '...__lessons__...'
         for lesson_model in model.lessons.all():
             module_domain.lessons.append(
-                LessonDomain.from_model(lesson_model, lite_mode=lite_mode)
+                LessonDomain.from_model_summary(lesson_model)
             )
             
+        return module_domain
+    
+
+    @classmethod
+    def from_model_metadata(cls, model):
+        """Tạo domain từ model Module, lồng Lesson"""
+        module_domain = cls(
+            id=str(model.id),
+            course_id=(str(getattr(model,'course_id', None)) or ""),
+            title=model.title,
+            position=model.position
+        )
+                   
         return module_domain
     

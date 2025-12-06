@@ -27,10 +27,7 @@ class LessonInput(BaseModel):
     """
     DTO để tạo một Lesson mới (cho POST/PUT).
     """
-    title: str
-    position: int | None = 0
-    # content_type: str | None = "lesson"
-    # published: bool | None = False
+    title: Optional[str] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
@@ -82,8 +79,6 @@ class LessonPublicOutput(BaseModel):
     id: uuid.UUID
     title: str
     position: int
-    # content_type: str
-    # published: bool # Có thể bạn muốn public trường này
     content_blocks: List[ContentBlockPublicOutput] = []
 
     @field_validator('content_blocks', mode='before')
@@ -115,8 +110,6 @@ class LessonAdminOutput(BaseModel):
     module_id: uuid.UUID  
     title: str
     position: int
-    # content_type: str
-    # published: bool
     content_blocks: List[ContentBlockAdminOutput] = []
 
     def to_dict(self, exclude_none: bool = True) -> dict:

@@ -205,11 +205,11 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
 # 2. VIEW (INSTRUCTOR)
 # ======================================================================
 
-class IntructorQuizDetailView(RoleBasedOutputMixin, APIView):
+class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
     """
-    GET /instructor/quizzes/<pk>/    - Lấy chi tiết 1 Quiz (cùng câu hỏi).
-    PATCH /instructor/quizzes/<pk>/  - Cập nhật 1 Quiz (logic C/U/D lồng).
-    DELETE /instructor/quizzes/<pk>/ - Xóa 1 Quiz.
+    GET /instructor/courses/quizzes/<pk>/    - Lấy chi tiết 1 Quiz (cùng câu hỏi).
+    PATCH /instructor/courses/quizzes/<pk>/  - Cập nhật 1 Quiz (logic C/U/D lồng).
+    DELETE /instructor/courses/quizzes/<pk>/ - Xóa 1 Quiz.
     """
     # (Giả sử) Cần là Instructor (hoặc Admin) và service sẽ
     # kiểm tra quyền sở hữu (owner)

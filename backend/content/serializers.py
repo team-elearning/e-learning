@@ -422,7 +422,21 @@ class SubjectSerializer(serializers.Serializer):
         read_only_fields = ["id"]
 
 
-class ContentBlockSerializer(serializers.Serializer):
+class ContentBlockCreateSerializer(serializers.Serializer):
+    """
+    Dùng riêng cho POST: Chỉ cần biết loại block để tạo khung xương (Skeleton).
+    Không validate payload chi tiết ở bước này.
+    """
+    type = serializers.ChoiceField(
+        choices=[c[0] for c in ContentBlock._meta.get_field('type').choices],
+        required=True
+    )
+    position = serializers.IntegerField(required=False, min_value=0)
+    # Payload cho phép rỗng hoặc dict tùy ý, không validate sâu
+    payload = serializers.DictField(required=False, default=dict)
+
+
+class ContentBlockUpdateSerializer(serializers.Serializer):
     """
     Serializer con, KHÔNG PHẢI ModelSerializer.
     Dùng để validate từng block trong danh sách 'content_blocks'
@@ -431,67 +445,97 @@ class ContentBlockSerializer(serializers.Serializer):
     # - Nếu có (UUID), service sẽ hiểu là CẬP NHẬT.
     # - Nếu không có (None), service sẽ hiểu là TẠO MỚI.
     id = serializers.UUIDField(required=False, allow_null=True)
-    type = serializers.ChoiceField(choices=[choice[0] for choice in ContentBlock.type.field.choices], default='text')
-    position = serializers.IntegerField(required=False, default=0, min_value=0)
-    payload = serializers.JSONField(default=dict, required=False)
+    title = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    type = serializers.ChoiceField(choices=[c[0] for c in ContentBlock._meta.get_field('type').choices])
+    payload = serializers.DictField(default=dict, required=False)
 
     def validate(self, attrs):
-        """
-        Validate chéo: Validate 'payload' dựa trên giá trị của 'type'.
-        Hàm này chạy SAU KHI các trường (id, type, payload...) đã valid riêng lẻ.
-        """
-        # 'attrs' là dictionary chứa các giá trị đã được validate cơ bản
         block_type = attrs.get('type')
-        payload = attrs.get('payload', {}) # Lấy payload đã valid (là JSON)
+        payload = attrs.get('payload', {})
 
-        if block_type == 'quiz':
-            # Dùng QuizSerializer (bạn vừa cung cấp) để validate payload
+        # --- VALIDATE RICH TEXT ---
+        if block_type == 'rich_text':
+            # SỬA: Dùng 'html_content' để khớp với Service
+            if not payload.get('html_content'):
+                raise serializers.ValidationError({
+                    "payload": "Loại 'rich_text' yêu cầu field 'html_content' trong payload."
+                })
+
+        # --- VALIDATE QUIZ ---
+        elif block_type == 'quiz':
+            # Giả định QuizCourseSerializer đã được import
+            # Validate cấu trúc đề thi/cài đặt quiz
             quiz_serializer = QuizCourseSerializer(data=payload)
             quiz_serializer.is_valid(raise_exception=True)
             
-            # QUAN TRỌNG: Cập nhật lại payload trong attrs
-            # bằng dữ liệu đã được QuizSerializer validate
+            # Gán lại data sạch đã validate vào attrs
             attrs['payload'] = quiz_serializer.validated_data
-        
-        if block_type == 'text':
-            if 'text' not in payload:
-                raise serializers.ValidationError("Payload 'text' phải có 'text' field.")
-            
-        if block_type in ['image', 'video', 'pdf', 'docx']:
-            # Kiểm tra xem có URL file không
-            if block_type in ['image', 'video']:
-                url_key = f"{block_type}_id"
-            else:
-                url_key = "file_id"
-            if url_key not in payload:
-                raise serializers.ValidationError(f"Payload '{block_type}' phải có '{url_key}'.")
-        
+
+        # --- VALIDATE MEDIA/FILES ---
+        else:
+            # Map này PHẢI khớp với 'single_file_map' trong Service
+            file_key_map = {
+                'video': 'video_id',
+                'pdf':   'file_id',
+                'docx':  'file_id',
+                'file':  'file_id',
+                # 'image': 'image_id' (Nếu model thêm image thì mở comment này)
+            }
+
+            if block_type in file_key_map:
+                required_key = file_key_map[block_type]
+                if not payload.get(required_key):
+                    raise serializers.ValidationError({
+                        "payload": f"Loại '{block_type}' yêu cầu field '{required_key}' trong payload."
+                    })
+
         return attrs
     
 
-class ReorderBlocksSerializer(serializers.Serializer):
+class ContentBlockReorderSerializer(serializers.Serializer):
     """
-    Serializer này CHỈ dùng để validate payload cho việc sắp xếp lại.
+    Validate danh sách ID block gửi lên để sắp xếp.
     """
-    ordered_ids = serializers.ListField(
+    block_ids = serializers.ListField(
         child=serializers.UUIDField(),
-        allow_empty=True  # Cho phép gửi một list rỗng (nếu logic nghiệp vụ cho phép)
+        allow_empty=False,
+        help_text="Danh sách ID của các block theo thứ tự mới"
+    )
+
+
+class ConvertBlockSerializer(serializers.Serializer):
+    """
+    Validate payload cho API chuyển đổi loại block.
+    Example: {"target_type": "video"}
+    """
+    target_type = serializers.ChoiceField(
+        choices=[c[0] for c in ContentBlock._meta.get_field('type').choices],
+        required=True,
+        help_text="Loại block mới muốn chuyển sang."
     )
     
 
 class LessonSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True)
     title = serializers.CharField(max_length=255, required=False)
-    position = serializers.IntegerField(required=False, default=0, allow_null=True, min_value=0)
-    # content_type = serializers.CharField(max_length=32, required=False, allow_null=True, default='lesson') 
-    # published = serializers.BooleanField(default=False)
-    content_blocks = ContentBlockSerializer(many=True, required=False, allow_null=True)
+    content_blocks = ContentBlockCreateSerializer(many=True, required=False, allow_null=True)
+
+
+class LessonReorderSerializer(serializers.Serializer):
+    """
+    Serializer cho hành động reorder.
+    Chỉ dùng để validate payload: {"lesson_ids": ["uuid-1", ...]}
+    """
+    lesson_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+        help_text="Danh sách ID của các lesson theo thứ tự mới"
+    )
 
 
 class ModuleSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True)
     title = serializers.CharField(max_length=255, required=False)
-    position = serializers.IntegerField(required=False, default=0, allow_null=True, min_value=0)
     description = serializers.CharField(required=False, allow_blank=True)
     lessons = LessonSerializer(many=True, required=False, allow_empty=True)
 
@@ -503,13 +547,15 @@ class ModuleReorderSerializer(serializers.Serializer):
     """
     module_ids = serializers.ListField(
         child=serializers.UUIDField(),
-        allow_empty=False
+        allow_empty=False,
+        help_text="Danh sách ID của các module theo thứ tự mới"
     )
 
 
 class CourseSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True)
     title = serializers.CharField(max_length=255, required=False)
+    slug = serializers.SlugField(max_length=255, required=False, allow_blank=True)
     image_id = serializers.CharField(max_length=1024, required=False, allow_blank=True, allow_null=True)
     description = serializers.CharField(required=False, allow_blank=True)
     subject = serializers.CharField(required=False)

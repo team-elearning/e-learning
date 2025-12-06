@@ -11,6 +11,7 @@ from content.domains.category_domain import CategoryDomain
 from content.domains.tag_domain import TagDomain
 from content.types import CourseFetchStrategy
 from content.models import ContentBlock
+from media.services.cloud_service import get_signed_url_by_id
 
 
 
@@ -198,32 +199,6 @@ class CourseDomain:
     # =========================================================================
 
     @staticmethod
-    def _extract_base_data(model) -> dict:
-        """Helper: Lấy metadata và xử lý logic ảnh."""
-        image_url, image_id = CourseDomain._resolve_course_image(model)
-        
-        # Ưu tiên lấy count từ annotate (Service)
-        module_count = getattr(model, 'module_count', None)
-        if module_count is None:
-            module_count = model.modules.count() if hasattr(model, 'modules') else 0
-
-        return {
-            "id": str(model.id),
-            "title": model.title,
-            "slug": model.slug,
-            "description": model.description,
-            "grade": model.grade,
-            "owner_id": model.owner_id,
-            "owner_name": model.owner.username if model.owner else None,
-            "subject_name": model.subject.name if model.subject else None,
-            "category_names": [c.name for c in model.categories.all()],
-            "tag_names": [t.name for t in model.tags.all()],
-            "image_url": image_url,
-            "image_id": image_id,
-            "module_count": module_count,
-        }
-
-    @staticmethod
     def _resolve_course_image(model):
         """Helper: Logic phức tạp để chọn ảnh đại diện."""
         # Logic: Lấy ảnh được mark là 'course_thumbnail' hoặc ảnh đầu tiên
@@ -242,19 +217,51 @@ class CourseDomain:
         files.sort(key=sort_key)
         best_file = files[0]
         
-        # Trả về URL (cho Frontend) và ID (cho Admin Form)
-        url = getattr(best_file.file, 'url', f"/api/files/{best_file.id}/")
+        # 3. THAY ĐỔI Ở ĐÂY: Gọi hàm lấy Signed URL trực tiếp
+        # Ảnh bìa public hoặc cache lâu (24h)
+        url = get_signed_url_by_id(str(best_file.id), expire_minutes=1440)
+
         return url, str(best_file.id)
 
     @staticmethod
-    def _load_structure(domain, model, lite_mode: bool):
-        """Helper: Load cây Modules -> Lessons."""
+    def _extract_base_data(model) -> dict:
+        """Helper: Lấy metadata và xử lý logic ảnh."""
+        image_url, image_id = CourseDomain._resolve_course_image(model)
+        
+        # Ưu tiên lấy count từ annotate (Service)
+        module_count = getattr(model, 'module_count', None)
+        if module_count is None:
+            module_count = model.modules.count() if hasattr(model, 'modules') else 0
+
+        return {
+            "id": str(model.id),
+            "title": model.title,
+            "slug": model.slug,
+            "description": model.description,
+            "grade": model.grade,
+            "owner_id": model.owner_id,
+            "owner_name": model.owner.username if model.owner else None,
+            "subject_name": model.subject.title if model.subject else None,
+            "category_names": [c.name for c in model.categories.all()],
+            "tag_names": [t.name for t in model.tags.all()],
+            "image_url": image_url,
+            "image_id": image_id,
+            "module_count": module_count,
+        }
+
+    @staticmethod
+    def _load_structure(domain, model):
+        """
+        Helper: Load cây Modules -> Lessons.
+        lite_mode = True  -> Chỉ lấy khung xương (Syllabus), KHÔNG lấy payload/content.
+        lite_mode = False -> Lấy full (Dùng cho người đã mua, hoặc xuất Excel).
+        """
         if hasattr(model, 'modules'):
             # Sort module bằng Python (tận dụng prefetch)
             sorted_modules = sorted(model.modules.all(), key=lambda m: m.position)
-            for m in sorted_modules:
+            for module in sorted_modules:
                 domain.modules.append(
-                    ModuleDomain.from_model(m, lite_mode=lite_mode)
+                    ModuleDomain.from_model(module)
                 )
 
     @staticmethod
@@ -296,8 +303,12 @@ class CourseDomain:
         # 1. Base Data (Metadata, Image, Tags)
         data = cls._extract_base_data(model)
 
+        if strategy == CourseFetchStrategy.BASIC:
+            # Case 0: Basic (Chỉ metadata cơ bản)
+            return cls(**data)
+
         # 2. Strategy Mapping
-        if strategy == CourseFetchStrategy.CATALOG_LIST:
+        elif strategy == CourseFetchStrategy.CATALOG_LIST:
             # Case 1: List đơn giản
             return cls(**data)
 
@@ -310,17 +321,11 @@ class CourseDomain:
             })
             return cls(**data)
 
-        elif strategy == CourseFetchStrategy.SYLLABUS_PREVIEW:
+        elif strategy == CourseFetchStrategy.STRUCTURE:
             # Case 3: Preview (Stats chi tiết + Syllabus rút gọn)
             domain = cls(**data)
             domain.stats = cls._calculate_content_stats(model)
-            cls._load_structure(domain, model, lite_mode=True) # Lite mode = No Video URL
-            return domain
-
-        elif strategy == CourseFetchStrategy.LEARNING_DETAIL:
-            # Case 4: Learning (Full Content)
-            domain = cls(**data)
-            cls._load_structure(domain, model, lite_mode=False)
+            cls._load_structure(domain, model) 
             return domain
 
         elif strategy == CourseFetchStrategy.ADMIN_DETAIL:
