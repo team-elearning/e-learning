@@ -26,9 +26,7 @@ class ModuleInput(BaseModel):
     DTO để tạo một Module mới.
     'course_id' sẽ được lấy từ URL, không cần nằm trong body.
     """
-    title: str
-    position: Optional[int] = None  # Giống 'phone' là Optional, 
-                                   # vì model có default=0
+    title: Optional[str] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """Convert the model to a dictionary."""

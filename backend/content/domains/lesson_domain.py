@@ -72,15 +72,13 @@ class LessonDomain:
         }
 
     @classmethod
-    def from_model(cls, model, lite_mode: bool = False):
+    def from_model_summary(cls, model):
         """Tạo domain từ model Lesson, lồng ContentBlock"""
         lesson_domain = cls(
             id=str(model.id),
             module_id=str(getattr(model,'module_id',None) or ""),
             title=model.title,
             position=model.position,
-            # content_type=model.content_type,
-            # published=model.published
         )
         
         blocks_sorted = sorted(model.content_blocks.all(), key=lambda x: x.position)
@@ -88,7 +86,28 @@ class LessonDomain:
         # Service phải prefetch '...__content_blocks'
         for cb_model in blocks_sorted:
             lesson_domain.content_blocks.append(
-                ContentBlockDomain.from_model(cb_model, lite_mode=lite_mode)
+                ContentBlockDomain.from_model_summary(cb_model)
+            )
+            
+        return lesson_domain
+
+
+    @classmethod
+    def from_model_detail(cls, model):
+        """Tạo domain từ model Lesson, lồng ContentBlock"""
+        lesson_domain = cls(
+            id=str(model.id),
+            module_id=str(getattr(model,'module_id',None) or ""),
+            title=model.title,
+            position=model.position,
+        )
+        
+        blocks_sorted = sorted(model.content_blocks.all(), key=lambda x: x.position)
+        
+        # Service phải prefetch '...__content_blocks'
+        for cb_model in blocks_sorted:
+            lesson_domain.content_blocks.append(
+                ContentBlockDomain.from_model_detail(cb_model)
             )
             
         return lesson_domain

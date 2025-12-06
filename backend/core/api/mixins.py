@@ -1,14 +1,14 @@
 import logging
-from typing import Type, Any
 from pydantic import BaseModel
-from rest_framework.exceptions import APIException
-from rest_framework.views import APIView
-from rest_framework.exceptions import AuthenticationFailed
+from typing import Type, Any
 from django.http import Http404
+from django.shortcuts import get_object_or_404
 from django.core.exceptions import PermissionDenied
 from django.db.models.query import QuerySet
+from rest_framework.exceptions import APIException, AuthenticationFailed
+from rest_framework.views import APIView
 
-from content.models import Module, Course, Lesson, ContentBlock
+from content.models import ContentBlock
 
 
 
@@ -91,105 +91,139 @@ class RoleBasedOutputMixin:
         return APIView.finalize_response(self, request, response, *args, **kwargs)
     
 
-class ModulePermissionMixin:
+class AutoPermissionCheckMixin:
     """
-    Mixin này cung cấp một hàm helper để kiểm tra xem
-    request.user có phải là admin hoặc owner của module
-    được chỉ định trong URL (module_id) hay không.
+    Mixin tự động lấy object từ URL và check quyền sở hữu/truy cập 
+    trước khi request vào đến hàm xử lý chính (get/post/put...).
     
-    Nó được thiết kế để gọi TỪ BÊN TRONG một phương thức view (như post).
+    Cách dùng:
+    1. Kế thừa Mixin này trong APIView.
+    2. Khai báo biến `permission_lookup`.
+       Ví dụ: permission_lookup = {'module_id': Module, 'course_id': Course}
     """
-    
-    def check_module_permission(self, request, module_id):
-        """
-        Kiểm tra quyền (Admin hoặc Module Owner) bằng tay.
-        Raises Http404 nếu không tìm thấy Module.
-        Raises PermissionDenied nếu không có quyền.
-        """
-        try:
-            # Dùng select_related để tối ưu
-            module = Module.objects.select_related('course__owner').get(pk=module_id)
-        except Module.DoesNotExist:
-            raise Http404("Module không tìm thấy.")
-            
-        is_admin = request.user.is_staff
-        is_owner = (hasattr(module, 'course') and 
-                    hasattr(module.course, 'owner') and 
-                    module.course.owner == request.user)
+    permission_lookup = {}  # Format: {'url_kwarg_name': ModelClass}
 
-        if not (is_admin or is_owner):
-            raise PermissionDenied("Bạn không phải là chủ sở hữu của module này.")
+    def initial(self, request, *args, **kwargs):
+        # 1. Chạy logic khởi tạo mặc định của DRF (Authentication, Throttling...)
+        super().initial(request, *args, **kwargs)
+
+        # 2. Duyệt qua cấu hình lookup để tìm và check quyền
+        for url_param, model_class in self.permission_lookup.items():
+            if url_param in kwargs:
+                obj_id = kwargs[url_param]
+                
+                # a. Query DB (Tự động raise 404 nếu không thấy)
+                obj = get_object_or_404(model_class, pk=obj_id)
+                
+                # b. Check Object Permissions (Kích hoạt IsCourseOwner, IsInstructor...)
+                # Nếu fail, DRF tự raise 403 Forbidden
+                self.check_object_permissions(request, obj)
+                
+                # c. Gắn object vào view instance để dùng lại (DRY)
+                # Ví dụ: Model là 'Module' -> self.module = obj
+                model_name = model_class._meta.model_name # 'module', 'course', 'lesson'...
+                setattr(self, model_name, obj)
+
+
+# class ModulePermissionMixin:
+#     """
+#     Mixin này cung cấp một hàm helper để kiểm tra xem
+#     request.user có phải là admin hoặc owner của module
+#     được chỉ định trong URL (module_id) hay không.
+    
+#     Nó được thiết kế để gọi TỪ BÊN TRONG một phương thức view (như post).
+#     """
+    
+#     def check_module_permission(self, request, module_id):
+#         """
+#         Kiểm tra quyền (Admin hoặc Module Owner) bằng tay.
+#         Raises Http404 nếu không tìm thấy Module.
+#         Raises PermissionDenied nếu không có quyền.
+#         """
+#         try:
+#             # Dùng select_related để tối ưu
+#             module = Module.objects.select_related('course__owner').get(pk=module_id)
+#         except Module.DoesNotExist:
+#             raise Http404("Module không tìm thấy.")
+            
+#         is_admin = request.user.is_staff
+#         is_owner = (hasattr(module, 'course') and 
+#                     hasattr(module.course, 'owner') and 
+#                     module.course.owner == request.user)
+
+#         if not (is_admin or is_owner):
+#             raise PermissionDenied("Bạn không phải là chủ sở hữu của module này.")
         
-        # Trả về module để view có thể tái sử dụng
-        return module
+#         # Trả về module để view có thể tái sử dụng
+#         return module
     
 
-class CoursePermissionMixin:
-    """
-    Mixin này kiểm tra xem user có phải là admin hoặc 
-    owner của Course được chỉ định (course_id) hay không.
-    """
+# class CoursePermissionMixin:
+#     """
+#     Mixin này kiểm tra xem user có phải là admin hoặc 
+#     owner của Course được chỉ định (course_id) hay không.
+#     """
     
-    def check_course_permission(self, request, course_id):
-        """
-        Kiểm tra quyền (Admin hoặc Course Owner) bằng tay.
-        Raises Http404 nếu không tìm thấy Course.
-        Raises PermissionDenied nếu không có quyền.
-        """
-        try:
-            course = Course.objects.select_related('owner').get(pk=course_id)
-        except Course.DoesNotExist:
-            raise Http404("Course không tìm thấy.")
+#     def check_course_permission(self, request, course_id):
+#         """
+#         Kiểm tra quyền (Admin hoặc Course Owner) bằng tay.
+#         Raises Http404 nếu không tìm thấy Course.
+#         Raises PermissionDenied nếu không có quyền.
+#         """
+#         try:
+#             course = Course.objects.select_related('owner').get(pk=course_id)
+#         except Course.DoesNotExist:
+#             raise Http404("Course không tìm thấy.")
             
-        is_admin = request.user.is_staff
-        is_owner = (hasattr(course, 'owner') and 
-                    course.owner == request.user)
+#         is_admin = request.user.is_staff
+#         is_owner = (hasattr(course, 'owner') and 
+#                     course.owner == request.user)
 
-        if not (is_admin or is_owner):
-            raise PermissionDenied("Bạn không phải là chủ sở hữu của khóa học này.")
+#         if not (is_admin or is_owner):
+#             raise PermissionDenied("Bạn không phải là chủ sở hữu của khóa học này.")
         
-        # Trả về course để view có thể tái sử dụng
-        return course
+#         # Trả về course để view có thể tái sử dụng
+#         return course
     
 
-class LessonPermissionMixin:
-    """
-    Mixin này cung cấp hàm helper để kiểm tra xem request.user
-    có phải là Admin hoặc Owner (Instructor) của Lesson hay không.
+# class LessonPermissionMixin:
+#     """
+#     Mixin này cung cấp hàm helper để kiểm tra xem request.user
+#     có phải là Admin hoặc Owner (Instructor) của Lesson hay không.
     
-    Quyền được xác định bằng cách kiểm tra owner của Course chứa Lesson.
-    """
+#     Quyền được xác định bằng cách kiểm tra owner của Course chứa Lesson.
+#     """
     
-    def check_lesson_permission(self, request, lesson_id):
-        """
-        Kiểm tra quyền (Admin hoặc Course Owner) cho một Lesson.
-        Raises Http404 nếu không tìm thấy Lesson.
-        Raises PermissionDenied nếu không có quyền.
-        """
-        try:
-            # Tối ưu query bằng cách join thẳng đến course owner
-            lesson = Lesson.objects.select_related(
-                'module__course__owner'
-            ).get(pk=lesson_id)
+#     def check_lesson_permission(self, request, lesson_id):
+#         """
+#         Kiểm tra quyền (Admin hoặc Course Owner) cho một Lesson.
+#         Raises Http404 nếu không tìm thấy Lesson.
+#         Raises PermissionDenied nếu không có quyền.
+#         """
+#         try:
+#             # Tối ưu query bằng cách join thẳng đến course owner
+#             lesson = Lesson.objects.select_related(
+#                 'module__course__owner'
+#             ).get(pk=lesson_id)
             
-        except Lesson.DoesNotExist:
-            raise Http404("Bài học không tìm thấy.")
+#         except Lesson.DoesNotExist:
+#             raise Http404("Bài học không tìm thấy.")
             
-        is_admin = request.user.is_staff
+#         is_admin = request.user.is_staff
         
-        # Kiểm tra chain: lesson -> module -> course -> owner
-        is_owner = (
-            hasattr(lesson, 'module') and
-            hasattr(lesson.module, 'course') and
-            hasattr(lesson.module.course, 'owner') and
-            lesson.module.course.owner == request.user
-        )
+#         # Kiểm tra chain: lesson -> module -> course -> owner
+#         is_owner = (
+#             hasattr(lesson, 'module') and
+#             hasattr(lesson.module, 'course') and
+#             hasattr(lesson.module.course, 'owner') and
+#             lesson.module.course.owner == request.user
+#         )
 
-        if not (is_admin or is_owner):
-            raise PermissionDenied("Bạn không có quyền truy cập tài nguyên bài học này.")
+#         if not (is_admin or is_owner):
+#             raise PermissionDenied("Bạn không có quyền truy cập tài nguyên bài học này.")
             
-        # Trả về lesson để view có thể tái sử dụng nếu cần
-        return lesson
+#         # Trả về lesson để view có thể tái sử dụng nếu cần
+#         return lesson
     
 
 # class LessonVersionPermissionMixin:

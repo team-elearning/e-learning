@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, Literal
 
 
 # Định nghĩa các loại block hợp lệ
-BlockType = Literal["text", "image", "video", "quiz", "exploration_ref"]
+BlockType = Literal['rich_text',  'video', 'quiz', 'pdf', 'docx', 'file', 'audio']
 
 class ContentBlockCreateInput(BaseModel):
     """
@@ -14,9 +14,6 @@ class ContentBlockCreateInput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     type: str
-    position: int = 0
-    # Payload đã được DRF Serializer validate, 
-    # nên ở đây chỉ cần nhận là một dict
     payload: Dict[str, Any]
 
 
@@ -50,6 +47,10 @@ class ContentBlockUpdateInput(BaseModel):
         return self.model_dump(exclude_none=exclude_none)
     
 
+# ==========================================
+# PUBLIC INTERFACE (OUTPUT)
+# ==========================================
+
 class ContentBlockPublicOutput(BaseModel):
     """
     DTO Output cho Content Block.
@@ -57,9 +58,11 @@ class ContentBlockPublicOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
+    title: Optional[str]
     type: str
     position: int
     payload: Dict[str, Any] # Payload đã được chuẩn hóa (ví dụ: chứa quiz_id)
+    icon_key: str | None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """
@@ -77,6 +80,7 @@ class ContentBlockAdminOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
+    title: Optional[str]
     type: BlockType
     position: int
     payload: Dict[str, Any]

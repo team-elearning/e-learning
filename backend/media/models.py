@@ -96,67 +96,11 @@ class UploadedFile(models.Model):
         if self.component in [Component.USER_AVATAR, Component.COURSE_THUMBNAIL, Component.SITE_LOGO]:
             # Trả về URL trực tiếp, loại bỏ Query Params (Signature) (VD: https://bucket.s3.amazonaws.com/media/avatar/xyz.jpg)
             # YÊU CẦU: Folder trên S3 chứa các file này phải được set Policy Public Read.
-            url = self.file.url
-            if "?" in url:
-                url = url.split("?")[0] # Cắt bỏ phần chữ ký ?AWS...
-            return url
+            return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{self.file.name}"
 
+        from media.services.cloud_service import generate_cloudfront_signed_url
         # NẾU LÀ PRIVATE (Bài giảng)
         # Trả về URL "Gác cổng" API của bạn để check quyền
-        return f"/api/media/files/{self.id}/"
+        return generate_cloudfront_signed_url(self.file.name)
     
-#     @property
-#     def url(self):
-#         """
-#         Trả về URL "gác cổng" an toàn để truy cập file này.
-#         """
-#         if not self.id:
-#             return None
-#         # Luôn trả về URL của API, không bao giờ trả về file.url trực tiếp
-#         return f"/api/media/files/{self.id}/"
-
-#     @property
-#     def admin_url(self):
-#         """
-#         Property riêng cho Admin/Frontend preview 
-#         khi cần link /media/ trực tiếp.
-#         """
-#         if not self.file:
-#             return None
-#         return self.file.url
-    
-#     def save(self, *args, **kwargs):
-#         # --- TỰ ĐỘNG LƯU MIME TYPE & SIZE (Giải quyết vấn đề 2) ---
-#         if self.file:
-#             # 1. Tính toán Mime Type nếu chưa có
-#             if not self.mime_type:
-#                 # Cách 1: Nhanh, dùng đuôi file (Built-in)
-#                 guessed_type, _ = mimetypes.guess_type(self.file.name)
-#                 self.mime_type = guessed_type or 'application/octet-stream'
-                
-#                 # Cách 2: Chính xác, đọc header file (Cần thư viện python-magic)
-#                 # if not self.mime_type and hasattr(self.file, 'read'):
-#                 #     initial_pos = self.file.tell()
-#                 #     self.file.seek(0)
-#                 #     self.mime_type = magic.from_buffer(self.file.read(2048), mime=True)
-#                 #     self.file.seek(initial_pos)
-
-#             # 2. Lưu file size
-#             if self.file_size == 0:
-#                 try:
-#                     self.file_size = self.file.size
-#                 except:
-#                     pass
-        
-#         super().save(*args, **kwargs)
-    
-# @receiver(post_delete, sender=UploadedFile)
-# def auto_delete_file_on_db_delete(sender, instance, **kwargs):
-#     """
-#     Khi một bản ghi UploadedFile bị xóa khỏi DB, 
-#     hàm này tự động xóa file vật lý tương ứng trên S3/Disk.
-#     """
-#     if instance.file:
-#         instance.file.delete(save=False)
-    
-
+#     

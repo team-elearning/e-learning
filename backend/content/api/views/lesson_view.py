@@ -1,25 +1,23 @@
-# import logging
-# import uuid
-# from django.http import Http404
-# from django.core.exceptions import PermissionDenied
-# from rest_framework import status, permissions
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.exceptions import ValidationError
+import logging
+import uuid
+from django.http import Http404
+from django.core.exceptions import PermissionDenied
+from rest_framework import status, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
-# from content.models import Lesson, Module
-# from content.services import lesson_service 
-# from core import exceptions 
-# from core.api.permissions import IsInstructor
-# from content.api.dtos.lesson_dto import LessonInput, LessonUpdateInput, LessonReorderInput, LessonPublicOutput, LessonAdminOutput
-# from content.serializers import LessonSerializer
-# from content.domains.lesson_domain import LessonDomain
-# from core.api.mixins import RoleBasedOutputMixin, ModulePermissionMixin, LessonPermissionMixin
-# from core.exceptions import DomainError
+from content.models import Lesson, Module, Course
+from content.services import lesson_service 
+from content.api.dtos.lesson_dto import LessonInput, LessonPublicOutput, LessonAdminOutput
+from content.serializers import LessonSerializer, LessonReorderSerializer
+from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
+from core.api.permissions import IsInstructor, IsCourseOwner
+from core.exceptions import DomainError
 
 
 
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # # Helper để kiểm tra sự tồn tại của Module
 # def get_module_or_404(module_id: uuid.UUID):
@@ -697,3 +695,224 @@
 #                 {"detail": "Lỗi hệ thống, không thể tải nội dung xem trước."}, 
 #                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
 #             )
+
+
+# ==========================================
+# PUBLIC INTERFACE (INSTRUCTOR)
+# ==========================================
+
+class InstructorLessonListCreateView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /instructor/modules/{module_id}/lessons/ - List lessons
+    POST /instructor/modules/{module_id}/lessons/ - Tạo lesson mới
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    permission_lookup = {'module_id': Module}
+
+    output_dto_public = LessonPublicOutput
+    output_dto_admin = LessonAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lesson_service = lesson_service
+
+    def get(self, request, module_id, *args, **kwargs):
+        """List tất cả lessons trong module"""
+        try:
+            lessons_list = self.lesson_service.get_lessons(
+                module_id=module_id,
+            )
+            return Response({"instance": lessons_list}, status=status.HTTP_200_OK)
+        except Module.DoesNotExist:
+            return Response(
+                {"detail": "Module không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy lessons: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def post(self, request, module_id, *args, **kwargs):
+        """Tạo lesson mới trong module"""
+        serializer = LessonSerializer(data=request.data)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            lesson_dto = LessonInput(**validated_data)
+        except Exception as e:
+            return Response(
+                {"detail": f"Dữ liệu không hợp lệ: {e}"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            new_lesson = self.lesson_service.create_lesson(
+                module_id=module_id,
+                data=lesson_dto.model_dump(),
+            )
+            return Response({"instance": new_lesson}, status=status.HTTP_201_CREATED)
+            
+        except Module.DoesNotExist:
+            return Response(
+                {"detail": "Module không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Lỗi khi tạo lesson: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class InstructorLessonDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /instructor/lessons/{lesson_id}/ - Chi tiết lesson
+    PUT /instructor/lessons/{lesson_id}/ - Update lesson
+    DELETE /instructor/lessons/{lesson_id}/ - Xóa lesson
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    permission_lookup = {'lesson_id': Lesson}
+
+    output_dto_public = LessonPublicOutput
+    output_dto_admin = LessonAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lesson_service = lesson_service
+
+    def get(self, request, lesson_id, *args, **kwargs):
+        """Lấy chi tiết lesson"""
+        try:
+            lesson = self.lesson_service.get_lesson_detail(
+                lesson_id=lesson_id,
+            )
+            return Response({"instance": lesson}, status=status.HTTP_200_OK)
+        except Lesson.DoesNotExist:
+            return Response(
+                {"detail": "Lesson không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy lesson: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def patch(self, request, lesson_id, *args, **kwargs):
+        """Update thông tin lesson"""
+        serializer = LessonSerializer(data=request.data)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            updated_lesson = self.lesson_service.update_lesson(
+                lesson_id=lesson_id,
+                data=validated_data,
+            )
+            return Response({"instance": updated_lesson}, status=status.HTTP_200_OK)
+            
+        except Lesson.DoesNotExist:
+            return Response(
+                {"detail": "Lesson không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Lỗi khi update lesson: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def delete(self, request, lesson_id, *args, **kwargs):
+        """Xóa lesson"""
+        try:
+            self.lesson_service.delete_lesson(
+                lesson_id=lesson_id,
+            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except Lesson.DoesNotExist:
+            return Response(
+                {"detail": "Lesson không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Lỗi khi xóa lesson: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class InstructorLessonReorderView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    PUT instructor/courses/<uuid:course_id>/modules/<uuid:module_id>/lessons/reorder/
+    
+    Cập nhật thứ tự bài học cho 'module_id'. 
+    Nếu trong danh sách ID có bài học thuộc module khác, nó sẽ được chuyển sang module này.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    permission_lookup = {'course_id': Course} 
+
+    output_dto_public = LessonPublicOutput 
+    output_dto_admin = LessonAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lesson_service = lesson_service
+
+    def put(self, request, course_id: uuid.UUID, module_id: uuid.UUID, *args, **kwargs):
+        # 1. Validate Input
+        # Tái sử dụng Serializer cũ hoặc tạo mới nếu cần validate kỹ hơn
+        serializer = LessonReorderSerializer(data=request.data) 
+        serializer.is_valid(raise_exception=True)
+        lesson_ids = serializer.validated_data['lesson_ids'] # List UUID
+
+        # 2. Gọi Service
+        try:
+            # Lưu ý: module_id ở URL đóng vai trò là TARGET MODULE
+            sorted_lessons = self.lesson_service.reorder_lessons(
+                course_id=course_id,
+                target_module_id=module_id, 
+                lesson_id_list=lesson_ids
+            )
+
+            return Response(
+                {"instance": sorted_lessons, "detail": "Sắp xếp bài học thành công."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

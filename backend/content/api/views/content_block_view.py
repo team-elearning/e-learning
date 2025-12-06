@@ -1,18 +1,19 @@
-# import logging
-# from django.http import Http404
-# from rest_framework import status, permissions
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.exceptions import ValidationError
+import logging
+import uuid
+from django.http import Http404
+from rest_framework import status, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
-# from content.models import ContentBlock
-# from content.services import content_block_service
-# from core import exceptions
-# from content.serializers import ContentBlockSerializer, ReorderBlocksSerializer
-# from content.api.dtos.content_block_dto import ContentBlockInput, ContentBlockUpdateInput, ContentBlockAdminOutput, ContentBlockPublicOutput
-# from core.exceptions import DomainError 
-# from core.api.mixins import ContentBlockPermissionMixin, RoleBasedOutputMixin, LessonPermissionMixin
-# from core.api.permissions import IsInstructor
+from content.models import ContentBlock, Lesson
+from content.services import content_block_service
+from content.serializers import ConvertBlockSerializer, ContentBlockCreateSerializer, ContentBlockUpdateSerializer, ContentBlockReorderSerializer
+from content.api.dtos.content_block_dto import ContentBlockInput, ContentBlockUpdateInput, ContentBlockAdminOutput, ContentBlockPublicOutput
+from content.domains.content_block_domain import ContentBlockDomain
+from core.exceptions import DomainError 
+from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
+from core.api.permissions import IsInstructor, IsCourseOwner
 
 
 
@@ -474,3 +475,271 @@
 #             logger.error(f"Error reordering blocks: {e}", exc_info=True)
 #             return Response({"detail": "An unexpected error occurred."}, 
 #                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InstructorContentBlockListCreateView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /instructor/lessons/{lesson_id}/blocks/ - List content blocks
+    POST /instructor/lessons/{lesson_id}/blocks/ - Tạo content block mới
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    # Permission check sẽ tự động tìm Lesson dựa vào lesson_id trong URL
+    # và check quyền trên Course chứa Lesson đó (IsCourseOwner)
+    permission_lookup = {'lesson_id': Lesson}
+
+    # Định nghĩa Output DTO (để Mixin tự format response)
+    output_dto_public = ContentBlockPublicOutput
+    output_dto_admin = ContentBlockAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Inject service (đã được refactor ở bước trước)
+        self.content_block_service = content_block_service
+
+    def get(self, request, lesson_id: uuid.UUID, *args, **kwargs):
+        """List tất cả blocks trong lesson (Sắp xếp theo position)"""
+        try:
+            blocks_list = self.content_block_service.get_content_blocks(
+                lesson_id=lesson_id,
+            )
+            return Response({"instance": blocks_list}, status=status.HTTP_200_OK)
+            
+        except Lesson.DoesNotExist:
+            return Response(
+                {"detail": "Bài học không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            # logger.error(f"Lỗi khi lấy danh sách block: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def post(self, request, lesson_id: uuid.UUID, *args, **kwargs):
+        """
+        Tạo ContentBlock mới.
+        Hỗ trợ: Text, Video, Quiz, File... (xử lý qua Service Router)
+        """
+        # 1. Validate định dạng Input thô (DRF Serializer)
+        serializer = ContentBlockCreateSerializer(data=request.data)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Convert sang DTO & Validate Logic (Pydantic)
+        try:
+            # DTO này nên validate cấu trúc của field 'payload' dựa trên 'type'
+            block_dto = ContentBlockInput(**validated_data)
+        except Exception as e:
+            return Response(
+                {"detail": f"Dữ liệu payload không hợp lệ: {e}"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Gọi Service
+        try:
+            # Lưu ý: Cần truyền 'actor' (request.user) để Service commit file
+            new_block = self.content_block_service.create_content_block(
+                lesson_id=lesson_id,
+                data=block_dto.model_dump(), # hoặc .dict() tùy phiên bản Pydantic
+                actor=request.user
+            )
+            
+            return Response({"instance": new_block}, status=status.HTTP_201_CREATED)
+            
+        except Lesson.DoesNotExist:
+            return Response(
+                {"detail": "Bài học không tồn tại."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ValueError as e:
+            # Bắt các lỗi logic validation từ Service (ví dụ: Quiz tạo lỗi)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            # logger.error(f"Lỗi khi tạo content block: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class InstructorContentBlockDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET    /instructor/blocks/{block_id}/  - Lấy chi tiết
+    PUT    /instructor/blocks/{block_id}/  - Cập nhật (Content, Title, File)
+    DELETE /instructor/blocks/{block_id}/  - Xóa block
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    # Permission check: Block -> Lesson -> Module -> Course -> Owner
+    permission_lookup = {'block_id': ContentBlock}
+
+    output_dto_public = ContentBlockPublicOutput
+    output_dto_admin = ContentBlockAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.content_block_service = content_block_service
+
+    def get(self, request, block_id: uuid.UUID, *args, **kwargs):
+        """Lấy chi tiết 1 block"""
+        try:
+            block_detail = self.content_block_service.get_content_block_detail(
+                block_id=block_id
+            )
+            return Response({"instance": block_detail}, status=status.HTTP_200_OK)
+            
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": f"Lỗi server - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def patch(self, request, block_id: uuid.UUID, *args, **kwargs):
+        """
+        Update Block.
+        Hỗ trợ partial update (gửi field nào update field đó).
+        """
+        # 1. Validate Input (Dùng partial=True vì có thể chỉ update title hoặc payload)
+        serializer = ContentBlockUpdateSerializer(data=request.data, partial=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_data = serializer.validated_data
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Gọi Service
+        try:
+            updated_block = self.content_block_service.update_content_block(
+                block_id=block_id,
+                data=validated_data,
+                actor=request.user # Cần actor để commit file nếu có
+            )
+            
+            return Response(
+                {"instance": updated_block, "detail": "Cập nhật thành công."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # logger.error(...)
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request, block_id: uuid.UUID, *args, **kwargs):
+        """Xóa Block"""
+        try:
+            self.content_block_service.delete_content_block(block_id=block_id)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except DomainError as e:
+            # Idempotent: Nếu không tìm thấy thì coi như đã xóa, hoặc báo 404 tùy logic
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class InstructorContentBlockConvertView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    POST /instructor/blocks/{block_id}/convert/
+    Chuyển đổi loại block (Ví dụ: Text -> Video).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    # Vẫn cần check quyền sở hữu block
+    permission_lookup = {'block_id': ContentBlock}
+
+    output_dto_public = ContentBlockPublicOutput
+    output_dto_admin = ContentBlockAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.content_block_service = content_block_service
+
+    def post(self, request, block_id: uuid.UUID, *args, **kwargs):
+        # 1. Validate Input (Chỉ cần target_type)
+        serializer = ConvertBlockSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            target_type = serializer.validated_data['target_type']
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Gọi Service Convert
+        try:
+            new_block_domain = self.content_block_service.convert_content_block(
+                block_id=block_id,
+                target_type=target_type,
+                actor=request.user # Cần actor để tạo Quiz mới nếu target_type='quiz'
+            )
+
+            return Response(
+                {
+                    "instance": new_block_domain, 
+                    "detail": f"Đã chuyển đổi sang {target_type}."
+                }, 
+                status=status.HTTP_200_OK
+            )
+
+        except DomainError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": f"Lỗi hệ thống: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class InstructorContentBlockReorderView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    PUT /instructor/lessons/<uuid:lesson_id>/blocks/reorder/
+    Sắp xếp lại vị trí các content block trong một bài học.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsCourseOwner]
+    
+    # Permission check: Tự động tìm Lesson theo lesson_id và check owner của Course chứa nó
+    permission_lookup = {'lesson_id': Lesson}
+
+    output_dto_public = ContentBlockPublicOutput 
+    output_dto_admin = ContentBlockAdminOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.content_block_service = content_block_service
+
+    def put(self, request, lesson_id: uuid.UUID, *args, **kwargs):
+        # 1. Validate Input
+        serializer = ContentBlockReorderSerializer(data=request.data)
+        
+        # Bắt lỗi validate cơ bản (sai format UUID, list rỗng...)
+        try:
+            serializer.is_valid(raise_exception=True)
+            block_ids = serializer.validated_data['block_ids']
+        except Exception:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Gọi Service
+        try:
+            sorted_blocks = self.content_block_service.reorder_content_blocks(
+                lesson_id=lesson_id,
+                block_id_list=block_ids
+            )
+
+            return Response(
+                {"instance": sorted_blocks, "detail": "Sắp xếp nội dung thành công."}, 
+                status=status.HTTP_200_OK
+            )
+
+        except DomainError as e:
+            # Lỗi business (ví dụ: gửi thiếu ID, ID lạ)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            # Lỗi hệ thống không mong muốn
+            return Response(
+                {"detail": f"Lỗi hệ thống: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

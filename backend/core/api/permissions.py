@@ -1,5 +1,9 @@
 from rest_framework.permissions import BasePermission
 
+from core.services.access_policy import can_edit_course_content, can_view_course_content
+
+
+
 class IsInstructor(BasePermission):
     """
     Chỉ cho phép truy cập nếu user là 'instructor'.
@@ -14,3 +18,19 @@ class IsInstructor(BasePermission):
         
         # Giả định User model của bạn có trường 'role'
         return getattr(request.user, 'role', None) == 'instructor'
+    
+
+class IsCourseOwner(BasePermission):
+    """
+    Dùng cho các API: Update Course, Create Module, Upload File...
+    """
+    def has_object_permission(self, request, view, obj):
+        return can_edit_course_content(request.user, obj)
+    
+
+class CanViewCourseContent(BasePermission):
+    """
+    Dùng cho các API: Get Course Detail, Get Lesson, Get File...
+    """
+    def has_object_permission(self, request, view, obj):
+        return can_view_course_content(request.user, obj)

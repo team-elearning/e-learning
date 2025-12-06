@@ -1,22 +1,21 @@
-import base64
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 import logging
-import json
-import mimetypes
 import uuid
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding
-from datetime import timedelta, datetime, timezone
+import threading
+from datetime import datetime
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from core.exceptions import DomainError, FileNotFoundError
 from custom_account.models import UserModel
@@ -25,90 +24,14 @@ from content.models import Course, Enrollment
 from media.models import UploadedFile, FileStatus, Component
 from media.domains.file_domain import FileDomain
 from media.domains.presigned_upload_domain import PresignedUploadDomain
+from media.domains.cleanup_task_domain import CleanupTaskDomain
+from media.services.cloud_service import generate_cloudfront_signed_url
 
 
 
 User = get_user_model()
 
-# # django-storages sẽ tự động chặn việc lưu local và đẩy thẳng lên S3 
-# # khi lệnh UploadedFile.objects.create chạy.
-# @transaction.atomic
-# def create_file_upload(user: UserModel, data: dict) -> FileDomain:
-#     """
-#     Service xử lý nghiệp vụ upload file.
-#     Nhận user_id (từ request.user) và data (từ Pydantic Input DTO).
-    
-#     QUAN TRỌNG: Trả về Model Instance (UploadedFile) 
-#     để RoleBasedOutputMixin có thể đọc attributes và @property.
-#     """
-    
-#     # Giải nén dữ liệu từ dict
-#     file_data = data.get('file')
-#     content_type_str = data.get('content_type_str')
-#     object_id = data.get('object_id')
-#     component = data.get('component')
-
-#     if not all([file_data, content_type_str, component is not None]):
-#         raise DomainError("Dữ liệu input (file, content_type, component) bị thiếu.")
-    
-#     # Lấy kích thước file (byte)
-#     file_size = getattr(file_data, 'size', 0)
-
-#     if file_size > settings.MAX_FILE_SIZE_BYTES:
-#         # Đổi ra MB để báo lỗi cho thân thiện
-#         size_in_mb = round(file_size / (1024 * 1024), 2)
-#         raise DomainError(
-#             f"File quá lớn ({size_in_mb}MB). Giới hạn tối đa là {settings.MAX_FILE_SIZE_MB}MB."
-#         )
-
-#     if content_type_str and object_id is not None:
-#         try:
-#             app_label, model_name = content_type_str.split('.')
-#             content_type = ContentType.objects.get(app_label=app_label, model=model_name)
-#         except (ContentType.DoesNotExist, ValueError, AttributeError):
-#             raise DomainError(f"Content_type không hợp lệ: '{content_type_str}'.")
-
-#         try:
-#             ParentModel = content_type.model_class()
-#             if not ParentModel.objects.filter(pk=object_id).exists():
-#                 raise DomainError(f"Không tìm thấy đối tượng '{content_type_str}' với ID {object_id}.")
-#         except Exception as e:
-#             raise DomainError(f"Lỗi khi kiểm tra đối tượng cha: {e}")
-#     else:
-#         content_type = None
-
-#     # --- NEW: LOGIC TÍNH MIME TYPE ---
-#     # 1. Ưu tiên lấy từ header file mà trình duyệt gửi lên (file_data.content_type)
-#     #    Đây là cách nhanh nhất vì file đang nằm trong RAM/Temp
-#     mime_type = getattr(file_data, 'content_type', None)
-
-#     # 2. Nếu không có, dùng mimetypes đoán qua tên file (fallback an toàn)
-#     if not mime_type:
-#         mime_type, _ = mimetypes.guess_type(file_data.name)
-    
-#     # 3. Nếu vẫn không ra, đặt mặc định
-#     if not mime_type:
-#         mime_type = 'application/octet-stream'
-
-#     # --- [MỚI] LOGIC LẤY FILE SIZE ---
-#     # file_data.size trả về kích thước bằng byte (int)
-#     file_size = getattr(file_data, 'size', 0)
-
-#     saved_file_model = UploadedFile.objects.create(
-#         file=file_data,
-#         original_filename=file_data.name,
-#         uploaded_by=user,
-#         content_type=content_type,
-#         object_id=object_id,
-#         component=component,
-#         status=FileStatus.STAGING,
-
-#         mime_type=mime_type,
-#         file_size=file_size
-#     )
-    
-#     return FileDomain.from_model(saved_file_model)
-
+logger = logging.getLogger(__name__)
 
 @transaction.atomic
 def initiate_file_upload(user, data: dict) -> dict:
@@ -125,6 +48,13 @@ def initiate_file_upload(user, data: dict) -> dict:
     ext = original_filename.split('.')[-1]
     file_uuid = uuid.uuid4()
     s3_key = f"media/{component}/{datetime.now().year}/{file_uuid}.{ext}"
+
+    PUBLIC_COMPONENTS = ['course_thumbnail', 'user_avatar', 'site_logo']
+    
+    if component in PUBLIC_COMPONENTS:
+        acl_policy = 'public-read'  # File này ai cũng đọc được
+    else:
+        acl_policy = 'private'      # File này phải chính chủ mới đọc được
 
     # 2. Tạo bản ghi trong DB (Lưu ý: Field 'file' lúc này chưa có file thật)
     # Chúng ta lưu đường dẫn string vào field file.
@@ -154,11 +84,11 @@ def initiate_file_upload(user, data: dict) -> dict:
         Bucket=settings.AWS_STORAGE_BUCKET_NAME,
         Key=s3_key,
         Fields={
-            'acl': 'private', 
+            'acl': acl_policy, 
             'Content-Type': file_type
         },
         Conditions=[
-            {'acl': 'private'},
+            {'acl': acl_policy},
             {'Content-Type': file_type},
             ['content-length-range', 0, settings.MAX_FILE_SIZE_BYTES] # Validate size ngay tại S3
         ],
@@ -182,6 +112,8 @@ def confirm_file_upload(user, file_id: str) -> FileDomain:
         file_obj = UploadedFile.objects.get(pk=file_id)
     except UploadedFile.DoesNotExist:
         raise DomainError(f"File {file_id} không tồn tại.")
+    
+    print(f"DEBUG STORAGE: {file_obj.file.storage}")
 
     if file_obj.uploaded_by != user:
         raise PermissionDenied("Bạn không có quyền xác nhận file này.")
@@ -354,92 +286,46 @@ def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: A
     return len(update_list)
 
 
-logger = logging.getLogger(__name__)
-
-@transaction.atomic
-def cleanup_staging_files(days_old: int) -> dict:
+CLEANUP_LOCK_ID = "cleanup_task_running_lock"
+def trigger_background_cleanup(days_old: int = 1) -> CleanupTaskDomain:
     """
-    Dọn dẹp các file 'staging' cũ hơn N ngày.
-    Đây là tác vụ chính, chạy nhanh vì chỉ query CSDL.
+    Kích hoạt tiến trình dọn dẹp chạy ngầm (Threading).
+    Trả về CleanupTaskDomain báo trạng thái (Thành công hoặc Bị khóa).
     """
-    if days_old <= 0:
-        raise ValueError("Số ngày phải lớn hơn 0")
-
-    # 1. Tính toán mốc thời gian
-    cutoff_time = timezone.now() - timedelta(days=days_old)
     
-    logger.info(f"Bắt đầu dọn dẹp file staging cũ hơn {cutoff_time}...")
+    # 1. Check Lock
+    if cache.get(CLEANUP_LOCK_ID):
+        return CleanupTaskDomain.locked(
+            message="Tiến trình dọn dẹp ĐANG CHẠY. Vui lòng đợi nó hoàn tất."
+        )
 
-    # 2. Tìm tất cả các file "mồ côi"
-    orphan_files = UploadedFile.objects.filter(
-        status=FileStatus.STAGING,
-        uploaded_at__lt=cutoff_time
-    )
-
-    count = orphan_files.count()
-    if count == 0:
-        return {"deleted_count": 0, "filenames": []}
-
-    # 3. Lặp và xóa (để kích hoạt xóa file vật lý)
-    deleted_filenames = []
-    for file_record in orphan_files.iterator(): # Dùng iterator() cho hiệu quả
+    # 2. Định nghĩa hàm Worker (Chạy trong Thread)
+    def _run_worker():
         try:
-            file_name = file_record.file.name
+            # Set Lock (Hết hạn sau 10 phút)
+            cache.set(CLEANUP_LOCK_ID, "running", timeout=600)
+            print(f">>> [Service] Thread Start: Dọn file cũ hơn {days_old} ngày...")
             
-            # Quan trọng: Xóa file vật lý khỏi S3/thư mục media
-            file_record.file.delete(save=False) 
+            # TRUYỀN THAM SỐ VÀO ĐÂY
+            # days: xóa file staging cũ
+            # clean_broken: True để bật chế độ quét file lỗi (nếu muốn admin chạy cái này)
+            call_command('cleanup_files', days=days_old)
             
-            # Xóa bản ghi (record) khỏi CSDL
-            file_record.delete()
-            
-            deleted_filenames.append(file_name)
+            print(">>> [Service] Thread Done: Hoàn tất.")
         except Exception as e:
-            # Ghi log nếu xóa 1 file lỗi, nhưng vẫn tiếp tục
-            logger.error(f"Lỗi khi xóa file {file_record.id} ({file_name}): {e}", exc_info=True)
+            print(f">>> [Service] Thread Error: {e}")
+        finally:
+            # Luôn giải phóng lock
+            cache.delete(CLEANUP_LOCK_ID)
 
-    logger.info(f"Đã dọn dẹp thành công {len(deleted_filenames)} file.")
-    
-    return {
-        "deleted_count": len(deleted_filenames),
-        "filenames": deleted_filenames
-    }
+    # 3. Khởi chạy Thread
+    task_thread = threading.Thread(target=_run_worker, daemon=True)
+    task_thread.start()
 
-
-# @transaction.atomic
-# def cleanup_broken_links() -> dict:
-#     """
-#     Dọn dẹp các bản ghi CSDL mà file vật lý không còn tồn tại.
-    
-#     !!! CẢNH BÁO: TÁC VỤ NÀY RẤT CHẬM !!!
-#     Nó phải gọi API (S3, v.v.) để kiểm tra TỪNG FILE.
-#     Không nên chạy qua API View, mà nên chạy bằng Management Command.
-#     """
-#     logger.warning("Bắt đầu quét file hỏng (tác vụ chậm)...")
-#     broken_files = []
-    
-#     # Lặp qua TẤT CẢ các file, bất kể status
-#     for file_record in UploadedFile.objects.all().iterator():
-        
-#         # 1. Nếu file field bị rỗng (lỗi data)
-#         if not file_record.file:
-#             logger.warning(f"Bản ghi {file_record.id} không có file. Đang xóa...")
-#             broken_files.append(f"Record_ID_{file_record.id}_missing_file_field")
-#             file_record.delete()
-#             continue
-            
-#         # 2. Nếu file không tồn tại trên storage (S3, local, v.v.)
-#         if not default_storage.exists(file_record.file.name):
-#             logger.warning(f"File {file_record.file.name} (ID: {file_record.id}) không tồn tại. Đang xóa...")
-#             broken_files.append(file_record.file.name)
-            
-#             # Chỉ xóa bản ghi CSDL, file vật lý đã mất rồi
-#             file_record.delete()
-            
-#     logger.info(f"Đã dọn dẹp {len(broken_files)} file hỏng.")
-#     return {
-#         "deleted_count": len(broken_files),
-#         "filenames": broken_files
-#     }
+    return CleanupTaskDomain.started(
+        message="Đã kích hoạt tiến trình dọn dẹp ngầm thành công.",
+        lock_id=CLEANUP_LOCK_ID
+    )
 
 
 def list_all_files() -> list[FileDomain]: # <-- Thay đổi ở đây
@@ -511,35 +397,89 @@ def update_file(file_id: uuid.UUID, data: dict) -> FileDomain:
 
 def delete_file(file_id: uuid.UUID) -> None:
     """
-    Service xóa file lẻ (Dành cho API xóa file độc lập).
+    Service xóa file (Xóa cả DB và File vật lý trên S3).
     """
     logger.info(f"Service: Yêu cầu xóa file ID {file_id}...")
     
-    # 1. Tìm file
+    # 1. Tìm file trong DB
     try:
-        file_model = UploadedFile.objects.get(pk=file_id)
+        file_obj = UploadedFile.objects.get(pk=file_id)
     except UploadedFile.DoesNotExist:
-        # Nếu file không tồn tại, coi như đã xóa thành công (Idempotent)
         return None
 
-    # 2. Chỉ cần gọi delete() của Model
-    # Signal post_delete sẽ tự động nhảy vào xóa file trên S3/Disk
-    file_model.delete()
+    # 2. Xóa file vật lý trên AWS S3
+    # Mặc dù CloudFront còn cache, nhưng xóa gốc S3 là quan trọng nhất để tiết kiệm tiền.
+    if file_obj.file and file_obj.file.name:
+        try:
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME,
+            )
+            
+            s3_client.delete_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=file_obj.file.name
+            )
+            logger.info(f"AWS S3: Đã xóa object {file_obj.file.name}")
+            
+        except Exception as e:
+            # Chỉ log warning, không chặn việc xóa DB (để tránh lỗi logic)
+            logger.warning(f"Không thể xóa file trên S3: {str(e)}")
+
+    # 3. Xóa bản ghi trong DB
+    file_obj.delete()
     
-    logger.info(f"Service: Đã xóa file ID {file_id}.")
+    logger.info(f"Service: Đã xóa bản ghi DB ID {file_id}.")
     return None
 
 
-def _check_quiz_access(user, related_object):
-    # ... (Logic quiz như cũ của bạn) ...
-    # Tìm Quiz cha
-    quiz = related_object.quiz if hasattr(related_object, 'quiz') else related_object
-    
-    if quiz.mode == 'practice':
+def _check_quiz_access(user, quiz_obj):
+        """
+        Kiểm tra user có đủ điều kiện làm bài Quiz không.
+        Check: Thời gian mở/đóng, Số lần làm bài (Attempts).
+        Không check Enrollment ở đây (Enrollment check ở tầng Course rồi).
+        """
+        # 1. Admin/Giảng viên sở hữu -> Luôn OK (để họ còn test bài)
+        if user.is_staff or user.is_superuser:
+            return True
+        if quiz_obj.owner == user:
+            return True
+
+        now = timezone.now()
+
+        # 2. Check thời gian Mở (Time Open)
+        if quiz_obj.time_open and now < quiz_obj.time_open:
+            # Chưa đến giờ mở
+            return False
+
+        # 3. Check thời gian Đóng (Deadline)
+        if quiz_obj.time_close and now > quiz_obj.time_close:
+            # Đã hết hạn
+            # Tùy nghiệp vụ: Nếu hết hạn nhưng user muốn xem lại bài đã làm thì OK.
+            # Nhưng nếu muốn "Start" bài mới thì False. 
+            # Ở đây ta chặn access nói chung để bảo mật đề thi.
+            return False
+
+        # 4. Check chế độ Ôn luyện (Practice)
+        # Nếu là practice thì thường cho làm thoải mái, bỏ qua check số lần
+        if quiz_obj.mode == 'practice':
+            return True
+
+        # 5. Check số lần làm bài (Max Attempts) cho chế độ Exam
+        if quiz_obj.max_attempts is not None:
+            # Đếm số lần user đã làm (QuizAttempt)
+            # Giả sử bạn có model QuizAttempt
+            attempt_count = QuizAttempt.objects.filter(
+                user=user, 
+                quiz=quiz_obj
+            ).count()
+            
+            if attempt_count >= quiz_obj.max_attempts:
+                return False # Hết lượt làm bài
+
         return True
-    
-    # Check Attempt
-    return QuizAttempt.objects.filter(user=user, quiz=quiz).exists()
 
 
 def _get_course_from_object(obj):
@@ -636,96 +576,6 @@ def user_has_access_to_file(user: UserModel, file_object: UploadedFile) -> bool:
     return False
     
 
-def _get_best_mime_type(file_obj):
-    """
-    Hàm ưu tiên lấy từ DB, nếu không có thì đoán.
-    """
-    # Ưu tiên 1: Lấy từ DB (Nhanh nhất - O(1))
-    # Vì bạn mới thêm trường này, nên các file cũ có thể là Null/None
-    if file_obj.mime_type:
-        return str(file_obj.mime_type)
-
-    # Ưu tiên 2: Đoán từ tên file gốc (Nhanh nhì)
-    # VD: 'bai_giang.mp4' -> 'video/mp4'
-    guessed_type, _ = mimetypes.guess_type(file_obj.original_filename or file_obj.file.name)
-    if guessed_type:
-        return guessed_type
-
-    # Ưu tiên 3: Mặc định an toàn (Binary)
-    return 'application/octet-stream'
-
-def _is_browser_viewable(mime_type):
-    """
-    Danh sách các loại file trình duyệt có thể mở được ngay
-    """
-    if not mime_type: return False
-    
-    viewable_types = [
-        'application/pdf',
-        'video/mp4', 'video/webm', 'video/ogg',
-        'audio/mpeg', 'audio/ogg', 'audio/wav',
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-        'text/plain'
-    ]
-    return mime_type in viewable_types
-
-
-def generate_cloudfront_signed_url(object_key):
-    """
-    Hàm sinh URL có chữ ký CloudFront.
-    Input: object_key (VD: media/lesson/video.mp4)
-    Output: https://d2t4....cloudfront.net/media/lesson/video.mp4?Policy=...&Signature=...
-    """
-    
-    # 1. Ghép URL gốc
-    base_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{object_key}"
-    
-    # 2. Thời gian hết hạn (Ví dụ: 1 tiếng)
-    expire_date = datetime.now(timezone.utc) + timedelta(hours=1)
-    expire_timestamp = int(expire_date.timestamp())
-
-    # 3. Tạo Policy (Luật cho phép truy cập)
-    # Luật: Cho phép xem resource này nếu thời gian < expire_timestamp
-    policy_dict = {
-        "Statement": [{
-            "Resource": base_url,
-            "Condition": {
-                "DateLessThan": {"AWS:EpochTime": expire_timestamp}
-            }
-        }]
-    }
-    policy_json = json.dumps(policy_dict, separators=(',', ':'))
-
-    # 4. Đọc Private Key và Ký tên
-    try:
-        with open(settings.AWS_CLOUDFRONT_KEY_PATH, 'rb') as key_file:
-            private_key = serialization.load_pem_private_key(
-                key_file.read(),
-                password=None
-            )
-    except FileNotFoundError:
-        raise Exception(f"Không tìm thấy private key tại: {settings.AWS_CLOUDFRONT_KEY_PATH}")
-
-    # Ký Policy bằng thuật toán SHA1 (CloudFront yêu cầu)
-    signature = private_key.sign(
-        policy_json.encode('utf-8'),
-        padding.PKCS1v15(),
-        hashes.SHA1()
-    )
-
-    # 5. Mã hóa Base64 an toàn cho URL (Thay thế ký tự đặc biệt)
-    def cloudfront_base64(data):
-        return base64.b64encode(data).decode('utf-8').translate(str.maketrans('+=/', '-_~'))
-
-    encoded_policy = cloudfront_base64(policy_json.encode('utf-8'))
-    encoded_signature = cloudfront_base64(signature)
-    
-    # 6. Ghép thành URL cuối cùng
-    signed_url = f"{base_url}?Policy={encoded_policy}&Signature={encoded_signature}&Key-Pair-Id={settings.AWS_CLOUDFRONT_KEY_ID}"
-    
-    return signed_url
-
-
 def serve_file(request, file_id, user):
     """
     Service trả về URL CloudFront Signed (Tốc độ cao).
@@ -743,19 +593,71 @@ def serve_file(request, file_id, user):
     if not file_obj.file:
          raise FileNotFoundError("Dữ liệu file bị thiếu trong Database.")
 
+    # CHIẾN THUẬT QUẢN LÝ THỜI GIAN
+    expire_minutes = 60 # Mặc định 1 tiếng cho file thường (PDF, Docx)
+
+    # 1. Nếu là Video: Cho sống lâu (đề phòng user pause đi ăn cơm)
+    # Tốt nhất là 6 tiếng hoặc 12 tiếng. CloudFront không tính phí dựa trên thời gian hết hạn.
+    # Đừng keo kiệt chỗ này, UX quan trọng hơn.
+    if file_obj.mime_type and file_obj.mime_type.startswith('video/'):
+        expire_minutes = 360 # 6 tiếng
+    
+    # 2. Nếu là Ảnh (Avatar/Thumbnail): Cho sống rất lâu để Browser Cache hiệu quả
+    elif file_obj.mime_type and file_obj.mime_type.startswith('image/'):
+        expire_minutes = 1440 # 24 tiếng (1 ngày)
+
+    # 3. Nếu là file download nặng (trên 100MB): Tăng thêm thời gian đề phòng mạng chậm
+    elif file_obj.file_size > 100 * 1024 * 1024: # > 100MB
+        expire_minutes = 120 # 2 tiếng
+
     # 3. SINH URL CLOUDFRONT (Thay thế hoàn toàn đoạn boto3 cũ)
     try:
         # Lấy đường dẫn file (VD: media/2025/abc.mp4)
         s3_key = file_obj.file.name
         
         # Gọi hàm ký tên
-        signed_url = generate_cloudfront_signed_url(s3_key)
+        signed_url = generate_cloudfront_signed_url(s3_key, expire_minutes=expire_minutes)
+        print("hhhhhhhhhhhhhhhhhhhhhhhhh", signed_url)
         return signed_url
 
     except Exception as e:
         print(f"CloudFront Signing Error: {e}")
         # Log lỗi chi tiết để debug
         raise OSError(f"Lỗi khi tạo đường dẫn tải file: {str(e)}")
+
+
+# def _get_best_mime_type(file_obj):
+#     """
+#     Hàm ưu tiên lấy từ DB, nếu không có thì đoán.
+#     """
+#     # Ưu tiên 1: Lấy từ DB (Nhanh nhất - O(1))
+#     # Vì bạn mới thêm trường này, nên các file cũ có thể là Null/None
+#     if file_obj.mime_type:
+#         return str(file_obj.mime_type)
+
+#     # Ưu tiên 2: Đoán từ tên file gốc (Nhanh nhì)
+#     # VD: 'bai_giang.mp4' -> 'video/mp4'
+#     guessed_type, _ = mimetypes.guess_type(file_obj.original_filename or file_obj.file.name)
+#     if guessed_type:
+#         return guessed_type
+
+#     # Ưu tiên 3: Mặc định an toàn (Binary)
+#     return 'application/octet-stream'
+
+# def _is_browser_viewable(mime_type):
+#     """
+#     Danh sách các loại file trình duyệt có thể mở được ngay
+#     """
+#     if not mime_type: return False
+    
+#     viewable_types = [
+#         'application/pdf',
+#         'video/mp4', 'video/webm', 'video/ogg',
+#         'audio/mpeg', 'audio/ogg', 'audio/wav',
+#         'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+#         'text/plain'
+#     ]
+#     return mime_type in viewable_types
 
 
 # def serve_file_in_local(request, file_id, user):

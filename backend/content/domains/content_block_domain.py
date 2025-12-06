@@ -1,9 +1,10 @@
 import uuid
+from bs4 import BeautifulSoup
 from typing import Optional, List, Dict, Any
 
 from core.exceptions import DomainValidationError
-# from content.domains.commands import AddContentBlockCommand
 from content.models import ContentBlock
+from media.services.cloud_service import get_signed_url_by_id
 
 
 
@@ -15,23 +16,24 @@ class ContentBlockDomain:
 
     # --- SỬA 1: Thêm các type mới ---
     VALID_TYPES = (
-        "text", "image", "video", "quiz", 
-        "pdf", "docx", "exploration_ref"
+        'rich_text', 'video', 'quiz', 'pdf', 
+        'docx', 'file', 'audio'
     )
     
     # (Bạn có thể giữ lại các hằng số MAX_LENGTH...)
 
-    def __init__(self, lesson_id: str, type: str, position: int = 0, title: str = None, payload: Optional[Dict[str, Any]] = None, id: Optional[str] = None):
+    def __init__(self, type: str, lesson_id: str, position: int = 0, title: str = None, payload: Optional[Dict[str, Any]] = None, id: Optional[str] = None, icon_key: Optional[Dict[str, Any]] = None):
         self.id = id or str(uuid.uuid4())
         self.title = title
-        self.lesson_id = lesson_id
+        self.lesson_id = lesson_id 
         self.type = type
         self.position = int(position)
         self.payload = payload or {}
+        self.icon_key = icon_key or {}
         
         # Chạy validate
         self.validate_basic()
-        self.validate_payload() # Nên validate cả payload khi khởi tạo
+        # self.validate_payload() # Nên validate cả payload khi khởi tạo
 
     def validate_basic(self):
         """Validate các trường cơ bản."""
@@ -98,76 +100,100 @@ class ContentBlockDomain:
             'video': 'play-circle',
             'quiz': 'help-circle',
             'pdf': 'file-text',
-            'text': 'align-left',
-            'image': 'image'
+            'docx': 'file-text',
+            'file': 'file',
+            'rich_text': 'align-left',
         }
         return icons.get(block_type, 'box')
 
-    @classmethod
-    def from_model(cls, model, lite_mode: bool = False):
+    @staticmethod
+    def _process_payload_heavy(model):
         """
-        Khởi tạo Domain object từ Model.
-        Xử lý và "làm giàu" payload ngay tại thời điểm này.
+        Logic xử lý nặng:
+        1. Ký tên URL cho Video/PDF (Logic cũ).
+        2. Parse HTML trong Rich Text để thay thế ID ảnh bằng URL (Logic mới).
         """
-        base_data = {
-            "id": str(model.id),
-            "type": model.type,
-            "position": model.position,
-            "title": model.title,
-            "icon_key": cls._map_icon(model.type) 
-        }
+        raw_payload = model.payload.copy() if model.payload else {}
         
-        if lite_mode:
-            return cls(**base_data, payload=None)
-
-        # 1. Lấy payload thô từ CSDL
-        raw_payload = model.payload
-        
-        # 2. Tạo một bản sao để "làm giàu"
-        #    (Không làm thay đổi payload gốc của model)
-        processed_payload = raw_payload.copy()
-        
-        # 3. Xử lý payload DỰA TRÊN TYPE
         try:
-            if model.type == 'image' and 'image_id' in raw_payload:
-                image_id = raw_payload['image_id']
-                if image_id:
-                    processed_payload['image_url'] = f"/api/media/files/{image_id}/"
-            
-            elif model.type in ('pdf', 'docx') and 'file_id' in raw_payload:
-                file_id = raw_payload['file_id']
-                if file_id:
-                    processed_payload['file_url'] = f"/api/media/files/{file_id}/"
-    
-            elif model.type == 'video' and 'video_id' in raw_payload:
-                video_id = raw_payload['video_id']
-                if video_id:
-                    processed_payload['video_url'] = f"/api/media/files/{video_id}/"
-            
-            elif model.type == 'quiz':
-                # Lấy ID từ trường tham chiếu (ForeignKey)
-                if model.quiz_ref_id:
-                    if not getattr(model, 'quiz_ref_id', None):
-                        # Chủ động ném lỗi để nhảy xuống except Exception bên dưới
-                        raise ValueError(f"Quiz Block ID {model.id} missing 'quiz_ref_id'")
+            # -------------------------------------------------------
+            # CASE 1: RICH TEXT (Soạn thảo như Word)
+            # -------------------------------------------------------
+            if model.type == 'rich_text':
+                html_content = raw_payload.get('html_content', '')
                 
-                processed_payload['quiz_id'] = str(model.quiz_ref_id)
-            
-        except KeyError:
-            # Bỏ qua nếu cấu trúc payload bị sai
-            pass 
-        except Exception:
-            # Bỏ qua nếu có lỗi, giữ payload gốc
-            processed_payload = raw_payload
+                if html_content:
+                    # Dùng BeautifulSoup để "mổ xẻ" HTML
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    
+                    # Tìm tất cả thẻ <img> có thuộc tính 'data-id'
+                    # (Frontend Editor phải lưu ID vào data-id khi upload)
+                    images = soup.find_all('img', attrs={'data-id': True})
+                    
+                    for img in images:
+                        image_id = img['data-id']
+                        # Lấy Signed URL (ảnh cache lâu 24h)
+                        signed_url = get_signed_url_by_id(image_id, expire_minutes=1440)
+                        
+                        if signed_url:
+                            # Thay thế src="placeholder" thành src="https://cdn..."
+                            img['src'] = signed_url
+                            
+                    # Cập nhật lại HTML đã xử lý vào payload
+                    raw_payload['html_content'] = str(soup)
 
-        # 4. Khởi tạo class với payload đã được xử lý
+            # -------------------------------------------------------
+            # CASE 2: VIDEO (Logic cũ)
+            # -------------------------------------------------------
+            elif model.type == 'video' and 'video_id' in raw_payload:
+                # Video sống 6 tiếng
+                url = get_signed_url_by_id(raw_payload['video_id'], expire_minutes=360)
+                raw_payload['video_url'] = url
+
+            # -------------------------------------------------------
+            # CASE 3: TÀI LIỆU PDF/DOCX (Logic cũ)
+            # -------------------------------------------------------
+            elif model.type in ('pdf', 'docx') and 'file_id' in raw_payload:
+                # Tài liệu sống 2 tiếng
+                url = get_signed_url_by_id(raw_payload['file_id'], expire_minutes=120)
+                raw_payload['file_url'] = url
+
+            # -------------------------------------------------------
+            # CASE 5: QUIZ (Logic cũ)
+            # -------------------------------------------------------
+            elif model.type == 'quiz':
+                if model.quiz_ref_id:
+                    raw_payload['quiz_id'] = str(model.quiz_ref_id)
+
+        except Exception as e:
+            # Log lỗi nhưng không làm crash app, trả về payload gốc
+            print(f"Error processing payload for block {model.id}: {e}")
+            pass
+
+        return raw_payload
+
+    @classmethod
+    def from_model_summary(cls, model):
+        """Dùng cho Syllabus/List: Chỉ lấy khung xương, KHÔNG xử lý URL/Payload nặng"""
         return cls(
-            lesson_id=str(model.lesson_id),
-            type=model.type, 
-            position=model.position, 
-            payload=processed_payload, # <-- Dùng payload đã xử lý
             id=str(model.id),
+            type=model.type,
+            lesson_id=str(getattr(model,'lesson_id',None) or ""),
+            title=model.title,
+            position=model.position,
+            icon_key=cls._map_icon(model.type),
+            payload={} # Rỗng để nhẹ
         )
+
+    @classmethod
+    def from_model_detail(cls, model):
+        """Dùng cho Lesson Detail API: Lấy full, ký tên URL, xử lý HTML"""
+        domain = cls.from_model_summary(model) # Tái sử dụng base
+        
+        # Logic nặng: Ký tên URL, parse HTML...
+        domain.payload = cls._process_payload_heavy(model) 
+        
+        return domain
     
     def to_model(self):
         """

@@ -61,7 +61,7 @@ UI xóa những
             class="form-input"
             :class="{ error: errors.username }"
             @blur="validateUsername"
-            @input="errors.username = ''"
+            @input="onUsernameInput"
           />
         </div>
         <p v-if="errors.username" class="error-msg">
@@ -362,6 +362,8 @@ const loading = ref(false)
 const showPassword = ref(false)
 const showConfirm = ref(false)
 
+const usernameRegex = /^[a-zA-Z0-9]+$/
+
 const form = reactive({
   username: '',
   email: '',
@@ -384,8 +386,22 @@ function validateUsername() {
     errors.username = 'Vui lòng nhập username'
     return false
   }
+  if (!usernameRegex.test(form.username)) {
+    errors.username = 'Username chỉ chứa chữ và số, không có ký tự đặc biệt'
+    return false
+  }
   errors.username = ''
   return true
+}
+
+function onUsernameInput() {
+  if (!form.username.trim()) {
+    errors.username = ''
+    return
+  }
+  errors.username = usernameRegex.test(form.username)
+    ? ''
+    : 'Username chỉ chứa chữ và số, không có ký tự đặc biệt'
 }
 
 // ✅ Validate Email
