@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 
 
 from content.serializers import CourseSerializer
-from content.api.dtos.course_dto import CourseMetadataCreateInput, CourseTemplateCreateInput, CourseMetadataUpdateInput, CourseCatalogPublicOutput, CourseCatalogInstructorOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseAdminOutput 
+from content.api.dtos.course_dto import CourseMetadataCreateInput, CourseTemplateCreateInput, CourseMetadataUpdateInput, CourseCatalogPublicOutput, CourseCatalogInstructorOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseInstructorOutput, CourseAdminOutput 
 from content.types import CourseFetchStrategy, CourseFilter
 from content.services import course_service
 from content.models import Course
@@ -460,6 +460,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin,
     permission_lookup = {'course_id': Course}
 
     output_dto_public = CoursePublicOutput
+    output_dto_instructor = CourseInstructorOutput
     output_dto_admin  = CourseAdminOutput
 
     def __init__(self, *args, **kwargs):
@@ -473,7 +474,7 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin,
             #    Hàm này đã bao gồm cả check quyền owner
             course = self.course_service.get_course_single(
                 filters=CourseFilter(course_id=pk, owner=request.user), # Tự động check quyền owner
-                strategy=CourseFetchStrategy.STRUCTURE
+                strategy=CourseFetchStrategy.INSTRUCTOR_DETAIL
             )
             # 2. Trả về
             return Response({"instance": course}, status=status.HTTP_200_OK)

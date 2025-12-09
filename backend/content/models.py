@@ -68,7 +68,6 @@ class Course(models.Model):
     updated_at = models.DateTimeField(auto_now=True)    
     published_at = models.DateTimeField(null=True, blank=True, 
                                         help_text="Timestamp when the course was last published.")
-    # files = GenericRelation('media.UploadedFile')
     thumbnail = models.ImageField(upload_to='course_thumbnails/', storage=PublicMediaStorage(), blank=True, null=True)
 
     class Meta:
