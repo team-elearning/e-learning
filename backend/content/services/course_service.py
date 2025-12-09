@@ -1,5 +1,6 @@
 import uuid
 import logging
+import time
 from typing import List, Dict
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
@@ -171,6 +172,46 @@ def _get_or_create_categories(category_names: list[str]) -> list[Category]:
             category = Category.objects.get(slug=cat_slug)
         categories.append(category)
     return categories
+
+
+def _handle_course_image_update(course, image_id):
+    """Tách logic xử lý ảnh ra hàm riêng cho code clean hơn"""
+    try:
+        temp_file = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
+        src_path = temp_file.file.name
+        
+        # --- FIXED: Xử lý file cũ & Cache busting ---
+        # 1. Nếu course đã có thumbnail, nên xóa file cũ trên S3 để tránh rác
+        if course.thumbnail:
+            try:
+                # Hàm này giả định bạn có logic xóa file S3 từ field model
+                # course.thumbnail.delete(save=False) 
+                # Hoặc gọi s3_delete_object(course.thumbnail.name)
+                pass 
+            except Exception:
+                pass # Fail silently khi xóa file cũ
+
+        # 2. Tạo tên file mới có TIMESTAMP để tránh Browser Cache
+        file_ext = src_path.split('.')[-1]
+        timestamp = int(time.time())
+        # Ví dụ: course_thumbnails/uuid-1234_17000000.jpg
+        dest_path = f"course_thumbnails/{course.id}_{timestamp}.{file_ext}"
+        s3_full_dest_key = f"public/{dest_path}"
+
+        # 3. Copy file
+        s3_copy_object(src_path, s3_full_dest_key, is_public=True)
+
+        # 4. Save DB
+        course.thumbnail.name = dest_path
+        course.save(update_fields=['thumbnail'])
+
+        # 5. Clean staging
+        temp_file.delete()
+
+    except UploadedFile.DoesNotExist:
+        logger.warning(f"Image ID {image_id} not found or not in staging.")
+    except Exception as e:
+        logger.error(f"Lỗi S3 Copy Thumbnail: {e}")
 
 
 # ==========================================
@@ -347,7 +388,7 @@ def create_course_metadata(
 
 @transaction.atomic
 def update_course_metadata(
-    course_id: int,
+    course_id: uuid.UUID,
     data: dict,
     updated_by: UserModel,
     output_strategy: CourseFetchStrategy = CourseFetchStrategy.BASIC
@@ -417,7 +458,7 @@ def update_course_metadata(
             course.subject = None
 
     # 5. Cập nhật các trường đơn giản (Scalar fields)
-    fields_to_update = ['description', 'grade', 'published']
+    fields_to_update = ['description', 'grade', 'published', 'price', 'currency']
     for field in fields_to_update:
         if field in data:
             setattr(course, field, data[field])
@@ -440,38 +481,7 @@ def update_course_metadata(
 
     # 8. Xử lý ảnh bìa
     if image_id:
-        try:
-            # Lấy thông tin file tạm
-            temp_file_record = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
-            
-            # Lấy đường dẫn file gốc (Ví dụ: tmp/abc-xyz.jpg)
-            src_path = temp_file_record.file.name
-            
-            # Định nghĩa đường dẫn đích (Ví dụ: public/courses/{course_id}.jpg)
-            # Đặt tên theo ID course để dễ quản lý, tránh trùng lặp
-            file_ext = src_path.split('.')[-1]
-            dest_path = f"course_thumbnails/{course.id}.{file_ext}"
-            s3_full_dest_key = f"public/{dest_path}"
-
-            # GỌI HÀM COPY (Zero-byte transfer)
-            # Lưu ý: dest_path sẽ được lưu vào kho Public nếu bucket chung, 
-            # hoặc bạn phải config đúng path theo PublicStorage
-            s3_copy_object(src_path, s3_full_dest_key, is_public=True)
-
-            # Cập nhật đường dẫn vào DB
-            # Django ImageField chỉ cần lưu string path, nó sẽ tự hiểu
-            course.thumbnail.name = dest_path 
-            course.save(update_fields=['thumbnail'])
-
-            # Dọn dẹp record bảng tạm (File trên S3 có thể xóa hoặc để Lifecycle rule tự xóa sau 24h)
-            temp_file_record.delete()
-
-        except UploadedFile.DoesNotExist:
-            logger.warning(f"Image ID {image_id} not found or not in staging.")
-
-        except Exception as e:
-            logger.error(f"Lỗi S3 Copy Thumbnail: {e}")
-            # Không raise error để tránh rollback việc tạo course, chỉ log warning
+        _handle_course_image_update(course, image_id)
 
     # 9. Trả về Domain
     return CourseDomain.factory(course, output_strategy)

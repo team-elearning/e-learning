@@ -299,7 +299,7 @@ class CourseDomain:
             "description": model.description,
             "short_description": CourseDomain._truncate_text(model.description),
 
-            "price": float(model.price) if model.price else 0,
+            "price": str(model.price) if model.price is not None else "0",
             "currency": model.currency,
             "is_free": model.is_free,
             "published": model.published,

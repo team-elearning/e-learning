@@ -45,16 +45,30 @@ def initiate_file_upload(user, data: dict) -> dict:
     component = data.get('component')
     
     # 1. Tạo tên file vật lý (key trên S3)
+    # 1. Map tên component sang số nhiều (Plural) để thống nhất với folder đích sau này
+    FOLDER_MAPPING = {
+        'course_thumbnail': 'course_thumbnails', # Ép về số nhiều
+        'user_avatar': 'user_avatars',
+        'site_logo': 'site_assets'
+    }
+    
+    # Lấy tên folder chuẩn, nếu không có trong map thì giữ nguyên
+    folder_name = FOLDER_MAPPING.get(component, component)
+
+    # 2. Quy hoạch lại đường dẫn S3
+    # Thay vì để lung tung trong 'media/', ta gom hết vào 'tmp/'
     ext = original_filename.split('.')[-1]
     file_uuid = uuid.uuid4()
-    s3_key = f"media/{component}/{datetime.now().year}/{file_uuid}.{ext}"
-
-    PUBLIC_COMPONENTS = ['course_thumbnail', 'user_avatar', 'site_logo']
     
-    if component in PUBLIC_COMPONENTS:
-        acl_policy = 'public-read'  # File này ai cũng đọc được
-    else:
-        acl_policy = 'private'      # File này phải chính chủ mới đọc được
+    # Kết quả: tmp/course_thumbnails/2024/uuid.jpg
+    s3_key = f"tmp/{folder_name}/{datetime.now().year}/{file_uuid}.{ext}"
+    
+    # if component in PUBLIC_COMPONENTS:
+    #     acl_policy = 'public-read'  # File này ai cũng đọc được
+    # else:
+    #     acl_policy = 'private'      # File này phải chính chủ mới đọc được
+
+    acl_policy = 'private'
 
     # 2. Tạo bản ghi trong DB (Lưu ý: Field 'file' lúc này chưa có file thật)
     # Chúng ta lưu đường dẫn string vào field file.
