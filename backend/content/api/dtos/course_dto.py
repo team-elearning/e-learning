@@ -112,7 +112,7 @@ class CourseMetadataUpdateInput(BaseModel):
 
 
 # ==========================================
-# PUBLIC INTERFACE (GET)
+# PUBLIC INTERFACE (OUTPUT)
 # ==========================================
 
 class CourseCatalogPublicOutput(BaseModel):
@@ -125,22 +125,70 @@ class CourseCatalogPublicOutput(BaseModel):
     # --- Các trường metadata (giống DTO của bạn) ---
     id: uuid.UUID
     title: str
-    description: Optional[str]
-    grade: Optional[str]
-    published: bool
-    
-    # Giả sử bạn muốn public các trường này
-    image_url: Optional[str] = None
-    subject: Optional[SubjectPublicOutput] = None
     slug: str
-    categories: List[str] = Field(default=[], alias="category_names")
-    tags: List[str] = Field(default=[], alias="tag_names")
+    description: Optional[str]
+    short_description: Optional[str]
+
+    price: Optional[float]
+    currency: Optional[str]
+    is_free: bool
+    published: bool
+    grade: Optional[str]
+    
+    owner_name: Optional[str]
+    subject: Optional[SubjectPublicOutput]
+
+    categories: List[CategoryOutput] = [] 
+    tags: List[TagOutput] = []
+
+    thumbnail_url: Optional[str]
     
     # --- THÊM CẤU TRÚC LỒNG NHAU ---
-    module_count: int
-    modules: List[ModulePublicOutput] = []
+    stats: Optional[Dict]
+
+    updated_at: Optional[datetime] = None
 
     def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)
+    
+
+class CourseCatalogInstructorOutput(BaseModel):
+    """
+    DTO Output cho Instructor.
+    Bao gồm TOÀN BỘ cấu trúc khóa học và các metadata quản trị.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    # --- Các trường Metadata (giống Public) ---
+    id: uuid.UUID
+    title: str
+    slug: str
+    description: Optional[str]
+    short_description: Optional[str]
+
+    price: Optional[float]
+    currency: Optional[str]
+    is_free: bool
+    published: bool
+    grade: Optional[str]
+
+    owner_id: uuid.UUID | None = None
+    owner_name: Optional[str]
+    subject: Optional[SubjectPublicOutput]
+
+    categories: List[CategoryOutput] = [] 
+    tags: List[TagOutput] = []
+
+    thumbnail_url: Optional[str]
+
+    stats: Optional[Dict]
+    
+    published_at: Optional[datetime] = None 
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        """Helper để chuyển đổi DTO sang dict, bỏ qua các giá trị None."""
         return self.model_dump(exclude_none=exclude_none)
     
 
@@ -154,47 +202,48 @@ class CourseCatalogAdminOutput(BaseModel):
     # --- Các trường Metadata (giống Public) ---
     id: uuid.UUID
     title: str
-    description: Optional[str]
-    grade: Optional[str]
     slug: str
-    image_url: Optional[str] = None
-    
-    # --- Các trường quản trị (Admin-only) ---
+    description: Optional[str]
+    short_description: Optional[str]
+
+    price: Optional[float]
+    currency: Optional[str]
+    is_free: bool
     published: bool
-    published_at: Optional[datetime] = None # Thêm trường này từ domain
-    
-    # Thông tin chi tiết về chủ sở hữu
+    grade: Optional[str]
+
     owner_id: uuid.UUID | None = None
-    
-    # --- Các quan hệ (Sử dụng DTO đầy đủ) ---
-    subject: Optional[SubjectAdminOutput] = None
-    
-    # Admin cần DTO đầy đủ (CategoryOutput) chứ không phải List[str]
+    owner_name: Optional[str]
+    subject: Optional[SubjectAdminOutput]
+
     categories: List[CategoryOutput] = [] 
     tags: List[TagOutput] = []
-    
-    # --- Cấu trúc khóa học lồng nhau (Giống Public) ---
-    # Giả sử ModulePublicOutput đã bao gồm lessons, v.v.
-    module_count: int
-    modules: List[ModuleAdminOutput] = []
 
-    # --- Validator (Rất quan trọng) ---
-    @field_validator('categories', 'tags', 'modules', mode='before')
-    @classmethod
-    def convert_manager_to_list(cls, v: Any) -> list:
-        """
-        Chuyển đổi Django RelatedManager (ví dụ: model.tags) 
-        thành một list trước khi Pydantic validate.
-        Điều này rất quan trọng khi dùng from_attributes=True
-        """
-        if hasattr(v, 'all'):
-            # Đây là một Manager (ví dụ: course.modules.all())
-            return list(v.all())
-        if isinstance(v, list):
-            # Đây đã là một list (ví dụ: từ CourseDomain)
-            return v
-        # Trả về list rỗng nếu không có gì
-        return []
+    thumbnail_url: Optional[str]
+
+    stats: Optional[Dict]
+    
+    published_at: Optional[datetime] = None # Thêm trường này từ domain
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    # # --- Validator (Rất quan trọng) ---
+    # @field_validator('categories', 'tags', 'modules', mode='before')
+    # @classmethod
+    # def convert_manager_to_list(cls, v: Any) -> list:
+    #     """
+    #     Chuyển đổi Django RelatedManager (ví dụ: model.tags) 
+    #     thành một list trước khi Pydantic validate.
+    #     Điều này rất quan trọng khi dùng from_attributes=True
+    #     """
+    #     if hasattr(v, 'all'):
+    #         # Đây là một Manager (ví dụ: course.modules.all())
+    #         return list(v.all())
+    #     if isinstance(v, list):
+    #         # Đây đã là một list (ví dụ: từ CourseDomain)
+    #         return v
+    #     # Trả về list rỗng nếu không có gì
+    #     return []
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         """Helper để chuyển đổi DTO sang dict, bỏ qua các giá trị None."""

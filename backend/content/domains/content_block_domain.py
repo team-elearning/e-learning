@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 
 from core.exceptions import DomainValidationError
 from content.models import ContentBlock
-from media.services.cloud_service import get_signed_url_by_id
+from media.services.cloud_service import get_signed_url_by_id, generate_cloudfront_signed_url
 
 
 
@@ -110,67 +110,53 @@ class ContentBlockDomain:
     def _process_payload_heavy(model):
         """
         Logic xử lý nặng:
-        1. Ký tên URL cho Video/PDF (Logic cũ).
-        2. Parse HTML trong Rich Text để thay thế ID ảnh bằng URL (Logic mới).
+        1. Tạo Signed URL từ file_path (cho Video/PDF Private).
+        2. Rich Text: Giữ nguyên HTML (Vì ảnh đã được xử lý thành Public URL lúc Save rồi).
         """
-        raw_payload = model.payload.copy() if model.payload else {}
+        # Copy payload để không ảnh hưởng object gốc
+        processed_payload = model.payload.copy() if model.payload else {}
         
         try:
             # -------------------------------------------------------
-            # CASE 1: RICH TEXT (Soạn thảo như Word)
+            # CASE 1: CÁC LOẠI FILE PRIVATE (Video, PDF, Audio)
             # -------------------------------------------------------
-            if model.type == 'rich_text':
-                html_content = raw_payload.get('html_content', '')
+            # Service đã lưu: 'file_path': 'courses/123/lessons/456/block_789.mp4'
+            if 'file_path' in processed_payload:
+                path = processed_payload['file_path']
+
+                # QUAN TRỌNG: Phải ghép prefix 'private/' vào nếu CloudFront map full bucket
+                full_s3_key = f"private/{path}"
                 
-                if html_content:
-                    # Dùng BeautifulSoup để "mổ xẻ" HTML
-                    soup = BeautifulSoup(html_content, 'html.parser')
-                    
-                    # Tìm tất cả thẻ <img> có thuộc tính 'data-id'
-                    # (Frontend Editor phải lưu ID vào data-id khi upload)
-                    images = soup.find_all('img', attrs={'data-id': True})
-                    
-                    for img in images:
-                        image_id = img['data-id']
-                        # Lấy Signed URL (ảnh cache lâu 24h)
-                        signed_url = get_signed_url_by_id(image_id, expire_minutes=1440)
-                        
-                        if signed_url:
-                            # Thay thế src="placeholder" thành src="https://cdn..."
-                            img['src'] = signed_url
-                            
-                    # Cập nhật lại HTML đã xử lý vào payload
-                    raw_payload['html_content'] = str(soup)
+                # Gọi hàm ký tên URL dựa trên PATH (Không phải ID)
+                # Hàm này dùng thư viện cloudfront signer hoặc s3 signer
+                # Ví dụ: trả về https://cdn.lms.com/private/courses/...?Signature=...
+                signed_url = generate_cloudfront_signed_url(full_s3_key, expire_minutes=360) 
+                
+                # Gán URL vào để frontend dùng
+                processed_payload['url'] = signed_url
 
             # -------------------------------------------------------
-            # CASE 2: VIDEO (Logic cũ)
+            # CASE 2: RICH TEXT (Đơn giản hóa)
             # -------------------------------------------------------
-            elif model.type == 'video' and 'video_id' in raw_payload:
-                # Video sống 6 tiếng
-                url = get_signed_url_by_id(raw_payload['video_id'], expire_minutes=360)
-                raw_payload['video_url'] = url
+            # Với cách mới, ảnh trong bài viết (Rich Text) nên được lưu Public.
+            # Lúc lưu (Service), ta đã replace ID bằng URL public rồi.
+            # Nên lúc Read (Domain), ta KHÔNG CẦN LÀM GÌ CẢ.
+            elif model.type == 'rich_text':
+                pass # HTML đã có sẵn src="https://cdn..." rồi.
 
             # -------------------------------------------------------
-            # CASE 3: TÀI LIỆU PDF/DOCX (Logic cũ)
-            # -------------------------------------------------------
-            elif model.type in ('pdf', 'docx') and 'file_id' in raw_payload:
-                # Tài liệu sống 2 tiếng
-                url = get_signed_url_by_id(raw_payload['file_id'], expire_minutes=120)
-                raw_payload['file_url'] = url
-
-            # -------------------------------------------------------
-            # CASE 5: QUIZ (Logic cũ)
+            # CASE 3: QUIZ
             # -------------------------------------------------------
             elif model.type == 'quiz':
-                if model.quiz_ref_id:
-                    raw_payload['quiz_id'] = str(model.quiz_ref_id)
+                 if model.quiz_ref_id:
+                    processed_payload['quiz_id'] = str(model.quiz_ref_id)
 
         except Exception as e:
-            # Log lỗi nhưng không làm crash app, trả về payload gốc
+            # Logger nên được inject vào đây thay vì print
             print(f"Error processing payload for block {model.id}: {e}")
             pass
 
-        return raw_payload
+        return processed_payload
 
     @classmethod
     def from_model_summary(cls, model):

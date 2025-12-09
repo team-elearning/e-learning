@@ -1,3 +1,4 @@
+import boto3
 import base64
 import json
 from cryptography.hazmat.primitives import serialization, hashes
@@ -92,3 +93,27 @@ def get_signed_url_by_id(file_id: str, expire_minutes=60) -> str:
     except Exception as e:
         print(f"Error resolving URL for {file_id}: {e}")
         return None
+    
+
+def s3_copy_object(src_path, dest_path, is_public=True):
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        endpoint_url=getattr(settings, 'AWS_S3_ENDPOINT_URL', None) # Nếu dùng MinIO/DigitalOcean
+    )
+    bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+    # Cấu hình ACL
+    extra_args = {'ACL': 'public-read'} if is_public else {'ACL': 'private'}
+
+    # Lệnh Copy nội bộ trên Cloud (Cực nhanh)
+    s3.copy_object(
+        Bucket=bucket_name,
+        CopySource={'Bucket': bucket_name, 'Key': src_path},
+        Key=dest_path,
+        **extra_args
+    )
+
+    # (Tùy chọn) Xóa file gốc ở Staging luôn để dọn rác
+    # s3.delete_object(Bucket=bucket_name, Key=src_key)

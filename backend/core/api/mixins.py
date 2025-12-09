@@ -1,6 +1,6 @@
 import logging
 from pydantic import BaseModel
-from typing import Type, Any
+from typing import Type, Any, Optional
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import PermissionDenied
@@ -21,33 +21,52 @@ class DtoMappingError(APIException):
     
 class RoleBasedOutputMixin:
     """
-    Choose the correct *output* DTO based on the requesting user.
-
-    Expected on the view:
-        - `output_dto_public`   → DTO class for normal users
-        - `output_dto_admin`    → DTO class for staff / superuser
-        - `output_dto_self`     → (optional) DTO for the owner of the object
+    Mixin tự động chọn DTO output dựa trên vai trò user và quan hệ với object.
+    
+    Priority:
+    1. Admin/Staff -> output_dto_admin
+    2. Owner (Instructor) -> output_dto_instructor (Kiểm tra instance.owner_id == user.id)
+    3. Self (User Profile) -> output_dto_self (Kiểm tra instance.id == user.id)
+    4. Public -> output_dto_public
     """
 
     output_dto_public: Type[BaseModel]
-    output_dto_admin:  Type[BaseModel] | None = None
-    output_dto_self:   Type[BaseModel] | None = None
+    output_dto_admin: Optional[Type[BaseModel]] = None
+    output_dto_instructor: Optional[Type[BaseModel]] = None # NEW: DTO cho chủ sở hữu resource
+    output_dto_self: Optional[Type[BaseModel]] = None       # DTO cho chính bản thân user (Profile)
 
     def _select_dto_class(self, instance: Any, request) -> Type[BaseModel]:
-        """Return the DTO class that should be used for the current request."""
+        """Chọn DTO class phù hợp."""
         user = request.user
+        is_auth = user.is_authenticated
 
-        # 1. Admin / staff → full admin DTO
-        if user.is_authenticated and user.is_staff and self.output_dto_admin:
+        # 1. Admin / Staff -> Admin DTO
+        if is_auth and user.is_staff and self.output_dto_admin:
             return self.output_dto_admin
 
-        # 2. Owner of the object → self-DTO (if defined)
-        if (hasattr(self, "output_dto_self")
-                and self.output_dto_self
-                and getattr(instance, "id", None) == getattr(user, "id", None)):
+        # 2. Instructor / Owner -> Instructor DTO (NEW LOGIC)
+        # Logic: Nếu user là người tạo ra instance này (owner_id khớp)
+        if self.output_dto_instructor and is_auth:
+            # Lấy owner_id từ instance (Domain Object hoặc Model đều thường có field này)
+            # Dùng getattr để tránh lỗi nếu object không có field owner
+            obj_owner_id = getattr(instance, 'owner_id', getattr(instance, 'owner', None))
+            
+            # Nếu owner là object User, lấy ID của nó
+            if hasattr(obj_owner_id, 'id'):
+                obj_owner_id = obj_owner_id.id
+
+            # So sánh ID (chuyển về string hoặc uuid để so sánh an toàn)
+            if str(obj_owner_id) == str(user.id):
+                return self.output_dto_instructor
+
+        # 3. Self -> Self DTO (Dùng cho User Profile)
+        # Logic: instance chính là user đang login
+        if (self.output_dto_self 
+            and is_auth
+            and str(getattr(instance, "id", "")) == str(user.id)):
             return self.output_dto_self
 
-        # 3. Fallback → public DTO
+        # 4. Fallback -> Public DTO
         return self.output_dto_public
 
     def _to_dto(self, instance: Any, request) -> BaseModel:

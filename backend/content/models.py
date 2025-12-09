@@ -5,6 +5,7 @@ from django.core.validators import MinValueValidator
 from django.contrib.contenttypes.fields import GenericRelation
 
 from quiz.models import Quiz
+from core.custom_storages import PublicMediaStorage
 
 
 # Create your models here.
@@ -59,21 +60,35 @@ class Course(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='courses_owned')
     categories = models.ManyToManyField(Category, related_name='courses', blank=True)
     tags = models.ManyToManyField(Tag, related_name='courses', blank=True)
-    published_at = models.DateTimeField(null=True, blank=True, 
-                                        help_text="Timestamp when the course was last published.")
     slug = models.SlugField(max_length=255, unique=True, null=True, blank=True, 
                             help_text="URL-friendly version of the title, auto-generated if blank.")
-    created_at = models.DateTimeField(auto_now_add=True) # Tự động lưu lúc tạo
-    updated_at = models.DateTimeField(auto_now=True)     # Tự động lưu lúc sửa
-    files = GenericRelation('media.UploadedFile')
+    price = models.DecimalField(max_digits=12, decimal_places=0, default=0) # Ví dụ: 500.000 VND
+    currency = models.CharField(max_length=10, default='VND')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)    
+    published_at = models.DateTimeField(null=True, blank=True, 
+                                        help_text="Timestamp when the course was last published.")
+    # files = GenericRelation('media.UploadedFile')
+    thumbnail = models.ImageField(upload_to='course_thumbnails/', storage=PublicMediaStorage(), blank=True, null=True)
 
     class Meta:
-        verbose_name = ('Course')
-        verbose_name_plural = ('Courses')
-        ordering = ['title']
+        verbose_name = 'Course'
+        verbose_name_plural = 'Courses'
+        ordering = ['-created_at'] # Mặc định nên để bài mới nhất lên đầu
+        
+        # Index để search nhanh hơn
+        indexes = [
+            models.Index(fields=['published', 'grade']), 
+            models.Index(fields=['owner']),
+        ]
 
     def __str__(self):
         return self.title
+
+    # Helper check xem khóa học có free không
+    @property
+    def is_free(self):
+        return self.price == 0
 
 
 class Module(models.Model):
@@ -104,6 +119,7 @@ class Lesson(models.Model):
 
     def __str__(self):
         return self.title
+
 
 # class LessonVersion(models.Model):
 #     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -164,6 +180,7 @@ class ContentBlock(models.Model):
             ('audio', ('Audio'))
         ]
     )
+    duration = models.PositiveIntegerField(default=0, help_text="Thời lượng tính bằng giây")
     position = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     payload = models.JSONField(default=dict)  
     quiz_ref = models.ForeignKey(
@@ -174,7 +191,6 @@ class ContentBlock(models.Model):
         related_name='content_blocks',
         help_text="Tham chiếu đến một Quiz nếu type='quiz'"
     )
-    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = ('Content Block')
