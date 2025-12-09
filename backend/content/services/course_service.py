@@ -1,17 +1,20 @@
 import uuid
 import logging
 from typing import List, Dict
-from django.contrib.contenttypes.models import ContentType
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
-from django.utils.text import slugify
-from django.db.models import Q, Count, Prefetch
+from django.db.models import Q, Count, Prefetch, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
+from django.utils.text import slugify
 
 from custom_account.models import UserModel 
 from content.services.module_service import create_module_from_template
 from media.services.file_service import commit_files_by_ids_for_object
-from media.models import UploadedFile
+from media.services.cloud_service import s3_copy_object
+from media.models import UploadedFile, FileStatus
 from content.domains.course_domain import CourseDomain
 from content.models import Course, Module, Lesson, Category, Tag, Subject, ContentBlock
 from core.exceptions import DomainError
@@ -46,46 +49,73 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
         query_set = query_set.filter(enrollments__user=filters.enrolled_user).distinct()
 
     # --- B. TỐI ƯU HÓA QUERY (STRATEGY) ---
-    # 1. Luôn lấy các quan hệ nhẹ
+    # 1. Join bảng Owner để lấy tên giảng viên (1 query thay vì N)
+    query_set = query_set.select_related('owner', 'subject')
+
+    # 2. Luôn lấy các quan hệ nhẹ
     query_set = query_set.prefetch_related('categories', 'tags')
 
-    # 2. Xử lý Files (Ảnh bìa)
-    # Moodle Tip: Chỉ lấy file ảnh để tránh load nhầm file nặng
-    query_set = query_set.prefetch_related(
-        'categories',
-        'tags',
-        Prefetch('files', queryset=UploadedFile.objects.filter(
-            Q(file__iendswith='.jpg') | Q(file__iendswith='.png') | Q(file__iendswith='.webp')
-        ))
+    # --- C. ANNOTATION (TÍNH TOÁN SQL) ---
+    # Phần này cực quan trọng: Chuyển logic đếm từ Python sang SQL
+
+    # Đếm cơ bản
+    query_set = query_set.annotate(
+        modules_count=Count('modules', distinct=True),
+        students_count=Count('enrollments', distinct=True),
     )
+
+    if strategy in [
+        CourseFetchStrategy.CATALOG_LIST, 
+        CourseFetchStrategy.INSTRUCTOR_DASHBOARD,
+        CourseFetchStrategy.STRUCTURE,
+        CourseFetchStrategy.INSTRUCTOR_DETAIL,
+        CourseFetchStrategy.ADMIN_LIST,
+        CourseFetchStrategy.ADMIN_DETAIL
+    ]:
+        query_set = query_set.annotate(
+            # Đếm tổng số bài học (Lesson) thông qua Module
+            total_lessons=Count('modules__lessons', distinct=True),
+            
+            # Đếm Video & Quiz (Dùng Conditional Count)
+            # Giả sử ContentBlock link với Lesson qua 'content_blocks'
+            total_videos=Count(
+                'modules__lessons__content_blocks', 
+                filter=Q(modules__lessons__content_blocks__type='video'),
+                distinct=True
+            ),
+            total_quizzes=Count(
+                'modules__lessons__content_blocks', 
+                filter=Q(modules__lessons__content_blocks__type='quiz'),
+                distinct=True
+            ),
+            
+            # NEW: TÍNH TỔNG THỜI LƯỢNG (Sum Duration)
+            # Logic: Cộng dồn cột 'duration' của tất cả content blocks
+            # Coalesce để nếu null thì trả về 0
+            total_seconds=Coalesce(Sum('modules__lessons__content_blocks__duration'), 0)
+        )
 
     # 3. Chiến lược riêng biệt
     if strategy == CourseFetchStrategy.BASIC:
         pass
 
-    elif strategy == CourseFetchStrategy.CATALOG_LIST or strategy:
-        # Màn hình List: Chỉ cần đếm số Module (nhanh), không load object Module
-        query_set = query_set.annotate(module_count=Count('modules', distinct=True))
+    if strategy in [CourseFetchStrategy.CATALOG_LIST, CourseFetchStrategy.INSTRUCTOR_DASHBOARD]:
+        pass
 
     elif strategy == CourseFetchStrategy.ADMIN_LIST:
-        # Admin List: Cần thông tin Owner, User Enrolled count
-        query_set = query_set.select_related('owner')
-        query_set = query_set.annotate(
-            module_count=Count('modules', distinct=True),
-            student_count=Count('enrollments', distinct=True) # Ví dụ thêm
-        )
+        pass
 
-    elif strategy in (CourseFetchStrategy.STRUCTURE):
-        # Các màn hình chi tiết: Cần load cấu trúc cây (Module -> Lesson)
-        
-        # Tối ưu sâu: Prefetch Module và Lesson bên trong
+    # 2. STRUCTURE / DETAIL (Màn hình học/xem chi tiết)
+    elif strategy in [CourseFetchStrategy.STRUCTURE, CourseFetchStrategy.INSTRUCTOR_DETAIL, CourseFetchStrategy.ADMIN_DETAIL]:
+        # Cần load cây thư mục: Module -> Lesson
         query_set = query_set.prefetch_related(
             'modules',
             'modules__lessons',
+            # Chỉ lấy các field cần thiết của ContentBlock để hiển thị icon trên mục lục
+            # Không lấy payload nặng
             Prefetch(
                 'modules__lessons__content_blocks',
-                # QUAN TRỌNG: defer payload để nhẹ json
-                query_set=ContentBlock.objects.defer('payload', 'files')
+                queryset=ContentBlock.objects.order_by('position').only('id', 'title', 'type', 'lesson_id')
             )
         )
         
@@ -226,7 +256,7 @@ def create_course_metadata(
         data['slug'] = slugify(data['title'])
 
     if Course.objects.filter(slug=data['slug']).exists():
-        raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
+        raise ValueError(f"Slug '{data['slug']}' đã tồn tại. Vui lòng đổi tên.")
     
     subject_name = data.get('subject') # Lấy string "Tin học"
     subject_instance = None
@@ -254,7 +284,8 @@ def create_course_metadata(
             description=data.get('description', ''),
             grade=data.get('grade'),
             subject=subject_instance,
-            published=data.get('published', False)
+            published=data.get('published', False),
+            thumbnail=None
         )
     except IntegrityError:
         raise ValueError(f"Slug '{data['slug']}' vừa bị trùng. Vui lòng thử lại.")
@@ -271,110 +302,42 @@ def create_course_metadata(
         categories = _get_or_create_categories(categories_names)
         course.categories.set(categories)
 
-    # 7. Xử lý Image (nếu có)
+    # 7. TỐI ƯU HÓA: Xử lý Image bằng S3 Copy
     if image_id:
         try:
-            commit_files_by_ids_for_object(
-                file_ids=[image_id], 
-                related_object=course, 
-                actor=created_by
-            )
+            # Lấy thông tin file tạm
+            temp_file_record = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
+            
+            # Lấy đường dẫn file gốc (Ví dụ: tmp/abc-xyz.jpg)
+            src_path = temp_file_record.file.name
+            
+            # Định nghĩa đường dẫn đích (Ví dụ: public/courses/{course_id}.jpg)
+            # Đặt tên theo ID course để dễ quản lý, tránh trùng lặp
+            file_ext = src_path.split('.')[-1]
+            dest_path = f"course_thumbnails/{course.id}.{file_ext}"
+            s3_full_dest_key = f"public/{dest_path}"
+
+            # GỌI HÀM COPY (Zero-byte transfer)
+            # Lưu ý: dest_path sẽ được lưu vào kho Public nếu bucket chung, 
+            # hoặc bạn phải config đúng path theo PublicStorage
+            s3_copy_object(src_path, s3_full_dest_key, is_public=True)
+
+            # Cập nhật đường dẫn vào DB
+            # Django ImageField chỉ cần lưu string path, nó sẽ tự hiểu
+            course.thumbnail.name = dest_path 
+            course.save(update_fields=['thumbnail'])
+
+            # Dọn dẹp record bảng tạm (File trên S3 có thể xóa hoặc để Lifecycle rule tự xóa sau 24h)
+            temp_file_record.delete()
+
+        except UploadedFile.DoesNotExist:
+            logger.warning(f"Image ID {image_id} not found or not in staging.")
+
         except Exception as e:
-            raise ValueError(f"Lỗi khi lưu file ảnh: {str(e)}") from e
+            logger.error(f"Lỗi S3 Copy Thumbnail: {e}")
+            # Không raise error để tránh rollback việc tạo course, chỉ log warning
 
     # 8. Trả về Domain theo strategy
-    return CourseDomain.factory(course, output_strategy)
-
-
-@transaction.atomic
-def create_course_from_template(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.STRUCTURE) -> CourseDomain:
-    """
-    Hàm tạo khóa học dùng chung cho cả Admin và Instructor.
-    
-    Args:
-        data: Dữ liệu đầu vào (dict từ DTO).
-        created_by: User thực hiện hành động này (request.user).
-        output_strategy: Muốn trả về Domain kiểu gì (Overview hay Admin Detail).
-    """
-    
-    # 1. Chuẩn bị dữ liệu (Tách nested data)
-    modules_data = data.get('modules', [])
-    categories_names = data.get('categories', [])
-    tag_names = data.get('tags', [])
-    image_id = data.get('image_id')
-
-    # Logic: Nếu là Admin tạo hộ, 'owner' trong data có thể khác 'created_by'.
-    # Nếu không có 'owner' trong data, mặc định owner là người tạo.
-    owner = data.get('owner', created_by) 
-    
-    # 2. Xử lý Slug & Validation
-    if not data.get('slug'):
-        data['slug'] = slugify(data['title'])
-
-    if Course.objects.filter(slug=data['slug']).exists():
-        raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
-
-    # 3. Tạo Course (Core Logic)
-    try:
-        course = Course.objects.create(
-            owner=owner,
-            title=data['title'],
-            slug=data['slug'],
-            description=data.get('description', ''),
-            grade=data.get('grade'),
-            published=data.get('published', False),
-            subject=data.get('subject') 
-        )
-    except IntegrityError:
-        raise ValueError(f"Slug '{data['slug']}' vừa bị trùng. Vui lòng thử lại.")
-    except KeyError as e:
-        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {e}") from e
-
-    # 4. Xử lý M2M (Tags & Categories) - Đã tối ưu & An toàn
-    # --- Tags ---
-    if tag_names:
-        tags = []
-        for name in tag_names:
-            t_slug = slugify(name)
-            try:
-                t, _ = Tag.objects.get_or_create(name=name, defaults={'slug': t_slug})
-            except IntegrityError:
-                t = Tag.objects.get(slug=t_slug)
-            tags.append(t)
-        course.tags.set(tags)
-
-    # --- Categories ---
-    if categories_names:
-        cats = []
-        for name in categories_names:
-            c_slug = slugify(name)
-            try:
-                c, _ = Category.objects.get_or_create(name=name, defaults={'slug': c_slug})
-            except IntegrityError:
-                c = Category.objects.get(slug=c_slug)
-            cats.append(c)
-        course.categories.set(cats)
-
-    # 5. Xử lý Modules 
-    for module_data in modules_data:
-        create_module_from_template(course=course, data=module_data, actor=created_by)
-
-    # 6. Commit Files (Logic quan trọng nhất)
-    # Truyền 'actor=created_by' để hàm commit kiểm tra quyền.
-    # Nếu created_by là Admin -> Quyền tối thượng (commit file của bất kỳ ai).
-    # Nếu created_by là Instructor -> Chỉ commit file chính chủ.
-    if image_id:
-        try:
-            commit_files_by_ids_for_object(
-                file_ids=[image_id], 
-                related_object=course, 
-                actor=created_by 
-            )
-        except Exception as e:
-            raise ValueError(f"Lỗi khi lưu file: {str(e)}")
-
-    # 7. Trả về Domain theo Strategy yêu cầu
-    # Tái sử dụng hàm map của bạn (nhớ import hàm _map_to_domain hoặc để static method)
     return CourseDomain.factory(course, output_strategy)
 
 
@@ -475,199 +438,43 @@ def update_course_metadata(
         categories = _get_or_create_categories(categories_names)
         course.categories.set(categories)
 
-    # 8. Xử lý Image Update
+    # 8. Xử lý ảnh bìa
     if image_id:
         try:
-            # Logic: Commit file mới vào object. 
-            # Lưu ý: Tùy logic file manager, bạn có thể cần xóa file cũ trước 
-            # hoặc hàm commit này tự handle việc replace.
-            commit_files_by_ids_for_object(
-                file_ids=[image_id], 
-                related_object=course, 
-                actor=updated_by
-            )
+            # Lấy thông tin file tạm
+            temp_file_record = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
+            
+            # Lấy đường dẫn file gốc (Ví dụ: tmp/abc-xyz.jpg)
+            src_path = temp_file_record.file.name
+            
+            # Định nghĩa đường dẫn đích (Ví dụ: public/courses/{course_id}.jpg)
+            # Đặt tên theo ID course để dễ quản lý, tránh trùng lặp
+            file_ext = src_path.split('.')[-1]
+            dest_path = f"course_thumbnails/{course.id}.{file_ext}"
+            s3_full_dest_key = f"public/{dest_path}"
+
+            # GỌI HÀM COPY (Zero-byte transfer)
+            # Lưu ý: dest_path sẽ được lưu vào kho Public nếu bucket chung, 
+            # hoặc bạn phải config đúng path theo PublicStorage
+            s3_copy_object(src_path, s3_full_dest_key, is_public=True)
+
+            # Cập nhật đường dẫn vào DB
+            # Django ImageField chỉ cần lưu string path, nó sẽ tự hiểu
+            course.thumbnail.name = dest_path 
+            course.save(update_fields=['thumbnail'])
+
+            # Dọn dẹp record bảng tạm (File trên S3 có thể xóa hoặc để Lifecycle rule tự xóa sau 24h)
+            temp_file_record.delete()
+
+        except UploadedFile.DoesNotExist:
+            logger.warning(f"Image ID {image_id} not found or not in staging.")
+
         except Exception as e:
-            raise ValueError(f"Lỗi khi cập nhật ảnh: {str(e)}") from e
+            logger.error(f"Lỗi S3 Copy Thumbnail: {e}")
+            # Không raise error để tránh rollback việc tạo course, chỉ log warning
 
     # 9. Trả về Domain
     return CourseDomain.factory(course, output_strategy)
-
-
-
-# @transaction.atomic
-# def patch_course(
-#     course_id: uuid.UUID, 
-#     data: dict, 
-#     actor: UserModel, 
-#     output_strategy: CourseFetchStrategy = CourseFetchStrategy.STRUCTURE
-# ) -> CourseDomain:
-#     """
-#     Hàm cập nhật khóa học dùng chung (Admin & Instructor).
-    
-#     Args:
-#         course_id: ID khóa học cần sửa.
-#         data: Dữ liệu PATCH (từ DTO).
-#         actor: Người thực hiện (request.user).
-#         output_strategy: Định dạng dữ liệu trả về.
-#     """
-
-#     # 1. Lấy đối tượng gốc & Kiểm tra quyền
-#     # Logic: 
-#     # - Nếu actor là Admin -> Lấy theo ID (bỏ qua owner check).
-#     # - Nếu actor là Instructor -> Bắt buộc phải là owner.
-#     try:
-#         qs = Course.objects.select_related('owner', 'subject')
-        
-#         # Kiểm tra quyền dựa trên role (giả sử logic check admin như cũ)
-#         is_admin = getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)
-        
-#         if is_admin:
-#             course = qs.get(id=course_id)
-#         else:
-#             course = qs.get(id=course_id, owner=actor)
-            
-#     except Course.DoesNotExist:
-#         raise ValueError("Không tìm thấy khóa học hoặc bạn không có quyền chỉnh sửa.")
-
-#     # 2. Tách dữ liệu (Pop ra để data còn lại chỉ là simple fields)
-#     modules_data = data.pop('modules', None)
-#     categories_names = data.pop('categories', None)
-#     tag_names = data.pop('tags', None)
-#     image_id = data.pop('image_id', None)
-    
-#     files_to_commit = []
-
-#     # 3. Xử lý Simple Fields
-#     # Logic: Chỉ update field nào có trong data (PATCH behavior)
-#     if 'title' in data and 'slug' not in data:
-#         data['slug'] = slugify(data['title'])
-
-#     simple_fields = ['title', 'slug', 'description', 'grade', 'published', 'published_at']
-#     update_fields_for_save = []
-#     has_simple_changes = False
-
-#     for field in simple_fields: 
-#         if field in data:
-#             setattr(course, field, data[field])
-#             update_fields_for_save.append(field)
-#             has_simple_changes = True
-
-#     # 4. Xử lý Subject (Foreign Key)
-#     if 'subject' in data:
-#         # Chấp nhận cả key 'subject' hoặc 'subject_id'
-#         subject_title = data.get('subject') 
-        
-#         if subject_title is None:
-#             course.subject = None
-#         else:
-#             subject_title = str(subject_title).strip()
-#             if not subject_title:
-#                 raise ValueError("Subject không được để trống.")
-#             try:
-#                 subject_obj, created = Subject.objects.get_or_create(
-#                     title__iexact=subject_title,
-#                     defaults={
-#                         'title': subject_title,
-#                         'slug': slugify(subject_title),
-#                     }
-#                 )
-#                 course.subject = subject_obj
-#             except (Subject.DoesNotExist, ValueError):
-#                 raise ValueError(f"Subject '{subject_title}' không hợp lệ.")
-        
-#         update_fields_for_save.append('subject')
-#         has_simple_changes = True
-
-#     # 5. Lưu thay đổi cơ bản
-#     if has_simple_changes:
-#         try:
-#             course.save(update_fields=update_fields_for_save)
-#         except IntegrityError:
-#             raise ValueError(f"Slug '{data.get('slug')}' đã tồn tại. Vui lòng chọn tiêu đề khác.")
-
-#     # 6. Xử lý M2M (Tags & Categories) - Dùng logic AN TOÀN (Safe)
-#     # (Logic này đã được fix lỗi 500 từ hàm create)
-    
-#     if categories_names is not None:
-#         cats_objects = []
-#         for cat_name in categories_names:
-#             c_slug = slugify(cat_name)
-#             try:
-#                 c, _ = Category.objects.get_or_create(name=cat_name, defaults={'slug': c_slug})
-#             except IntegrityError:
-#                 c = Category.objects.get(slug=c_slug)
-#             cats_objects.append(c)
-#         course.categories.set(cats_objects)
-
-#     if tag_names is not None:
-#         tags_objects = []
-#         for tag_name in tag_names:
-#             t_slug = slugify(tag_name)
-#             try:
-#                 t, _ = Tag.objects.get_or_create(name=tag_name, defaults={'slug': t_slug})
-#             except IntegrityError:
-#                 t = Tag.objects.get(slug=t_slug)
-#             tags_objects.append(t)
-#         course.tags.set(tags_objects)
-
-#     # 7. Xử lý Ảnh bìa
-#     if image_id is not None:
-#         # Giả sử clear cũ đi để thay mới
-#         course.files.clear()
-#         files_to_commit.append(image_id)
-
-#     # 8. Xử lý Modules (Giữ nguyên logic Moodle phức tạp của bạn)
-#     if modules_data is not None:
-#         existing_ids = set(course.modules.values_list('id', flat=True))
-#         incoming_ids = set()
-
-#         for position, mod_data in enumerate(modules_data):
-#             mod_data['position'] = position
-#             mod_id_str = mod_data.get('id')
-
-#             if mod_id_str:
-#                 # -- UPDATE --
-#                 try:
-#                     mod_id = uuid.UUID(str(mod_id_str))
-#                 except ValueError:
-#                     raise ValueError(f"Invalid Module ID: {mod_id_str}")
-                
-#                 if mod_id not in existing_ids:
-#                     raise ValueError(f"Module {mod_id} không thuộc khóa học này.")
-
-#                 # Gọi đệ quy
-#                 _, mod_files = patch_module(module_id=mod_id, data=mod_data)
-#                 files_to_commit.extend(mod_files)
-#                 incoming_ids.add(mod_id)
-#             else:
-#                 # -- CREATE --
-#                 new_mod, mod_files = create_module(course=course, data=mod_data)
-#                 files_to_commit.extend(mod_files)
-#                 incoming_ids.add(new_mod.id)
-
-#         # -- DELETE --
-#         ids_to_delete = existing_ids - incoming_ids
-#         if ids_to_delete:
-#             Module.objects.filter(id__in=ids_to_delete).delete()
-
-#     # 9. Commit Files
-#     # Truyền actor vào để Service kiểm tra quyền (Admin được commit tất, Instructor chỉ commit file chính chủ)
-#     if files_to_commit:
-#         try:
-#             commit_files_by_ids_for_object(
-#                 file_ids=files_to_commit, 
-#                 related_object=course, 
-#                 actor=actor
-#             )
-#         except Exception as e:
-#             raise ValueError(f"Lỗi lưu file: {str(e)}")
-
-#     # 10. Return Domain
-#     # Tái sử dụng hàm get_course_single để lấy data mới nhất theo strategy
-#     return get_course_single(
-#         filters=CourseFilter(course_id=course_id), # Admin hay User đều xem được sau khi đã sửa xong
-#         strategy=output_strategy
-#     )
 
 
 # ==========================================
@@ -755,5 +562,100 @@ def publish_course(
         strategy=CourseFetchStrategy.STRUCTURE
     )
 
+
+# ==========================================
+# PUBLIC INTERFACE (TEMPLATE)
+# ==========================================
+
+@transaction.atomic
+def create_course_from_template(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.STRUCTURE) -> CourseDomain:
+    """
+    Hàm tạo khóa học dùng chung cho cả Admin và Instructor.
+    
+    Args:
+        data: Dữ liệu đầu vào (dict từ DTO).
+        created_by: User thực hiện hành động này (request.user).
+        output_strategy: Muốn trả về Domain kiểu gì (Overview hay Admin Detail).
+    """
+    
+    # 1. Chuẩn bị dữ liệu (Tách nested data)
+    modules_data = data.get('modules', [])
+    categories_names = data.get('categories', [])
+    tag_names = data.get('tags', [])
+    image_id = data.get('image_id')
+
+    # Logic: Nếu là Admin tạo hộ, 'owner' trong data có thể khác 'created_by'.
+    # Nếu không có 'owner' trong data, mặc định owner là người tạo.
+    owner = data.get('owner', created_by) 
+    
+    # 2. Xử lý Slug & Validation
+    if not data.get('slug'):
+        data['slug'] = slugify(data['title'])
+
+    if Course.objects.filter(slug=data['slug']).exists():
+        raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
+
+    # 3. Tạo Course (Core Logic)
+    try:
+        course = Course.objects.create(
+            owner=owner,
+            title=data['title'],
+            slug=data['slug'],
+            description=data.get('description', ''),
+            grade=data.get('grade'),
+            published=data.get('published', False),
+            subject=data.get('subject') 
+        )
+    except IntegrityError:
+        raise ValueError(f"Slug '{data['slug']}' vừa bị trùng. Vui lòng thử lại.")
+    except KeyError as e:
+        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {e}") from e
+
+    # 4. Xử lý M2M (Tags & Categories) - Đã tối ưu & An toàn
+    # --- Tags ---
+    if tag_names:
+        tags = []
+        for name in tag_names:
+            t_slug = slugify(name)
+            try:
+                t, _ = Tag.objects.get_or_create(name=name, defaults={'slug': t_slug})
+            except IntegrityError:
+                t = Tag.objects.get(slug=t_slug)
+            tags.append(t)
+        course.tags.set(tags)
+
+    # --- Categories ---
+    if categories_names:
+        cats = []
+        for name in categories_names:
+            c_slug = slugify(name)
+            try:
+                c, _ = Category.objects.get_or_create(name=name, defaults={'slug': c_slug})
+            except IntegrityError:
+                c = Category.objects.get(slug=c_slug)
+            cats.append(c)
+        course.categories.set(cats)
+
+    # 5. Xử lý Modules 
+    for module_data in modules_data:
+        create_module_from_template(course=course, data=module_data, actor=created_by)
+
+    # 6. Commit Files (Logic quan trọng nhất)
+    # Truyền 'actor=created_by' để hàm commit kiểm tra quyền.
+    # Nếu created_by là Admin -> Quyền tối thượng (commit file của bất kỳ ai).
+    # Nếu created_by là Instructor -> Chỉ commit file chính chủ.
+    if image_id:
+        try:
+            commit_files_by_ids_for_object(
+                file_ids=[image_id], 
+                related_object=course, 
+                actor=created_by 
+            )
+        except Exception as e:
+            raise ValueError(f"Lỗi khi lưu file: {str(e)}")
+
+    # 7. Trả về Domain theo Strategy yêu cầu
+    # Tái sử dụng hàm map của bạn (nhớ import hàm _map_to_domain hoặc để static method)
+    return CourseDomain.factory(course, output_strategy)
     
 

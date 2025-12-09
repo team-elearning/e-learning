@@ -17,6 +17,11 @@ class CourseFetchStrategy(str, Enum):
     
     # 2. Cấu trúc khóa học (User/Guest) - Xem trước nội dung
     STRUCTURE = auto()
+
+    # 3. Dashboard giáo viên
+    INSTRUCTOR_DASHBOARD = auto()
+
+    INSTRUCTOR_DETAIL = auto()
     
     # 3. Màn hình quản lý danh sách (Admin) - Cần sort/filter, stats hệ thống
     ADMIN_LIST = auto()

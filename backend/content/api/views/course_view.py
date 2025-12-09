@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 
 
 from content.serializers import CourseSerializer
-from content.api.dtos.course_dto import CourseMetadataCreateInput, CourseTemplateCreateInput, CourseMetadataUpdateInput, CourseCatalogPublicOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseAdminOutput 
+from content.api.dtos.course_dto import CourseMetadataCreateInput, CourseTemplateCreateInput, CourseMetadataUpdateInput, CourseCatalogPublicOutput, CourseCatalogInstructorOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseAdminOutput 
 from content.types import CourseFetchStrategy, CourseFilter
 from content.services import course_service
 from content.models import Course
@@ -397,6 +397,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, AutoPermissionCheckMi
 
     # Instructor cũng thấy DTO admin cho course của mình
     output_dto_public = CourseCatalogPublicOutput
+    output_dto_instructor = CourseCatalogInstructorOutput
     output_dto_admin  = CourseCatalogAdminOutput
 
     def __init__(self, *args, **kwargs):
@@ -408,7 +409,7 @@ class InstructorCourseListCreateView(RoleBasedOutputMixin, AutoPermissionCheckMi
         try:
             courses_list = self.course_service.get_courses(
                 filters=CourseFilter(owner=request.user), # Tự động check quyền owner
-                strategy=CourseFetchStrategy.CATALOG_LIST
+                strategy=CourseFetchStrategy.INSTRUCTOR_DASHBOARD
             )
             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
         except Exception as e:

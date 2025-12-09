@@ -41,7 +41,7 @@ class SubjectPublicOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    title: str
+    title: Optional[str]
     slug: str
 
     def to_dict(self, exclude_none: bool = True) -> dict:
