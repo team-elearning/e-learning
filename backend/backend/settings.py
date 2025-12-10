@@ -363,8 +363,8 @@ STORAGES = {
             # CloudFront & Custom Domain (QUAN TRỌNG ĐỂ CÓ URL ĐẸP)
             "custom_domain": "d2t4m4nzg5dowd.cloudfront.net",
 
-            # "cloudfront_key_id": AWS_CLOUDFRONT_KEY_ID,
-            # "cloudfront_key": CLOUDFRONT_KEY_DATA,
+            "cloudfront_key_id": None, 
+            "cloudfront_key": None,
             
             # Các config phụ
             "querystring_auth": True, # False nếu bạn muốn public hoàn toàn (nhưng bạn đang có cả private file)
