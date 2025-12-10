@@ -17,7 +17,7 @@ def generate_cloudfront_signed_url(object_key, expire_minutes=60):
     Output: https://d2t4....cloudfront.net/media/lesson/video.mp4?Policy=...&Signature=...
     """
     
-    if not settings.AWS_CLOUDFRONT_KEY_ID or not settings.AWS_CLOUDFRONT_KEY_PATH:
+    if not settings.MY_CLOUDFRONT_KEY_ID or not settings.MY_CLOUDFRONT_KEY_PATH:
         raise Exception("Server chưa cấu hình CloudFront Key ID hoặc Key Path!")
     
     # 1. Ghép URL gốc
@@ -41,13 +41,13 @@ def generate_cloudfront_signed_url(object_key, expire_minutes=60):
 
     # 4. Đọc Private Key và Ký tên
     try:
-        with open(settings.AWS_CLOUDFRONT_KEY_PATH, 'rb') as key_file:
+        with open(settings.MY_CLOUDFRONT_KEY_PATH, 'rb') as key_file:
             private_key = serialization.load_pem_private_key(
                 key_file.read(),
                 password=None
             )
     except FileNotFoundError:
-        raise Exception(f"Không tìm thấy private key tại: {settings.AWS_CLOUDFRONT_KEY_PATH}")
+        raise Exception(f"Không tìm thấy private key tại: {settings.MY_CLOUDFRONT_KEY_PATH}")
 
     # Ký Policy bằng thuật toán SHA1 (CloudFront yêu cầu)
     signature = private_key.sign(
@@ -64,7 +64,7 @@ def generate_cloudfront_signed_url(object_key, expire_minutes=60):
     encoded_signature = cloudfront_base64(signature)
     
     # 6. Ghép thành URL cuối cùng
-    signed_url = f"{base_url}?Policy={encoded_policy}&Signature={encoded_signature}&Key-Pair-Id={settings.AWS_CLOUDFRONT_KEY_ID}"
+    signed_url = f"{base_url}?Policy={encoded_policy}&Signature={encoded_signature}&Key-Pair-Id={settings.MY_CLOUDFRONT_KEY_ID}"
     
     return signed_url
 
