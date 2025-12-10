@@ -332,20 +332,23 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "")
-AWS_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID")
-AWS_CLOUDFRONT_KEY_PATH = BASE_DIR / 'cloudfront-private-key.pem'
 AWS_S3_CUSTOM_DOMAIN = 'd2t4m4nzg5dowd.cloudfront.net'
 
-# CLOUDFRONT_KEY_DATA = None 
-# # Logic: Mở file ra và đọc nội dung
-# try:
-#     if AWS_CLOUDFRONT_KEY_PATH.exists():
-#         with open(AWS_CLOUDFRONT_KEY_PATH, 'rb') as f:
-#             CLOUDFRONT_KEY_DATA = f.read() # <--- Đọc thành bytes
-#     else:
-#         print(f"⚠️ CẢNH BÁO: Không tìm thấy file key tại {AWS_CLOUDFRONT_KEY_PATH}")
-# except Exception as e:
-#     print(f"⚠️ Lỗi khi đọc key: {e}")
+
+AWS_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID")
+AWS_CLOUDFRONT_KEY_PATH = BASE_DIR / 'cloudfront-private-key.pem'
+
+
+CLOUDFRONT_KEY_DATA = None 
+# Logic: Mở file ra và đọc nội dung
+try:
+    if AWS_CLOUDFRONT_KEY_PATH.exists():
+        with open(AWS_CLOUDFRONT_KEY_PATH, 'rb') as f:
+            CLOUDFRONT_KEY_DATA = f.read() # <--- Đọc thành bytes
+    else:
+        print(f"⚠️ CẢNH BÁO: Không tìm thấy file key tại {AWS_CLOUDFRONT_KEY_PATH}")
+except Exception as e:
+    print(f"⚠️ Lỗi khi đọc key: {e}")
 
 
 STORAGES = {
@@ -359,12 +362,6 @@ STORAGES = {
             "region_name": AWS_S3_REGION_NAME,
             "custom_domain": AWS_S3_CUSTOM_DOMAIN,
             "signature_version": "s3v4",
-            
-            # CloudFront & Custom Domain (QUAN TRỌNG ĐỂ CÓ URL ĐẸP)
-            "custom_domain": "d2t4m4nzg5dowd.cloudfront.net",
-
-            "cloudfront_key_id": None, 
-            "cloudfront_key": None,
             
             # Các config phụ
             "querystring_auth": True, # False nếu bạn muốn public hoàn toàn (nhưng bạn đang có cả private file)

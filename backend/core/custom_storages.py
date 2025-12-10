@@ -31,15 +31,20 @@ class PrivateMediaStorage(S3Boto3Storage):
     location = 'private' # Lưu vào folder /private trên S3
     default_acl = 'private'
     file_overwrite = False
-    custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
+    # custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
     querystring_auth = True # <--- Bật chữ ký bảo mật
-    
-    # --- Cấu hình Key RIÊNG cho Private Storage ---
-    # Chỉ Private mới cần key để ký URL
-    cloudfront_key_id = settings.AWS_CLOUDFRONT_KEY_ID
-    
-    # Override hàm init để nạp key động (tránh lỗi lúc import settings)
+
     def __init__(self, *args, **kwargs):
-        # Đọc key content tại thời điểm khởi tạo
-        self.cloudfront_key = get_cloudfront_key_data()
+        from django.conf import settings
+        self.custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
         super().__init__(*args, **kwargs)
+    
+    # # --- Cấu hình Key RIÊNG cho Private Storage ---
+    # # Chỉ Private mới cần key để ký URL
+    # cloudfront_key_id = settings.AWS_CLOUDFRONT_KEY_ID
+    
+    # # Override hàm init để nạp key động (tránh lỗi lúc import settings)
+    # def __init__(self, *args, **kwargs):
+    #     # Đọc key content tại thời điểm khởi tạo
+    #     self.cloudfront_key = get_cloudfront_key_data()
+    #     super().__init__(*args, **kwargs)
