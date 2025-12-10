@@ -31,7 +31,7 @@ class PrivateMediaStorage(S3Boto3Storage):
     location = 'private' # Lưu vào folder /private trên S3
     default_acl = 'private'
     file_overwrite = False
-    custom_domain = False
+    custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
     querystring_auth = True # <--- Bật chữ ký bảo mật
     
     # --- Cấu hình Key RIÊNG cho Private Storage ---

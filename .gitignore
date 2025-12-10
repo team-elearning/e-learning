@@ -50,3 +50,7 @@ Thumbs.db
 .env.*
 # Ignore Django collected staticfiles
 backend/staticfiles/
+
+# ---- Cloudfront / Secrets ----
+*.pem
+cloudfront-private-key.pem
