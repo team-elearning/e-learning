@@ -45,6 +45,7 @@ class Component(models.TextChoices):
         QUIZ_ATTACHMENT = 'quiz_attachment', 'File trong đề thi'
         SUBMISSION_FILE = 'submission_file', 'Bài nộp của học viên'
 
+
 # Create your models here.
 class UploadedFile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
