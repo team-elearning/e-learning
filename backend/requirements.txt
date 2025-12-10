@@ -57,6 +57,8 @@ python-docx==1.2.0
 python-dotenv==1.1.1
 python-magic-bin==0.4.14; sys_platform == 'win32'
 python-magic>=0.4.15; sys_platform != 'win32'
+django-storages
+boto3
 pytz==2025.2
 redis==6.4.0
 requests==2.32.5
@@ -74,3 +76,4 @@ tzdata==2025.2
 urllib3==2.5.0
 vine==5.1.0
 wcwidth==0.2.14
+
