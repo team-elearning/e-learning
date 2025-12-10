@@ -2,16 +2,17 @@ from storages.backends.s3boto3 import S3Boto3Storage
 from django.conf import settings
 
 
-# Hàm đọc key an toàn (Lazy load: chỉ đọc khi class được khởi tạo)
+
 def get_cloudfront_key_data():
-    key_path = getattr(settings, 'AWS_CLOUDFRONT_KEY_PATH', None)
-    if key_path and key_path.exists():
-        try:
-            with open(key_path, 'rb') as f:
-                return f.read()
-        except Exception:
-            return None
-    return None
+        # Đọc từ tên biến MỚI
+        key_path = getattr(settings, 'MY_CLOUDFRONT_KEY_PATH', None)
+        if key_path and key_path.exists():
+            try:
+                with open(key_path, 'rb') as f:
+                    return f.read()
+            except Exception:
+                pass
+        return None
 
 
 class PublicMediaStorage(S3Boto3Storage):
@@ -35,16 +36,11 @@ class PrivateMediaStorage(S3Boto3Storage):
     querystring_auth = True # <--- Bật chữ ký bảo mật
 
     def __init__(self, *args, **kwargs):
-        from django.conf import settings
-        self.custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
+        # --- 3. NẠP THỦ CÔNG TỪ BIẾN ĐÃ ĐỔI TÊN ---
+        self.cloudfront_key_id = getattr(settings, 'MY_CLOUDFRONT_KEY_ID', None)
+        self.cloudfront_key = get_cloudfront_key_data()
+        
         super().__init__(*args, **kwargs)
+
+
     
-    # # --- Cấu hình Key RIÊNG cho Private Storage ---
-    # # Chỉ Private mới cần key để ký URL
-    # cloudfront_key_id = settings.AWS_CLOUDFRONT_KEY_ID
-    
-    # # Override hàm init để nạp key động (tránh lỗi lúc import settings)
-    # def __init__(self, *args, **kwargs):
-    #     # Đọc key content tại thời điểm khởi tạo
-    #     self.cloudfront_key = get_cloudfront_key_data()
-    #     super().__init__(*args, **kwargs)
