@@ -128,6 +128,7 @@ def confirm_file_upload(user, file_id: str) -> FileDomain:
         raise DomainError(f"File {file_id} không tồn tại.")
     
     print(f"DEBUG STORAGE: {file_obj.file.storage}")
+    print(f"DEBUG S3 KEY: {file_obj.file.name}")
 
     if file_obj.uploaded_by != user:
         raise PermissionDenied("Bạn không có quyền xác nhận file này.")
@@ -168,7 +169,7 @@ def confirm_file_upload(user, file_id: str) -> FileDomain:
             raise DomainError("Không tìm thấy file trên hệ thống lưu trữ. Bạn đã upload chưa?")
         else:
             # Lỗi khác (Mạng, Permission...)
-            raise DomainError(f"Lỗi kiểm tra file trên S3: {error_code}")
+            raise DomainError(f"Lỗi kiểm tra file trên S3: {e}")
 
     # 3. Update DB
     file_obj.status = FileStatus.STAGING # Hoặc trạng thái trung gian 'UPLOADED' chờ job quét virus
