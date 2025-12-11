@@ -7,11 +7,12 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from pydantic import ValidationError as PydanticValidationError
 
 from core.exceptions import DomainError
-from quiz.serializers import QuizCourseSerializer
-from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizInstructorOutput, QuizAdminOutput, QuizPublicOutput
+from quiz.serializers import QuizUpdateMetadataSerializer
+from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizAdminOutput, QuizPublicOutput
 from quiz.services import quiz_course_service
-from core.api.permissions import IsInstructor
-from core.api.mixins import RoleBasedOutputMixin 
+from quiz.models import Quiz
+from core.api.permissions import IsInstructor, IsQuizOwner
+from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 
 logger = logging.getLogger(__name__)
 
@@ -119,14 +120,14 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi không xác định: {str(e)}"},
                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def patch(self, request, pk: uuid.UUID, *args, **kwargs):
+    def patch(self, request, quiz_id: uuid.UUID, *args, **kwargs):
         """
         Cập nhật (PATCH) một Quiz (Diff Engine C/U/D questions).
         View chỉ validate và ủy quyền.
         """
         
         # 1. Validate Input
-        serializer = QuizCourseSerializer(data=request.data)
+        serializer = QuizUpdateMetadataSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -145,33 +146,18 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
         except PydanticValidationError as e:
             return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 3. "No Updates" Check (Giống style của bạn)
-        if not patch_data:
-            try:
-                instance = self.quiz_service.get_quiz_details(
-                    quiz_id=pk, user=request.user
-                )
-                return Response({"instance": instance}, status=status.HTTP_200_OK)
-            except (DomainError, ValueError) as e:
-                return Response({"detail": f"Không tìm thấy quiz: {e}"}, status=status.HTTP_404_NOT_FOUND)
-
-        # 4. Gọi Service "Diff Engine"
         try:
-            updated_quiz = self.quiz_service.patch_quiz(
-                quiz_id=pk,
-                data=patch_data, # Dùng dict đã lọc
-                user=request.user # Service sẽ check quyền
+            updated_quiz = self.quiz_service.update_quiz(
+                quiz_id=quiz_id,
+                data=patch_data,
+                user=request.user
             )
             return Response({"instance": updated_quiz}, status=status.HTTP_200_OK)
-        
-        # 5. Error Handling (Bắt lỗi từ service)
-        except DomainError as e: 
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
+
+        except DomainError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Lỗi trong QuizDetailView (PATCH): {e}", exc_info=True)
-            return Response({"detail": "Lỗi máy chủ khi cập nhật quiz."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, pk: uuid.UUID, *args, **kwargs):
         """
@@ -205,30 +191,32 @@ class AdminQuizDetailView(RoleBasedOutputMixin, APIView):
 # 2. VIEW (INSTRUCTOR)
 # ======================================================================
 
-class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
+class IntructorQuizCourseDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    GET /instructor/courses/quizzes/<pk>/    - Lấy chi tiết 1 Quiz (cùng câu hỏi).
-    PATCH /instructor/courses/quizzes/<pk>/  - Cập nhật 1 Quiz (logic C/U/D lồng).
-    DELETE /instructor/courses/quizzes/<pk>/ - Xóa 1 Quiz.
+    GET /instructor/quizzes/<pk>/    - Lấy chi tiết 1 Quiz (cùng câu hỏi).
+    PATCH /instructor/quizzes/<pk>/  - Cập nhật 1 Quiz (logic C/U/D lồng).
+    DELETE /instructor/quizzes/<pk>/ - Xóa 1 Quiz.
     """
     # (Giả sử) Cần là Instructor (hoặc Admin) và service sẽ
     # kiểm tra quyền sở hữu (owner)
-    permission_classes = [permissions.IsAuthenticated, IsInstructor] 
+    permission_classes = [permissions.IsAuthenticated, IsInstructor, IsQuizOwner] 
+
+    permission_lookup = {'quiz_id': Quiz}
 
     # (Giả sử) DTO cho Output
     output_dto_admin = QuizAdminOutput
-    output_dto_public = QuizInstructorOutput
+    output_dto_public = QuizPublicOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.quiz_service = quiz_course_service
 
-    def get(self, request, pk: uuid.UUID, *args, **kwargs):
+    def get(self, request, quiz_id: uuid.UUID, *args, **kwargs):
         """ Click 1 Quiz (Bao gồm cả 'questions') """
         try:
             # Service sẽ kiểm tra quyền (user) và trả về QuizDomain (đã lồng)
             quiz = self.quiz_service.get_quiz_details(
-                quiz_id=pk, 
+                quiz_id=quiz_id, 
                 user=request.user
             )
             return Response({"instance": quiz}, status=status.HTTP_200_OK)
@@ -242,14 +230,14 @@ class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": f"Lỗi không xác định: {str(e)}"},
                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def patch(self, request, pk: uuid.UUID, *args, **kwargs):
+    def patch(self, request, quiz_id: uuid.UUID, *args, **kwargs):
         """
         Cập nhật (PATCH) một Quiz (Diff Engine C/U/D questions).
         View chỉ validate và ủy quyền.
         """
         
         # 1. Validate Input
-        serializer = QuizCourseSerializer(data=request.data)
+        serializer = QuizUpdateMetadataSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -268,33 +256,24 @@ class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
         except PydanticValidationError as e:
             return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 3. "No Updates" Check (Giống style của bạn)
-        if not patch_data:
-            try:
-                instance = self.quiz_service.get_quiz_details(
-                    quiz_id=pk, user=request.user
-                )
-                return Response({"instance": instance}, status=status.HTTP_200_OK)
-            except (DomainError, ValueError) as e:
-                return Response({"detail": f"Không tìm thấy quiz: {e}"}, status=status.HTTP_404_NOT_FOUND)
-
-        # 4. Gọi Service "Diff Engine"
         try:
-            updated_quiz = self.quiz_service.patch_quiz(
-                quiz_id=pk,
-                data=patch_data, # Dùng dict đã lọc
-                user=request.user # Service sẽ check quyền
+            # 2. Gọi Service (Truyền thẳng dict đã validate)
+            updated_quiz = self.quiz_service.update_quiz(
+                quiz_id=quiz_id,
+                data=patch_data,
             )
+            
+            # 3. Trả về kết quả
             return Response({"instance": updated_quiz}, status=status.HTTP_200_OK)
-        
-        # 5. Error Handling (Bắt lỗi từ service)
-        except DomainError as e: 
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
+
+        except DomainError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Lỗi trong QuizDetailView (PATCH): {e}", exc_info=True)
-            return Response({"detail": "Lỗi máy chủ khi cập nhật quiz."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Quiz Patch Error: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi hệ thống khi cập nhật Quiz - {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def delete(self, request, pk: uuid.UUID, *args, **kwargs):
         """
@@ -305,7 +284,6 @@ class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
             # Ủy quyền toàn bộ cho service, bao gồm cả check quyền
             self.quiz_service.delete_quiz(
                 quiz_id=pk, 
-                user=request.user
             )
             
             # Service KHÔNG nên xóa nếu nó đang được 1 ContentBlock sử dụng.
@@ -321,4 +299,4 @@ class IntructorQuizCourseDetailView(RoleBasedOutputMixin, APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Lỗi trong QuizDetailView (DELETE): {e}", exc_info=True)
-            return Response({"detail": "Lỗi máy chủ khi xóa quiz."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"Lỗi máy chủ khi xóa quiz - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

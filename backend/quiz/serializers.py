@@ -20,15 +20,16 @@ class QuestionSerializer(serializers.Serializer):
         return value
     
 
-class QuizCourseSerializer(serializers.Serializer):
-    """
-    Validate định nghĩa Quiz được nhúng trong payload.
-    """
-    title = serializers.CharField(max_length=255)
-    time_limit = serializers.DurationField(required=False, allow_null=True)
+class QuizUpdateMetadataSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    # Settings
+    time_limit = serializers.IntegerField(required=False, min_value=0) # 0 = unlimited
+    passing_score = serializers.IntegerField(required=False, min_value=0, max_value=100)
+    max_attempts = serializers.IntegerField(required=False, min_value=1)
+    shuffle_questions = serializers.BooleanField(required=False)
     time_open = serializers.DateTimeField(required=False, allow_null=True)
     time_close = serializers.DateTimeField(required=False, allow_null=True)
-    questions = QuestionSerializer(many=True, required=False, allow_empty=True)
 
 
 class QuestionInputSerializer(serializers.Serializer):
@@ -38,37 +39,35 @@ class QuestionInputSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True) # Có ID -> Update, Không ID -> Create
     
     # Validate loại câu hỏi theo choices trong Model
-    type = serializers.ChoiceField(choices=Question.QUESTION_TYPES)
+    type = serializers.ChoiceField(choices=Question.QUESTION_TYPES, required=False)
     
     # JSON Fields: DRF dùng DictField để hứng JSON object
     prompt = serializers.DictField(
-        required=True, 
+        required=False, 
         help_text="Nội dung câu hỏi: {text, image_url, options...}"
     )
     answer_payload = serializers.DictField(
-        required=True, 
+        required=False, 
         help_text="Đáp án đúng: {correct_ids: [...]}"
     )
     hint = serializers.DictField(required=False, allow_null=True, default=dict)
-    
-    position = serializers.IntegerField(required=False, default=0)
 
-    def validate(self, data):
-        """
-        Validate logic nội bộ câu hỏi (Optional).
-        Ví dụ: Nếu là trắc nghiệm thì trong prompt phải có 'options'.
-        """
-        q_type = data.get('type')
-        prompt = data.get('prompt')
+    # def validate(self, data):
+    #     """
+    #     Validate logic nội bộ câu hỏi (Optional).
+    #     Ví dụ: Nếu là trắc nghiệm thì trong prompt phải có 'options'.
+    #     """
+    #     q_type = data.get('type')
+    #     prompt = data.get('prompt')
 
-        # Logic check sơ bộ (Moodle style strict checking)
-        if 'multiple_choice' in q_type:
-            if 'options' not in prompt or not isinstance(prompt['options'], list):
-                raise serializers.ValidationError({
-                    "prompt": "Loại câu hỏi trắc nghiệm bắt buộc phải có danh sách 'options' trong prompt."
-                })
+    #     # Logic check sơ bộ (Moodle style strict checking)
+    #     if 'multiple_choice' in q_type:
+    #         if 'options' not in prompt or not isinstance(prompt['options'], list):
+    #             raise serializers.ValidationError({
+    #                 "prompt": "Loại câu hỏi trắc nghiệm bắt buộc phải có danh sách 'options' trong prompt."
+    #             })
         
-        return data
+    #     return data
     
 
 class ExamInputSerializer(serializers.Serializer):

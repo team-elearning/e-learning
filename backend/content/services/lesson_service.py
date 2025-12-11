@@ -9,7 +9,7 @@ from custom_account.models import UserModel
 from content.models import Lesson, Module, ContentBlock
 from content.domains.lesson_domain import LessonDomain
 from core.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
-from content.services.content_block_service import create_content_block, patch_content_block
+from content.services.content_block_service import create_content_block, update_content_block
 
 
 
@@ -73,41 +73,6 @@ def create_lesson(
     )
     
     return LessonDomain.from_model_summary(lesson)
-
-
-def create_lesson_from_template(module: Module, data: Dict[str, Any], actor: UserModel) -> Tuple[Lesson, List[str]]:
-    """
-    Tạo Lesson VÀ các ContentBlock con của nó.
-    Kết hợp logic từ file mới của bạn.
-    """
-    # 1. Tách dữ liệu con
-    content_blocks_data = data.get('content_blocks', [])
-
-    # 2. Xử lý logic Lesson (Lấy từ code mới của bạn)
-    title = data.get('title')
-
-    current_max_pos = Lesson.objects.filter(module=module).aggregate(
-        max_pos=Max('position')
-    )['max_pos'] or 0
-    position = 0 if current_max_pos is None else current_max_pos + 1
-
-    # 3. Tạo Lesson (data giờ chỉ còn của lesson)
-    # **data chứa (title, content_type, published...)
-    new_lesson = Lesson.objects.create(
-        module=module,
-        title=title,
-        position=position,
-    )
-    
-    # 4. ỦY QUYỀN cho hàm 'create_content_block' (Hàm 4)
-    for block_data in content_blocks_data:
-        create_content_block(
-            lesson=new_lesson,
-            data=block_data,
-            actor=actor
-        )
-
-    return LessonDomain.from_model_detail(new_lesson)
 
 
 # ==========================================
@@ -217,6 +182,45 @@ def reorder_lessons(course_id: uuid.UUID, target_module_id: uuid.UUID, lesson_id
         Lesson.objects.bulk_update(update_list, ['position', 'module'])
 
     return [LessonDomain.from_model_summary(l) for l in ordered_lessons]
+
+
+# ==========================================
+# PUBLIC INTERFACE (TEMPLATE)
+# ==========================================
+
+def create_lesson_from_template(module: Module, data: Dict[str, Any], actor: UserModel) -> Tuple[Lesson, List[str]]:
+    """
+    Tạo Lesson VÀ các ContentBlock con của nó.
+    Kết hợp logic từ file mới của bạn.
+    """
+    # 1. Tách dữ liệu con
+    content_blocks_data = data.get('content_blocks', [])
+
+    # 2. Xử lý logic Lesson (Lấy từ code mới của bạn)
+    title = data.get('title')
+
+    current_max_pos = Lesson.objects.filter(module=module).aggregate(
+        max_pos=Max('position')
+    )['max_pos'] or 0
+    position = 0 if current_max_pos is None else current_max_pos + 1
+
+    # 3. Tạo Lesson (data giờ chỉ còn của lesson)
+    # **data chứa (title, content_type, published...)
+    new_lesson = Lesson.objects.create(
+        module=module,
+        title=title,
+        position=position,
+    )
+    
+    # 4. ỦY QUYỀN cho hàm 'create_content_block' (Hàm 4)
+    for block_data in content_blocks_data:
+        create_content_block(
+            lesson=new_lesson,
+            data=block_data,
+            actor=actor
+        )
+
+    return LessonDomain.from_model_detail(new_lesson)
 
 
 # def patch_lesson(lesson_id: UUID, data: Dict[str, Any]) -> Tuple[LessonDomain, List[str]]:

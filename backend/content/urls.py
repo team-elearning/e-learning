@@ -25,9 +25,6 @@ urlpatterns = [
     # path('admin/courses/<uuid:pk>/publish/', AdminCoursePublishView.as_view(), name='admin-course-public'),
     # path('admin/courses/<uuid:pk>/unpublish/', AdminCourseUnpublishView.as_view(), name='admin-course-unpublic'),
 
-    path('admin/quizzes/', AdminQuizListView.as_view(), name='admin-quiz-list'),
-    path('admin/quizzes/<uuid:pk>/', AdminQuizDetailView.as_view(), name='admin-quiz-detail'),
-
     path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
 
     path('admin/courses/<uuid:pk>/users/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
@@ -55,9 +52,6 @@ urlpatterns = [
     path('instructor/blocks/<uuid:block_id>/', InstructorContentBlockDetailView.as_view(), name='instructor-block-detail'),
     path('instructor/blocks/<uuid:block_id>/convert/', InstructorContentBlockConvertView.as_view(), name='instructor-block-convert'),
     path('lessons/<uuid:lesson_id>/blocks/reorder/', InstructorContentBlockReorderView.as_view(), name='instructor-block-reorder'),
-
-    # Quiz
-    path('instructor/courses/quizzes/<uuid:pk>/', IntructorQuizCourseDetailView.as_view(), name='instructor-quiz-detail'),
 
     # User in course
     path('instructor/courses/<uuid:pk>/users/', InstructorCourseParticipantListView.as_view(), name='instructor-course-participant'),

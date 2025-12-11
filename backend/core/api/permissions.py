@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from core.services.access_policy import can_edit_course_content, can_view_course_content
+from core.services.access_policy import can_edit_course_content, can_view_course_content, is_quiz_owner_logic
 
 
 
@@ -34,3 +34,12 @@ class CanViewCourseContent(BasePermission):
     """
     def has_object_permission(self, request, view, obj):
         return can_view_course_content(request.user, obj)
+    
+
+class IsQuizOwner(BasePermission):
+    """
+    Permission chỉ cho phép Owner của Quiz (hoặc Admin/Course Owner) thao tác.
+    Dùng cho: Update Quiz, Delete Quiz, Add Question, Reorder Question...
+    """
+    def has_object_permission(self, request, view, obj):
+        return is_quiz_owner_logic(request.user, obj)

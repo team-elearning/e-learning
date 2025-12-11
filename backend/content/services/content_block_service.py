@@ -10,10 +10,9 @@ from typing import List, Dict, Any, Tuple
 from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson
 from content.domains.content_block_domain import ContentBlockDomain 
-from quiz.services.quiz_course_service import create_quiz, patch_quiz
+from quiz.services.quiz_course_service import create_quiz, update_quiz
 from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 from quiz.models import Quiz
-from media.services.file_service import commit_files_by_ids_for_object
 from media.services.cloud_service import s3_copy_object
 from media.models import UploadedFile, FileStatus
 
@@ -63,7 +62,7 @@ logger = logging.getLogger(__name__)
 # PUBLIC INTERFACE (HELPER)
 # ==========================================
 
-def _process_rich_text_images(html_content):
+def _process_rich_text_images(html_content, course_id: str, lesson_id: str):
     """
     Tìm các thẻ <img> có src là ID tạm hoặc blob,
     Upload/Copy ảnh sang Public Folder,
@@ -89,15 +88,20 @@ def _process_rich_text_images(html_content):
                 # 2. Định nghĩa đích (Public)
                 # public/attachments/{uuid}.jpg
                 ext = uploaded_file.file.name.split('.')[-1]
-                dest_key = f"public/attachments/{uploaded_file.id}.{ext}"
-                src_key = uploaded_file.file.name
+                
+                # Path tương đối
+                relative_path = f"courses/{course_id}/lessons/{lesson_id}/attachments/{uploaded_file.id}.{ext}"
+
+                # Key S3
+                s3_src_key = uploaded_file.file.name
+                s3_dest_key = f"public/{relative_path}"
 
                 # 3. Copy sang Public
-                s3_copy_object(src_key, dest_key, is_public=True)
+                s3_copy_object(s3_src_key, s3_dest_key, is_public=False)
                 
                 # 4. Tạo URL Public
                 # https://cdn.domain.com/public/attachments/...
-                public_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{dest_key}"
+                public_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_dest_key}"
                 
                 # 5. Thay thế src trong HTML
                 img['src'] = public_url
@@ -107,10 +111,39 @@ def _process_rich_text_images(html_content):
                 uploaded_file.delete()
                 has_changes = True
 
-            except Exception:
+            except UploadedFile.DoesNotExist:
+                continue
+            except Exception as e:
+                logger.error(f"Error processing rich text image {staging_id}: {e}")
                 continue
 
     return str(soup) if has_changes else html_content
+
+
+FILE_FIELD_MAP = {
+    'video': 'staging_video_id',
+    'pdf': 'staging_file_id',
+    'docx': 'staging_file_id',
+    'audio': 'staging_audio_id',
+    'file': 'staging_file_id',
+}
+
+
+HTML_UUID_PATTERN = re.compile(
+    r'data-file-id=["\']([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})["\']'
+)
+
+
+# def _extract_file_ids_from_html(html_content: str) -> List[str]:
+#     """
+#     Tìm tất cả UUID nằm trong thuộc tính data-file-id="UUID" của chuỗi HTML.
+#     Regex này tìm chuỗi: data-file-id="[36 ký tự UUID]"
+#     """
+#     if not html_content:
+#         return []
+    
+#     # Pattern tìm UUID chuẩn (8-4-4-4-12)
+#     return HTML_UUID_PATTERN.findall(html_content)
 
 
 # ==========================================
@@ -159,23 +192,6 @@ def get_content_block_detail(block_id: uuid.UUID) -> ContentBlockDomain:
 # ==========================================
 # PUBLIC INTERFACE (CREATE)
 # ==========================================
-
-HTML_UUID_PATTERN = re.compile(
-    r'data-file-id=["\']([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})["\']'
-)
-
-
-def _extract_file_ids_from_html(html_content: str) -> List[str]:
-    """
-    Tìm tất cả UUID nằm trong thuộc tính data-file-id="UUID" của chuỗi HTML.
-    Regex này tìm chuỗi: data-file-id="[36 ký tự UUID]"
-    """
-    if not html_content:
-        return []
-    
-    # Pattern tìm UUID chuẩn (8-4-4-4-12)
-    return HTML_UUID_PATTERN.findall(html_content)
-
 
 @transaction.atomic
 def create_content_block(
@@ -253,90 +269,6 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
     Quan trọng: Nếu payload thay đổi (vd: sửa bài viết, đổi video), 
     cần quét lại file ID để commit (chuyển trạng thái file thành permanent).
     """
-    # 1. Tìm Block
-    try:
-        # Select related quiz_ref để lúc return domain có đủ data
-        block = ContentBlock.objects.select_related('quiz_ref').get(id=block_id)
-    except ContentBlock.DoesNotExist:
-        raise DomainError(f"ContentBlock với ID '{block_id}' không tồn tại.")
-
-    # 2. Update Basic Fields
-    if 'title' in data:
-        block.title = data['title']
-    
-    # 3. Update Payload & Xử lý File (Nếu có thay đổi payload)
-    if 'payload' in data:
-        incoming_payload = data['payload'] # Dữ liệu mới gửi lên
-        current_payload = block.payload or {} # Dữ liệu đang có trong DB
-
-        updated_payload = current_payload.copy()
-        updated_payload.update(incoming_payload)
-
-        block_type = block.type # Thường không cho đổi type khi update, giữ type cũ
-        files_to_commit = []
-        
-        # Map logic giống hệt create
-        single_file_map = {
-            'video': 'video_id',
-            'pdf': 'file_id',
-            'docx': 'file_id',
-            'audio': 'audio_id', 
-            'file': 'file_id',
-        }
-
-        # --- LOGIC QUÉT FILE MỚI ---
-        if block_type == 'rich_text':
-            html_content = updated_payload.get('html_content', '')
-            processed_html = _process_rich_text_images(html_content)
-            updated_payload['html_content'] = processed_html
-
-        elif block_type in single_file_map:
-            key_name = single_file_map[block_type]
-            file_val = incoming_payload.get(key_name)
-            if file_val:
-                files_to_commit.append(file_val)
-        
-        elif block_type == 'quiz':
-            # Nếu payload có chứa quiz_id mới (trường hợp đổi đề thi khác)
-            if 'quiz_id' in incoming_payload:
-                try:
-                    new_quiz = Quiz.objects.get(id=incoming_payload['quiz_id'])
-                    block.quiz_ref = new_quiz
-                except Quiz.DoesNotExist:
-                    pass # Hoặc raise lỗi tùy business
-        
-        # Cập nhật payload vào DB
-        block.payload = updated_payload
-
-        # 4. Commit File Mới (Nếu có)
-        if files_to_commit:
-            commit_files_by_ids_for_object(
-                file_ids=files_to_commit,
-                related_object=block, 
-                actor=actor
-            )
-
-    # 5. Save
-    block.save()
-
-    return ContentBlockDomain.from_model_detail(block)
-
-
-FILE_FIELD_MAP = {
-    'video': 'staging_video_id',
-    'pdf': 'staging_file_id',
-    'docx': 'staging_file_id',
-    'audio': 'staging_audio_id',
-    'file': 'staging_file_id',
-}
-
-@transaction.atomic
-def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> ContentBlockDomain:
-    """
-    Update content block.
-    Quan trọng: Nếu payload thay đổi (vd: sửa bài viết, đổi video), 
-    cần quét lại file ID để commit (chuyển trạng thái file thành permanent).
-    """
     try:
         block = ContentBlock.objects.select_related('lesson__course').get(id=block_id)
     except ContentBlock.DoesNotExist:
@@ -356,47 +288,78 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
         updated_payload.update(incoming_payload)
 
         block_type = block.type
+
+        # ====================================================
+        # CASE A: BLOCK LÀ QUIZ (Metadata Only)
+        # ====================================================
+        if block.type == 'quiz':
+            # Logic: Nếu giảng viên đổi tên Quiz ở màn hình Block -> Đồng bộ sang bảng Quiz
+            # Tuyệt đối KHÔNG xử lý 'questions' ở đây.
+            quiz_id = current_payload.get('quiz_id')
+            new_quiz_title = incoming_payload.get('title')
+            
+            if quiz_id and new_quiz_title:
+                # Dùng update() để query nhanh, không cần load object Quiz lên
+                Quiz.objects.filter(id=quiz_id).update(title=new_quiz_title)
+
+        # === TRƯỜNG HỢP 1: RICH TEXT (Xử lý N ảnh) ===
+        elif block.type == 'rich_text':
+            raw_html = updated_payload.get('html_content', '')
+            
+            # Gọi Helper xử lý ảnh
+            clean_html = _process_rich_text_images(
+                html_content=raw_html,
+                course_id=str(block.lesson.module.course.id),
+                lesson_id=str(block.lesson.id)
+            )
+            
+            updated_payload['html_content'] = clean_html
+
+        else:
         
-        # KIỂM TRA XEM CÓ FILE STAGING CẦN PROMOTE KHÔNG
-        staging_key = FILE_FIELD_MAP.get(block_type)
-        staging_id = incoming_payload.get(staging_key) # Ví dụ: lấy ra UUID
+            # KIỂM TRA XEM CÓ FILE STAGING CẦN PROMOTE KHÔNG
+            staging_key = FILE_FIELD_MAP.get(block_type)
+            staging_id = incoming_payload.get(staging_key) # Ví dụ: lấy ra UUID
 
-        if staging_id:
-            try:
-                # 1. Tìm file tạm
-                uploaded_file = UploadedFile.objects.get(id=staging_id, status=FileStatus.STAGING)
-                
-                # 2. Định nghĩa đường dẫn đích (Private)
-                # Cấu trúc: private/courses/{id}/lessons/{id}/blocks/{id}.ext
-                ext = uploaded_file.file.name.split('.')[-1]
-                
-                # Path tương đối để lưu trong DB
-                relative_path = f"courses/{block.lesson.module.course.id}/lessons/{block.lesson.id}/{block.id}.{ext}"
-                
-                # Path tuyệt đối trên S3 (Private bucket)
-                # Lưu ý: PrivateMediaStorage thường config location='private'
-                s3_src_key = uploaded_file.file.name
-                s3_dest_key = f"private/{relative_path}" 
+            if staging_id:
+                try:
+                    # 1. Tìm file tạm
+                    uploaded_file = UploadedFile.objects.get(id=staging_id, status=FileStatus.STAGING)
+                    
+                    # 2. Định nghĩa đường dẫn đích (Private)
+                    # Cấu trúc: private/courses/{id}/lessons/{id}/blocks/{id}.ext
+                    ext = uploaded_file.file.name.split('.')[-1]
+                    
+                    # Path tương đối để lưu trong DB
+                    relative_path = f"courses/{block.lesson.module.course.id}/lessons/{block.lesson.id}/{block.id}.{ext}"
+                    
+                    # Path tuyệt đối trên S3 (Private bucket)
+                    # Src: File đang nằm ở folder tmp/
+                    s3_src_key = uploaded_file.file.name
+                    # Dest: File sẽ nằm ở folder private/
+                    s3_dest_key = f"private/{relative_path}" 
 
-                # 3. Copy file trên S3 (Dùng hàm promote nhưng set is_public=False)
-                # Bạn cần sửa hàm promote để nhận tham số ACL='private'
-                s3_copy_object(s3_src_key, s3_dest_key, is_public=False)
+                    # 3. Copy file trên S3 (Dùng hàm promote nhưng set is_public=False)
+                    # Bạn cần sửa hàm promote để nhận tham số ACL='private'
+                    s3_copy_object(s3_src_key, s3_dest_key, is_public=False)
 
-                # 4. Cập nhật Payload:
-                # - Lưu đường dẫn sạch vào
-                # - Xóa cái staging_id đi
-                updated_payload['file_path'] = relative_path
-                updated_payload['file_name'] = uploaded_file.original_filename
-                updated_payload['file_size'] = uploaded_file.file_size
-                updated_payload.pop(staging_key, None) # Xóa key staging đi
+                    # 4. Cập nhật Payload:
+                    # - Lưu đường dẫn sạch vào
+                    # - Xóa cái staging_id đi
+                    updated_payload['file_path'] = relative_path
+                    updated_payload['file_name'] = uploaded_file.original_filename
+                    updated_payload['file_size'] = uploaded_file.file_size
+                    updated_payload['storage_type'] = 's3_private' # Flag cho FE/Serializer
+                    updated_payload.pop(staging_key, None) # Xóa key staging đi
 
-                # 5. Dọn dẹp bảng tạm
-                uploaded_file.delete()
+                    # 5. Dọn dẹp bảng tạm
+                    uploaded_file.delete()
 
-            except UploadedFile.DoesNotExist:
-                pass # Bỏ qua hoặc báo lỗi
-            except Exception as e:
-                logger.error(f"Promote file failed: {e}")
+                except UploadedFile.DoesNotExist:
+                    pass # Bỏ qua hoặc báo lỗi
+                except Exception as e:
+                    logger.error(f"Promote file failed: {e}")
+                    raise DomainError(f"Lỗi khi xử lý file media - {str(e)}")
 
         # Lưu payload mới
         block.payload = updated_payload
@@ -553,90 +516,90 @@ def reorder_content_blocks(
 # PUBLIC INTERFACE (TEMPLATE)
 # ==========================================
 
-@transaction.atomic
-def create_content_block_template(
-    lesson_id: uuid.UUID, 
-    data: dict, 
-    actor: UserModel
-) -> ContentBlockDomain:
-    """
-    Tạo ContentBlock mới cho bài học.
-    Hỗ trợ xử lý tự động cho: Quiz (tạo mới), RichText (quét file), Media (gắn file).
-    """
-    # 1. Tìm Lesson cha (Validate tồn tại)
-    try:
-        lesson = Lesson.objects.get(id=lesson_id)
-    except Lesson.DoesNotExist:
-        raise Lesson.DoesNotExist(f"Bài học với ID '{lesson_id}' không tồn tại.")
+# @transaction.atomic
+# def create_content_block_template(
+#     lesson_id: uuid.UUID, 
+#     data: dict, 
+#     actor: UserModel
+# ) -> ContentBlockDomain:
+#     """
+#     Tạo ContentBlock mới cho bài học.
+#     Hỗ trợ xử lý tự động cho: Quiz (tạo mới), RichText (quét file), Media (gắn file).
+#     """
+#     # 1. Tìm Lesson cha (Validate tồn tại)
+#     try:
+#         lesson = Lesson.objects.get(id=lesson_id)
+#     except Lesson.DoesNotExist:
+#         raise Lesson.DoesNotExist(f"Bài học với ID '{lesson_id}' không tồn tại.")
 
-    # 2. Tính toán Position (Logic chuẩn giống create_lesson)
-    # Lấy vị trí lớn nhất hiện tại trong lesson này
-    max_position = ContentBlock.objects.filter(lesson=lesson).aggregate(Max('position'))['position__max']
+#     # 2. Tính toán Position (Logic chuẩn giống create_lesson)
+#     # Lấy vị trí lớn nhất hiện tại trong lesson này
+#     max_position = ContentBlock.objects.filter(lesson=lesson).aggregate(Max('position'))['position__max']
     
-    # Nếu chưa có block nào (None) -> -1. Kết quả bắt đầu từ 0.
-    current_max = max_position if max_position is not None else -1
-    position = current_max + 1
+#     # Nếu chưa có block nào (None) -> -1. Kết quả bắt đầu từ 0.
+#     current_max = max_position if max_position is not None else -1
+#     position = current_max + 1
 
-    # 3. Phân loại và Xử lý Payload
-    block_type = data.get('type')
-    raw_payload = data.get('payload', {})
+#     # 3. Phân loại và Xử lý Payload
+#     block_type = data.get('type')
+#     raw_payload = data.get('payload', {})
     
-    final_payload = raw_payload # Mặc định giữ nguyên
-    quiz_ref_model = None
-    files_to_commit = []
+#     final_payload = raw_payload # Mặc định giữ nguyên
+#     quiz_ref_model = None
+#     files_to_commit = []
 
-    # Map để lấy ID file nhanh cho các loại media đơn giản
-    # Ví dụ: block type 'video' thì tìm key 'video_id' trong payload
-    single_file_map = {
-        'video': 'video_id',
-        'pdf': 'file_id',
-        'docx': 'file_id',
-        'audio': 'audio_id', 
-        'file': 'file_id',
-    }
+#     # Map để lấy ID file nhanh cho các loại media đơn giản
+#     # Ví dụ: block type 'video' thì tìm key 'video_id' trong payload
+#     single_file_map = {
+#         'video': 'video_id',
+#         'pdf': 'file_id',
+#         'docx': 'file_id',
+#         'audio': 'audio_id', 
+#         'file': 'file_id',
+#     }
 
-    # --- LOGIC ROUTER ---
-    if block_type == 'quiz':
-        # Delegate việc tạo Quiz sang service khác
-        new_quiz_domain = create_quiz(data=raw_payload, actor=actor)
+#     # --- LOGIC ROUTER ---
+#     if block_type == 'quiz':
+#         # Delegate việc tạo Quiz sang service khác
+#         new_quiz_domain = create_quiz(data=raw_payload, actor=actor)
         
-        # Link Quiz vừa tạo vào Block
-        # Lưu ý: create_quiz trả về Domain, cần query lại Model hoặc dùng ID
-        quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
-        final_payload = {'quiz_id': str(new_quiz_domain.id)}
+#         # Link Quiz vừa tạo vào Block
+#         # Lưu ý: create_quiz trả về Domain, cần query lại Model hoặc dùng ID
+#         quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)
+#         final_payload = {'quiz_id': str(new_quiz_domain.id)}
 
-    elif block_type == 'rich_text':
-        # Rich Text: Quét HTML để tìm các ảnh/file được nhúng
-        html_text = raw_payload.get('html_content', '')
-        files_to_commit.extend(_extract_file_ids_from_html(html_text))
+#     elif block_type == 'rich_text':
+#         # Rich Text: Quét HTML để tìm các ảnh/file được nhúng
+#         html_text = raw_payload.get('html_content', '')
+#         files_to_commit.extend(_extract_file_ids_from_html(html_text))
 
-    elif block_type in single_file_map:
-        # Media Block: Lấy 1 file ID duy nhất
-        key_name = single_file_map[block_type]
-        file_val = raw_payload.get(key_name)
-        if file_val:
-            files_to_commit.append(file_val)
+#     elif block_type in single_file_map:
+#         # Media Block: Lấy 1 file ID duy nhất
+#         key_name = single_file_map[block_type]
+#         file_val = raw_payload.get(key_name)
+#         if file_val:
+#             files_to_commit.append(file_val)
 
-    # 4. Tạo ContentBlock trong DB
-    new_block = ContentBlock.objects.create(
-        lesson=lesson,
-        type=block_type,
-        payload=final_payload,
-        position=position,
-        quiz_ref=quiz_ref_model
-    )
+#     # 4. Tạo ContentBlock trong DB
+#     new_block = ContentBlock.objects.create(
+#         lesson=lesson,
+#         type=block_type,
+#         payload=final_payload,
+#         position=position,
+#         quiz_ref=quiz_ref_model
+#     )
 
-    # 5. Commit File (Nếu có)
-    # Bước này quan trọng để chuyển trạng thái file từ 'pending' sang 'active'
-    # và gắn chủ sở hữu là cái Block vừa tạo.
-    if files_to_commit:
-        commit_files_by_ids_for_object(
-            file_ids=files_to_commit,
-            related_object=new_block, 
-            actor=actor
-        )
+#     # 5. Commit File (Nếu có)
+#     # Bước này quan trọng để chuyển trạng thái file từ 'pending' sang 'active'
+#     # và gắn chủ sở hữu là cái Block vừa tạo.
+#     if files_to_commit:
+#         commit_files_by_ids_for_object(
+#             file_ids=files_to_commit,
+#             related_object=new_block, 
+#             actor=actor
+#         )
 
-    return ContentBlockDomain.from_model_detail(new_block)
+#     return ContentBlockDomain.from_model_detail(new_block)
 
 
 # def get_block_by_id(block_id: uuid.UUID) -> ContentBlockDomain:
@@ -648,67 +611,67 @@ def create_content_block_template(
 #     return ContentBlockDomain.from_model(block_model)
 
 
-def patch_content_block(block_id: uuid.UUID, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
-    """
-    Cập nhật (PATCH) một ContentBlock theo logic "Router".
-    """
+# def patch_content_block(block_id: uuid.UUID, data: Dict[str, Any]) -> Tuple[ContentBlockDomain, List[str]]:
+#     """
+#     Cập nhật (PATCH) một ContentBlock theo logic "Router".
+#     """
     
-    # 1. Lấy đối tượng gốc
-    try:
-        block = ContentBlock.objects.get(id=block_id)
-    except ContentBlock.DoesNotExist:
-        raise ValueError(f"ContentBlock with id {block_id} not found.")
+#     # 1. Lấy đối tượng gốc
+#     try:
+#         block = ContentBlock.objects.get(id=block_id)
+#     except ContentBlock.DoesNotExist:
+#         raise ValueError(f"ContentBlock with id {block_id} not found.")
 
-    files_to_commit = []
-    payload_data = data.get('payload') # Dữ liệu payload MỚI gửi lên
+#     files_to_commit = []
+#     payload_data = data.get('payload') # Dữ liệu payload MỚI gửi lên
     
-    # 2. Xử lý Payload (Logic Router)
-    if block.type == 'quiz':
-        # --- Hướng QUIZ ---
-        if payload_data is not None:
-            # Lấy ID của quiz hiện tại từ payload CŨ (đang lưu trong DB)
-            current_quiz_id_str = block.payload.get('quiz_id')
-            if not current_quiz_id_str:
-                raise ValueError("ContentBlock 'quiz' bị lỗi, không có 'quiz_id' trong payload.")
+#     # 2. Xử lý Payload (Logic Router)
+#     if block.type == 'quiz':
+#         # --- Hướng QUIZ ---
+#         if payload_data is not None:
+#             # Lấy ID của quiz hiện tại từ payload CŨ (đang lưu trong DB)
+#             current_quiz_id_str = block.payload.get('quiz_id')
+#             if not current_quiz_id_str:
+#                 raise ValueError("ContentBlock 'quiz' bị lỗi, không có 'quiz_id' trong payload.")
             
-            # Ủy quyền cho service CSDL
-            updated_quiz_model = patch_quiz(
-                quiz_id=uuid.UUID(current_quiz_id_str),
-                data=payload_data # Gửi DTO patch (title, questions: [...])
-            )
-            # (patch_quiz cũng nên trả về files_to_commit)
+#             # Ủy quyền cho service CSDL
+#             updated_quiz_model = update_quiz(
+#                 quiz_id=uuid.UUID(current_quiz_id_str),
+#                 data=payload_data # Gửi DTO patch (title, questions: [...])
+#             )
+#             # (patch_quiz cũng nên trả về files_to_commit)
 
-    else:
-        # --- Hướng BLOCK THƯỜNG ---
-        if payload_data is not None:
-            # 2a. Ghi đè payload
-            block.payload = payload_data
+#     else:
+#         # --- Hướng BLOCK THƯỜNG ---
+#         if payload_data is not None:
+#             # 2a. Ghi đè payload
+#             block.payload = payload_data
             
-            # 2b. Thu thập file MỚI (nếu 'payload' được cập nhật)
-            block_type = data.get('type', block.type) # Lấy type mới hoặc cũ
-            url_key = None
-            if block_type == 'image':
-                url_key = 'image_id'
-            elif block_type == 'video':
-                url_key = 'video_id' # Sửa theo JSON create của bạn
-            elif block_type in ['pdf', 'docx']:
-                url_key = 'file_id'
+#             # 2b. Thu thập file MỚI (nếu 'payload' được cập nhật)
+#             block_type = data.get('type', block.type) # Lấy type mới hoặc cũ
+#             url_key = None
+#             if block_type == 'image':
+#                 url_key = 'image_id'
+#             elif block_type == 'video':
+#                 url_key = 'video_id' # Sửa theo JSON create của bạn
+#             elif block_type in ['pdf', 'docx']:
+#                 url_key = 'file_id'
             
-            if url_key and url_key in payload_data:
-                files_to_commit.append(payload_data[url_key])
+#             if url_key and url_key in payload_data:
+#                 files_to_commit.append(payload_data[url_key])
         
-    # 3. Cập nhật các trường chung (ngoài payload)
-    if 'position' in data:
-        block.position = data['position']
+#     # 3. Cập nhật các trường chung (ngoài payload)
+#     if 'position' in data:
+#         block.position = data['position']
     
-    # Cẩn thận khi cho phép đổi 'type' của block đã tồn tại
-    if 'type' in data and block.type != 'quiz': 
-        block.type = data['type']
+#     # Cẩn thận khi cho phép đổi 'type' của block đã tồn tại
+#     if 'type' in data and block.type != 'quiz': 
+#         block.type = data['type']
         
-    block.save() # Lưu tất cả thay đổi
+#     block.save() # Lưu tất cả thay đổi
             
-    # 4. Trả về
-    return ContentBlockDomain.from_model(block), files_to_commit
+#     # 4. Trả về
+#     return ContentBlockDomain.from_model(block), files_to_commit
 
 
 # @transaction.atomic
