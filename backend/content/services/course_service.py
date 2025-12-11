@@ -305,15 +305,20 @@ def create_course_metadata(
         # Nếu model Subject có field slug, ta nên tạo slug luôn
         sub_slug = slugify(subject_name) 
         
-        try:
-            # Tìm subject theo tên, nếu chưa có thì tạo mới kèm slug
-            subject_instance, created = Subject.objects.get_or_create(
-                title=subject_name,
-                defaults={'slug': sub_slug} 
-            )
-        except IntegrityError:
-            # Handle trường hợp race condition (2 request cùng tạo 1 lúc)
-            subject_instance = Subject.objects.get(title=subject_name)
+        # SỬA LẠI ĐOẠN NÀY:
+        # Thay vì tìm theo title, ta tìm theo slug.
+        # Lý do: Slug là unique key, tìm theo slug sẽ không bao giờ bị lỗi trùng lặp.
+        subject_instance, created = Subject.objects.get_or_create(
+            slug=sub_slug,
+            defaults={'title': subject_name} 
+        )
+
+        # (Tuỳ chọn - Kỹ hơn) Nếu Subject đã tồn tại nhưng title cũ viết thường/hoa khác title mới
+        # Ví dụ: DB đang lưu "tiếng việt", input vào là "Tiếng Việt" -> Update lại cho đẹp
+        if not created and subject_instance.title != subject_name:
+            subject_instance.title = subject_name
+            subject_instance.save()
+            
 
     # 4. Tạo Course object (Core entity)
     try:
