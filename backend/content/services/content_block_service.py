@@ -94,7 +94,7 @@ def _process_rich_text_images(html_content, course_id: str, lesson_id: str):
 
                 # Key S3
                 s3_src_key = uploaded_file.file.name
-                s3_dest_key = f"public/{relative_path}"
+                s3_dest_key = f"private/{relative_path}"
 
                 # 3. Copy sang Public
                 s3_copy_object(s3_src_key, s3_dest_key, is_public=False)
@@ -270,7 +270,7 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
     cần quét lại file ID để commit (chuyển trạng thái file thành permanent).
     """
     try:
-        block = ContentBlock.objects.select_related('lesson__course').get(id=block_id)
+        block = ContentBlock.objects.get(id=block_id)
     except ContentBlock.DoesNotExist:
         raise DomainError(f"Block {block_id} not found.")
 

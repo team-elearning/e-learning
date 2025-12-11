@@ -343,9 +343,7 @@ def create_course_metadata(
         course.categories.set(categories)
 
     # 7. TỐI ƯU HÓA: Xử lý Image bằng S3 Copy
-    print("vooooooooooooo")
     if image_id:
-        print("kooooooooooooooooooooo")
         try:
             # Lấy thông tin file tạm
             temp_file_record = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
