@@ -68,44 +68,6 @@ def create_module(
     return ModuleDomain.from_model(module)
 
 
-def create_module_from_template(course: Course, data: Dict[str, Any], actor: UserModel) -> Tuple[ModuleDomain, List[str]]:
-    """
-    Tạo một module VÀ CÁC CON (lesson, content_block) của nó.
-    Hàm này được gọi BÊN TRONG một transaction (của create_course).
-    """
-    # 1. Tách dữ liệu con (lessons) ra khỏi dữ liệu (module)
-    lessons_data = data.get('lessons', [])
-
-    # 2. Xử lý logic nghiệp vụ của Module (lấy từ code cũ của bạn)
-    title = data.get('title')
-
-    max_pos_data = Module.objects.filter(course=course).aggregate(max_pos=Max('position'))
-    max_pos = max_pos_data.get('max_pos')
-    position = 0 if max_pos is None else max_pos + 1
-    
-    # 3. Tạo Module
-    # 'data' lúc này chỉ còn 'title' (và các trường khác nếu có)
-    # 'position' đã được tính toán
-    new_module = Module.objects.create(
-        course=course,
-        title=title,
-        position=position
-        # Hoặc: **data, nếu data từ serializer đã có position
-    )
-    
-    # 4. (QUAN TRỌNG) Gọi hàm con để tạo Lessons
-    for lesson_data in lessons_data:
-        # Chúng ta cần một hàm tương tự: _create_lesson
-        create_lesson_from_template(
-            module=new_module, 
-            data=lesson_data,
-            actor=actor
-        )
-    
-    # 5. Trả về module đã tạo VÀ danh sách file đã gom
-    return ModuleDomain.from_model(new_module)
-
-
 # ==========================================
 # PUBLIC INTERFACE (UPDATE)
 # ==========================================
@@ -205,6 +167,43 @@ def reorder_modules(course_id: uuid.UUID, module_id_list: list[uuid.UUID]):
 # ==========================================
 # TEMPLATE
 # ==========================================
+
+def create_module_from_template(course: Course, data: Dict[str, Any], actor: UserModel) -> Tuple[ModuleDomain, List[str]]:
+    """
+    Tạo một module VÀ CÁC CON (lesson, content_block) của nó.
+    Hàm này được gọi BÊN TRONG một transaction (của create_course).
+    """
+    # 1. Tách dữ liệu con (lessons) ra khỏi dữ liệu (module)
+    lessons_data = data.get('lessons', [])
+
+    # 2. Xử lý logic nghiệp vụ của Module (lấy từ code cũ của bạn)
+    title = data.get('title')
+
+    max_pos_data = Module.objects.filter(course=course).aggregate(max_pos=Max('position'))
+    max_pos = max_pos_data.get('max_pos')
+    position = 0 if max_pos is None else max_pos + 1
+    
+    # 3. Tạo Module
+    # 'data' lúc này chỉ còn 'title' (và các trường khác nếu có)
+    # 'position' đã được tính toán
+    new_module = Module.objects.create(
+        course=course,
+        title=title,
+        position=position
+        # Hoặc: **data, nếu data từ serializer đã có position
+    )
+    
+    # 4. (QUAN TRỌNG) Gọi hàm con để tạo Lessons
+    for lesson_data in lessons_data:
+        # Chúng ta cần một hàm tương tự: _create_lesson
+        create_lesson_from_template(
+            module=new_module, 
+            data=lesson_data,
+            actor=actor
+        )
+    
+    # 5. Trả về module đã tạo VÀ danh sách file đã gom
+    return ModuleDomain.from_model(new_module)
 
 
 

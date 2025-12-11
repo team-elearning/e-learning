@@ -21,8 +21,10 @@ class QuizDomain:
     time_limit: Optional[timedelta]
     time_open: Optional[datetime]
     time_close: Optional[datetime]
+    owner_id: Optional[uuid.UUID]
+    owner_name: Optional[str]
     questions: List[QuestionDomain] = field(default_factory=list)
-
+    
 
     @classmethod
     def from_model(cls, model: "Quiz") -> "QuizDomain":
@@ -40,6 +42,8 @@ class QuizDomain:
             time_limit=model.time_limit,
             time_open=model.time_open,
             time_close=model.time_close,
+            owner_id=model.owner.id,
+            owner_name=model.owner.username,
             questions=question_domains
         )
     

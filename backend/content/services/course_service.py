@@ -13,7 +13,6 @@ from django.utils.text import slugify
 
 from custom_account.models import UserModel 
 from content.services.module_service import create_module_from_template
-from media.services.file_service import commit_files_by_ids_for_object
 from media.services.cloud_service import s3_copy_object
 from media.models import UploadedFile, FileStatus
 from content.domains.course_domain import CourseDomain
@@ -344,7 +343,9 @@ def create_course_metadata(
         course.categories.set(categories)
 
     # 7. TỐI ƯU HÓA: Xử lý Image bằng S3 Copy
+    print("vooooooooooooo")
     if image_id:
+        print("kooooooooooooooooooooo")
         try:
             # Lấy thông tin file tạm
             temp_file_record = UploadedFile.objects.get(id=image_id, status=FileStatus.STAGING)
@@ -361,12 +362,15 @@ def create_course_metadata(
             # GỌI HÀM COPY (Zero-byte transfer)
             # Lưu ý: dest_path sẽ được lưu vào kho Public nếu bucket chung, 
             # hoặc bạn phải config đúng path theo PublicStorage
-            s3_copy_object(src_path, s3_full_dest_key, is_public=True)
+            s3_copy_object(src_path, s3_full_dest_key, is_public=False)
 
             # Cập nhật đường dẫn vào DB
             # Django ImageField chỉ cần lưu string path, nó sẽ tự hiểu
             course.thumbnail.name = dest_path 
             course.save(update_fields=['thumbnail'])
+            
+            # Log debug để nhìn thấy ngay
+            logger.info(f"✅ Đã copy thumbnail thành công: {dest_path}")
 
             # Dọn dẹp record bảng tạm (File trên S3 có thể xóa hoặc để Lifecycle rule tự xóa sau 24h)
             temp_file_record.delete()
@@ -577,95 +581,95 @@ def publish_course(
 # PUBLIC INTERFACE (TEMPLATE)
 # ==========================================
 
-@transaction.atomic
-def create_course_from_template(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.STRUCTURE) -> CourseDomain:
-    """
-    Hàm tạo khóa học dùng chung cho cả Admin và Instructor.
+# @transaction.atomic
+# def create_course_from_template(data: dict, created_by: UserModel, output_strategy: CourseFetchStrategy = CourseFetchStrategy.STRUCTURE) -> CourseDomain:
+#     """
+#     Hàm tạo khóa học dùng chung cho cả Admin và Instructor.
     
-    Args:
-        data: Dữ liệu đầu vào (dict từ DTO).
-        created_by: User thực hiện hành động này (request.user).
-        output_strategy: Muốn trả về Domain kiểu gì (Overview hay Admin Detail).
-    """
+#     Args:
+#         data: Dữ liệu đầu vào (dict từ DTO).
+#         created_by: User thực hiện hành động này (request.user).
+#         output_strategy: Muốn trả về Domain kiểu gì (Overview hay Admin Detail).
+#     """
     
-    # 1. Chuẩn bị dữ liệu (Tách nested data)
-    modules_data = data.get('modules', [])
-    categories_names = data.get('categories', [])
-    tag_names = data.get('tags', [])
-    image_id = data.get('image_id')
+#     # 1. Chuẩn bị dữ liệu (Tách nested data)
+#     modules_data = data.get('modules', [])
+#     categories_names = data.get('categories', [])
+#     tag_names = data.get('tags', [])
+#     image_id = data.get('image_id')
 
-    # Logic: Nếu là Admin tạo hộ, 'owner' trong data có thể khác 'created_by'.
-    # Nếu không có 'owner' trong data, mặc định owner là người tạo.
-    owner = data.get('owner', created_by) 
+#     # Logic: Nếu là Admin tạo hộ, 'owner' trong data có thể khác 'created_by'.
+#     # Nếu không có 'owner' trong data, mặc định owner là người tạo.
+#     owner = data.get('owner', created_by) 
     
-    # 2. Xử lý Slug & Validation
-    if not data.get('slug'):
-        data['slug'] = slugify(data['title'])
+#     # 2. Xử lý Slug & Validation
+#     if not data.get('slug'):
+#         data['slug'] = slugify(data['title'])
 
-    if Course.objects.filter(slug=data['slug']).exists():
-        raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
+#     if Course.objects.filter(slug=data['slug']).exists():
+#         raise ValueError(f"Title '{data['title']}' đã tồn tại. Vui lòng đổi tên.")
 
-    # 3. Tạo Course (Core Logic)
-    try:
-        course = Course.objects.create(
-            owner=owner,
-            title=data['title'],
-            slug=data['slug'],
-            description=data.get('description', ''),
-            grade=data.get('grade'),
-            published=data.get('published', False),
-            subject=data.get('subject') 
-        )
-    except IntegrityError:
-        raise ValueError(f"Slug '{data['slug']}' vừa bị trùng. Vui lòng thử lại.")
-    except KeyError as e:
-        raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {e}") from e
+#     # 3. Tạo Course (Core Logic)
+#     try:
+#         course = Course.objects.create(
+#             owner=owner,
+#             title=data['title'],
+#             slug=data['slug'],
+#             description=data.get('description', ''),
+#             grade=data.get('grade'),
+#             published=data.get('published', False),
+#             subject=data.get('subject') 
+#         )
+#     except IntegrityError:
+#         raise ValueError(f"Slug '{data['slug']}' vừa bị trùng. Vui lòng thử lại.")
+#     except KeyError as e:
+#         raise ValueError(f"Thiếu trường dữ liệu bắt buộc: {e}") from e
 
-    # 4. Xử lý M2M (Tags & Categories) - Đã tối ưu & An toàn
-    # --- Tags ---
-    if tag_names:
-        tags = []
-        for name in tag_names:
-            t_slug = slugify(name)
-            try:
-                t, _ = Tag.objects.get_or_create(name=name, defaults={'slug': t_slug})
-            except IntegrityError:
-                t = Tag.objects.get(slug=t_slug)
-            tags.append(t)
-        course.tags.set(tags)
+#     # 4. Xử lý M2M (Tags & Categories) - Đã tối ưu & An toàn
+#     # --- Tags ---
+#     if tag_names:
+#         tags = []
+#         for name in tag_names:
+#             t_slug = slugify(name)
+#             try:
+#                 t, _ = Tag.objects.get_or_create(name=name, defaults={'slug': t_slug})
+#             except IntegrityError:
+#                 t = Tag.objects.get(slug=t_slug)
+#             tags.append(t)
+#         course.tags.set(tags)
 
-    # --- Categories ---
-    if categories_names:
-        cats = []
-        for name in categories_names:
-            c_slug = slugify(name)
-            try:
-                c, _ = Category.objects.get_or_create(name=name, defaults={'slug': c_slug})
-            except IntegrityError:
-                c = Category.objects.get(slug=c_slug)
-            cats.append(c)
-        course.categories.set(cats)
+#     # --- Categories ---
+#     if categories_names:
+#         cats = []
+#         for name in categories_names:
+#             c_slug = slugify(name)
+#             try:
+#                 c, _ = Category.objects.get_or_create(name=name, defaults={'slug': c_slug})
+#             except IntegrityError:
+#                 c = Category.objects.get(slug=c_slug)
+#             cats.append(c)
+#         course.categories.set(cats)
 
-    # 5. Xử lý Modules 
-    for module_data in modules_data:
-        create_module_from_template(course=course, data=module_data, actor=created_by)
+#     # 5. Xử lý Modules 
+#     for module_data in modules_data:
+#         create_module_from_template(course=course, data=module_data, actor=created_by)
 
-    # 6. Commit Files (Logic quan trọng nhất)
-    # Truyền 'actor=created_by' để hàm commit kiểm tra quyền.
-    # Nếu created_by là Admin -> Quyền tối thượng (commit file của bất kỳ ai).
-    # Nếu created_by là Instructor -> Chỉ commit file chính chủ.
-    if image_id:
-        try:
-            commit_files_by_ids_for_object(
-                file_ids=[image_id], 
-                related_object=course, 
-                actor=created_by 
-            )
-        except Exception as e:
-            raise ValueError(f"Lỗi khi lưu file: {str(e)}")
+#     # 6. Commit Files (Logic quan trọng nhất)
+#     # Truyền 'actor=created_by' để hàm commit kiểm tra quyền.
+#     # Nếu created_by là Admin -> Quyền tối thượng (commit file của bất kỳ ai).
+#     # Nếu created_by là Instructor -> Chỉ commit file chính chủ.
+#     if image_id:
+#         try:
+#             commit_files_by_ids_for_object(
+#                 file_ids=[image_id], 
+#                 related_object=course, 
+#                 actor=created_by 
+#             )
+#         except Exception as e:
+#             raise ValueError(f"Lỗi khi lưu file: {str(e)}")
 
-    # 7. Trả về Domain theo Strategy yêu cầu
-    # Tái sử dụng hàm map của bạn (nhớ import hàm _map_to_domain hoặc để static method)
-    return CourseDomain.factory(course, output_strategy)
+#     # 7. Trả về Domain theo Strategy yêu cầu
+#     # Tái sử dụng hàm map của bạn (nhớ import hàm _map_to_domain hoặc để static method)
+#     return CourseDomain.factory(course, output_strategy)
     
 

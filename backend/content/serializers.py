@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 
 from content.models import Module, Category, Tag, Subject, Course, ContentBlock, Lesson
-from quiz.serializers import QuizCourseSerializer
+from quiz.serializers import QuizUpdateMetadataSerializer
 # from content.domains.subject_domain import SubjectDomain
 # from content.domains.course_domain import CourseDomain
 # from content.domains.lesson_domain import LessonDomain
@@ -465,7 +465,7 @@ class ContentBlockUpdateSerializer(serializers.Serializer):
         elif block_type == 'quiz':
             # Giả định QuizCourseSerializer đã được import
             # Validate cấu trúc đề thi/cài đặt quiz
-            quiz_serializer = QuizCourseSerializer(data=payload)
+            quiz_serializer = QuizUpdateMetadataSerializer(data=payload)
             quiz_serializer.is_valid(raise_exception=True)
             
             # Gán lại data sạch đã validate vào attrs

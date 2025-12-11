@@ -178,127 +178,127 @@ def confirm_file_upload(user, file_id: str) -> FileDomain:
     return FileDomain.from_model(file_obj)
 
 
-@transaction.atomic
-def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: AbstractBaseUser = None) -> int:
-    logger.info(f"Bắt đầu commit file (bằng ID) cho đối tượng {related_object}...")
+# @transaction.atomic
+# def commit_files_by_ids_for_object(file_ids: list[str], related_object, actor: AbstractBaseUser = None) -> int:
+#     logger.info(f"Bắt đầu commit file (bằng ID) cho đối tượng {related_object}...")
 
-    if not file_ids:
-        logger.warning("Không có ID file nào được cung cấp để commit.")
-        return 0
+#     if not file_ids:
+#         logger.warning("Không có ID file nào được cung cấp để commit.")
+#         return 0
 
-    # 1. VALIDATE & CHUẨN HÓA UUID
-    valid_target_ids = set()
-    for fid in file_ids:
-        try:
-            # Kiểm tra xem string có phải UUID hợp lệ không
-            uuid_obj = uuid.UUID(str(fid))
-            valid_target_ids.add(str(uuid_obj))
-        except (ValueError, TypeError):
-            # Nếu ID rác -> Bỏ qua hoặc Báo lỗi tùy nghiệp vụ. 
-            # Ở đây ta chọn báo lỗi để Frontend biết đường sửa.
-            msg = f"ID file không hợp lệ: {fid}"
-            logger.warning(msg)
-            raise DomainError(msg)
+#     # 1. VALIDATE & CHUẨN HÓA UUID
+#     valid_target_ids = set()
+#     for fid in file_ids:
+#         try:
+#             # Kiểm tra xem string có phải UUID hợp lệ không
+#             uuid_obj = uuid.UUID(str(fid))
+#             valid_target_ids.add(str(uuid_obj))
+#         except (ValueError, TypeError):
+#             # Nếu ID rác -> Bỏ qua hoặc Báo lỗi tùy nghiệp vụ. 
+#             # Ở đây ta chọn báo lỗi để Frontend biết đường sửa.
+#             msg = f"ID file không hợp lệ: {fid}"
+#             logger.warning(msg)
+#             raise DomainError(msg)
 
-    # 2. Lấy ContentType (Giữ nguyên)
-    try:
-        content_type = ContentType.objects.get_for_model(related_object)
-        object_id = str(related_object.pk)
-    except Exception as e:
-        logger.error(f"Lỗi khi lấy ContentType: {e}", exc_info=True)
-        raise DomainError(f"Không thể lấy ContentType cho {related_object}: {e}")
+#     # 2. Lấy ContentType (Giữ nguyên)
+#     try:
+#         content_type = ContentType.objects.get_for_model(related_object)
+#         object_id = str(related_object.pk)
+#     except Exception as e:
+#         logger.error(f"Lỗi khi lấy ContentType: {e}", exc_info=True)
+#         raise DomainError(f"Không thể lấy ContentType cho {related_object}: {e}")
 
-    # 3. TRUY VẤN DB (AN TOÀN CẤP ĐỘ CAO)
-    # Lấy owner của related_object (nếu có) để đảm bảo chính chủ
-    # Hầu hết các model trong LMS (Course, Lesson) đều có field 'owner' hoặc 'created_by'
-    owner = getattr(related_object, 'owner', None) 
+#     # 3. TRUY VẤN DB (AN TOÀN CẤP ĐỘ CAO)
+#     # Lấy owner của related_object (nếu có) để đảm bảo chính chủ
+#     # Hầu hết các model trong LMS (Course, Lesson) đều có field 'owner' hoặc 'created_by'
+#     owner = getattr(related_object, 'owner', None) 
     
-    is_admin=False
-    if actor and (getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)):
-        is_admin = True
+#     is_admin=False
+#     if actor and (getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)):
+#         is_admin = True
 
-    filters = Q(id__in=valid_target_ids)
+#     filters = Q(id__in=valid_target_ids)
     
-    # Điều kiện 1: File đã thuộc về Object này rồi (Re-save)
-    cond_owned_by_object = Q(content_type=content_type, object_id=object_id)
+#     # Điều kiện 1: File đã thuộc về Object này rồi (Re-save)
+#     cond_owned_by_object = Q(content_type=content_type, object_id=object_id)
     
-    # Điều kiện 2: HOẶC File mới (Pending) VÀ phải do chính người này upload
-    staging_files_condition = Q(status=FileStatus.STAGING)
+#     # Điều kiện 2: HOẶC File mới (Pending) VÀ phải do chính người này upload
+#     staging_files_condition = Q(status=FileStatus.STAGING)
     
-    # --- LOGIC PHÂN QUYỀN QUAN TRỌNG ---
-    if not is_admin:
-        # USER THƯỜNG:
-        # Chỉ được commit file staging nếu file đó do CHÍNH CHỦ sở hữu object upload
-        # (Hoặc do chính actor upload - tùy nghiệp vụ bạn muốn chặt đến đâu)
-        if owner:
-            staging_files_condition &= Q(uploaded_by=owner)
-        else:
-            # Nếu object không có owner (trường hợp hiếm), bắt buộc file phải do actor upload
-            if actor:
-                staging_files_condition &= Q(uploaded_by=actor)
-    else:
-        # ADMIN:
-        # Được phép commit BẤT KỲ file staging nào (miễn là có ID).
-        # Admin có quyền tối thượng ("God mode") để sửa chữa dữ liệu hộ user.
-        pass
+#     # --- LOGIC PHÂN QUYỀN QUAN TRỌNG ---
+#     if not is_admin:
+#         # USER THƯỜNG:
+#         # Chỉ được commit file staging nếu file đó do CHÍNH CHỦ sở hữu object upload
+#         # (Hoặc do chính actor upload - tùy nghiệp vụ bạn muốn chặt đến đâu)
+#         if owner:
+#             staging_files_condition &= Q(uploaded_by=owner)
+#         else:
+#             # Nếu object không có owner (trường hợp hiếm), bắt buộc file phải do actor upload
+#             if actor:
+#                 staging_files_condition &= Q(uploaded_by=actor)
+#     else:
+#         # ADMIN:
+#         # Được phép commit BẤT KỲ file staging nào (miễn là có ID).
+#         # Admin có quyền tối thượng ("God mode") để sửa chữa dữ liệu hộ user.
+#         pass
 
-    # Combine
-    files_qs = UploadedFile.objects.filter(
-        filters & (staging_files_condition | cond_owned_by_object)
-    )
+#     # Combine
+#     files_qs = UploadedFile.objects.filter(
+#         filters & (staging_files_condition | cond_owned_by_object)
+#     )
     
-    # Lấy ra các object thực tế từ DB
-    files_in_db = list(files_qs) # Query 1 lần ra list object
+#     # Lấy ra các object thực tế từ DB
+#     files_in_db = list(files_qs) # Query 1 lần ra list object
     
-    # Tạo dict để map ID -> Object cho dễ truy xuất
-    files_map = {str(f.id): f for f in files_in_db}
+#     # Tạo dict để map ID -> Object cho dễ truy xuất
+#     files_map = {str(f.id): f for f in files_in_db}
     
-    # Lấy ra danh sách các ID thực sự tìm thấy trong DB
-    # values_list trả về UUID object, nên cần ép kiểu str để so sánh với target_ids
-    found_ids = set(str(uid) for uid in files_qs.values_list('id', flat=True))
+#     # Lấy ra danh sách các ID thực sự tìm thấy trong DB
+#     # values_list trả về UUID object, nên cần ép kiểu str để so sánh với target_ids
+#     found_ids = set(str(uid) for uid in files_qs.values_list('id', flat=True))
     
 
-    # 4. KIỂM TRA THIẾU (MISSING OR FORBIDDEN)
-    # missing_ids ở đây bao gồm cả: File không tồn tại VÀ File tồn tại nhưng của người khác
-    missing_ids = valid_target_ids - found_ids
+#     # 4. KIỂM TRA THIẾU (MISSING OR FORBIDDEN)
+#     # missing_ids ở đây bao gồm cả: File không tồn tại VÀ File tồn tại nhưng của người khác
+#     missing_ids = valid_target_ids - found_ids
 
-    if missing_ids:
-        error_msg = (
-            f"Không thể commit các file sau (Không tồn tại hoặc thuộc về đối tượng khác): "
-            f"{missing_ids}"
-        )
-        logger.error(error_msg)
-        # Bắn lỗi ngay lập tức, transaction sẽ rollback
-        raise DomainError(error_msg)
+#     if missing_ids:
+#         error_msg = (
+#             f"Không thể commit các file sau (Không tồn tại hoặc thuộc về đối tượng khác): "
+#             f"{missing_ids}"
+#         )
+#         logger.error(error_msg)
+#         # Bắn lỗi ngay lập tức, transaction sẽ rollback
+#         raise DomainError(error_msg)
 
-    update_list = []
+#     update_list = []
     
-    # Lặp theo danh sách file_ids GỐC (để giữ thứ tự)
-    for index, fid_str in enumerate(file_ids):
-        if fid_str in files_map:
-            file_obj = files_map[fid_str]
+#     # Lặp theo danh sách file_ids GỐC (để giữ thứ tự)
+#     for index, fid_str in enumerate(file_ids):
+#         if fid_str in files_map:
+#             file_obj = files_map[fid_str]
             
-            # Cập nhật thông tin commit
-            file_obj.status = FileStatus.COMMITTED
-            file_obj.content_type = content_type
-            file_obj.object_id = object_id
+#             # Cập nhật thông tin commit
+#             file_obj.status = FileStatus.COMMITTED
+#             file_obj.content_type = content_type
+#             file_obj.object_id = object_id
             
-            # QUAN TRỌNG: Lưu thứ tự từ input vào DB
-            file_obj.sort_order = index 
+#             # QUAN TRỌNG: Lưu thứ tự từ input vào DB
+#             file_obj.sort_order = index 
             
-            update_list.append(file_obj)
+#             update_list.append(file_obj)
     
-    if update_list:
-        # Dùng bulk_update để tối ưu (chỉ 1 query update thay vì N query)
-        # Cập nhật cả status, thông tin relation và sort_order
-        UploadedFile.objects.bulk_update(
-            update_list, 
-            ['status', 'content_type', 'object_id', 'sort_order']
-        )
+#     if update_list:
+#         # Dùng bulk_update để tối ưu (chỉ 1 query update thay vì N query)
+#         # Cập nhật cả status, thông tin relation và sort_order
+#         UploadedFile.objects.bulk_update(
+#             update_list, 
+#             ['status', 'content_type', 'object_id', 'sort_order']
+#         )
 
-    logger.info(f"Đã commit và sắp xếp thành công {len(update_list)} file.")
+#     logger.info(f"Đã commit và sắp xếp thành công {len(update_list)} file.")
     
-    return len(update_list)
+#     return len(update_list)
 
 
 CLEANUP_LOCK_ID = "cleanup_task_running_lock"

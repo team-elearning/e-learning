@@ -9,12 +9,17 @@ import random
 from content.models import Quiz
 from quiz.domains.quiz_domain import QuizDomain, QuestionDomain
 from core.exceptions import DomainError
-from quiz.services.question_service import create_question, patch_question, delete_question
+from quiz.services.question_service import create_question, update_question, delete_question
 from quiz.models import Question
 
 
 
 UserModel = settings.AUTH_USER_MODEL
+
+
+# ==========================================
+# PUBLIC INTERFACE (CREATE)
+# ==========================================
 
 @transaction.atomic
 def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
@@ -28,7 +33,8 @@ def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
         title=data.get('title', 'Bài tập không tiêu đề'),
         time_limit=data.get('time_limit') or None,
         time_open=data.get('time_open') or None,
-        time_close=data.get('time_close') or None
+        time_close=data.get('time_close') or None,
+        owner=actor
     )
     
     # 2. Tạo Questions (con)
@@ -39,78 +45,39 @@ def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
     return QuizDomain.from_model(quiz_with_questions)
 
 
+# ==========================================
+# PUBLIC INTERFACE (UPDATE)
+# ==========================================
+
 @transaction.atomic
-def patch_quiz(quiz_id: uuid.UUID, data: Dict[str, Any], user: UserModel) -> QuizDomain:
+def update_quiz(quiz_id: uuid.UUID, data: Dict[str, Any]) -> QuizDomain:
     """
-    Cập nhật (PATCH) Quiz và các Question con theo logic "Moodle" (C/U/D).
+    Chỉ update các trường thông tin chung của Quiz.
     """
-    
-    # 1. Lấy Quiz gốc
     try:
+        # Select related course để check quyền sở hữu nếu cần
+        # (Hoặc tin tưởng vào permission class ở View)
         quiz = Quiz.objects.get(id=quiz_id)
     except Quiz.DoesNotExist:
-        raise ValueError("Quiz not found.")
+        raise DomainError("Quiz không tồn tại.")
 
-    # Check quyền: User phải là admin/staff hoặc là chủ của khóa học
-    block = quiz.content_blocks.first() # Lấy block đang dùng quiz này
-    if not block:
-        raise DomainError("Không thể sửa Quiz mồ côi (không thuộc bài học nào).")
-    
-    course_owner = block.lesson.module.course.owner
-    if not (user.is_superuser or user.is_staff or course_owner == user):
-        raise DomainError("Bạn không có quyền chỉnh sửa quiz này.")
-    
-    questions_data = data.get('questions', None)
-
-    # 2. Cập nhật trường đơn giản của Quiz (title, time_limit...)
-    simple_fields = ['title', 'time_limit', 'time_open', 'time_close']
-    fields_to_update = []
-    for field in simple_fields:
-        if field in data:
-            value = data[field]
-            
+    # Update fields dynamic
+    has_changes = False
+    for field, value in data.items():
+        if hasattr(quiz, field) and getattr(quiz, field) != value:
             setattr(quiz, field, value)
-            fields_to_update.append(field)
+            has_changes = True
     
-    if fields_to_update:
-        quiz.save(update_fields=fields_to_update)
+    if has_changes:
+        quiz.save() # Django tự động chỉ update các field bị thay đổi nếu dùng logic thông minh, 
+                    # hoặc dùng update_fields nếu muốn tối ưu cực đại.
+    
+    return QuizDomain.from_model(quiz)
 
-    # 3. Xử lý 'questions' (LOGIC MOODLE ĐÃ REFACTOR)
-    if questions_data is not None:
-        
-        existing_question_ids = set(quiz.questions.values_list('id', flat=True))
-        incoming_question_ids = set()
 
-        for position, question_data in enumerate(questions_data):
-            question_data['position'] = position # Gán lại vị trí
-            question_id_str = question_data.get('id')
-            
-            if question_id_str:
-                # --- UPDATE (U) ---
-                question_id = uuid.UUID(str(question_id_str))
-                if question_id not in existing_question_ids:
-                    raise DomainError(f"Question {question_data.get('prompt')} không thuộc quiz này.")
-                
-                # Ủy quyền cho question_service
-                patch_question(question_id=question_id, data=question_data)
-                
-                incoming_question_ids.add(question_id)
-            else:
-                # --- CREATE (C) ---
-                # Ủy quyền cho question_service
-                new_question_domain = create_question(quiz=quiz, data=question_data)
-                incoming_question_ids.add(uuid.UUID(new_question_domain.id))
-
-        # --- DELETE (D) ---
-        ids_to_delete = existing_question_ids - incoming_question_ids
-        for question_id in ids_to_delete:
-            # Ủy quyền cho question_service
-            delete_question(question_id=question_id)
-            
-    # 4. Lấy lại Quiz đã cập nhật (bao gồm questions) để trả về
-    quiz_updated = Quiz.objects.prefetch_related('questions').get(id=quiz_id)
-    return QuizDomain.from_model(quiz_updated)
-
+# ==========================================
+# PUBLIC INTERFACE (GET)
+# ==========================================
 
 def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
     """
@@ -121,14 +88,6 @@ def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
         quiz = Quiz.objects.prefetch_related('questions').get(id=quiz_id)
     except Quiz.DoesNotExist:
         raise DomainError("Bài quiz không tìm thấy.")
-        
-    # (Logic check quyền của bạn giữ nguyên)
-    block = quiz.content_blocks.first()
-    if not block:
-        raise DomainError("Không thể truy cập Quiz mồ côi (không thuộc bài học nào).")
-    course_owner = block.lesson.module.course.owner
-    if not (user.is_superuser or user.is_staff or course_owner == user):
-        raise DomainError("Bạn không có quyền xem quiz này.")
         
     # from_model giờ đã tự động lồng 'questions'
     return QuizDomain.from_model(quiz)
@@ -177,36 +136,30 @@ def list_all_quizzes() -> List[QuizDomain]:
 
 
 @transaction.atomic
-def delete_quiz(quiz_id: uuid.UUID, user: UserModel):
+def delete_quiz(quiz_id: uuid.UUID) -> None:
     """
-    Xóa một Quiz VÀ check logic nghiệp vụ.
+    Xóa Quiz. 
+    Logic: Chỉ cho phép xóa khi Quiz KHÔNG được gắn vào bất kỳ ContentBlock nào.
     """
+    # 1. Tìm Quiz
     try:
         quiz = Quiz.objects.get(id=quiz_id)
     except Quiz.DoesNotExist:
-        raise DomainError("Quiz không tìm thấy.")
+        raise DomainError("Không tìm thấy bài trắc nghiệm.")
 
-    # Check quyền
-    block = quiz.content_blocks.first()
-    course_owner = None
-    if block:
-        course_owner = block.lesson.module.course.owner
-    
-    # Chỉ Superuser HOẶC chủ sở hữu (nếu quiz có chủ) mới được xóa
-    if not (user.is_superuser or (course_owner and course_owner == user)):
-        raise DomainError("Bạn không có quyền xóa quiz này.")
+    # 3. CHECK RÀNG BUỘC (Quan trọng)
+    # Dùng related_name='content_blocks' từ model ContentBlock của bạn
+    linked_blocks = quiz.content_blocks.all()
 
-    # --- CHECK LOGIC NGHIỆP VỤ QUAN TRỌNG ---
-    # Không thể xóa Quiz nếu nó đang được sử dụng
-    if block:
+    if linked_blocks.exists():
+        # Lấy tên bài học đầu tiên để báo lỗi cho chi tiết
+        first_block = linked_blocks.first()
+        lesson_title = first_block.lesson.title if first_block.lesson else "Bài học không tên"
+        
         raise DomainError(
-            f"Không thể xóa. Quiz đang được sử dụng trong bài học: "
-            f"'{block.lesson.title}'. "
-            f"Hãy xóa 'content block' khỏi bài học trước."
-            f"'content block id': {block.lesson.id}"
+            f"Không thể xóa! Quiz này đang được dùng trong bài học: '{lesson_title}'. "
+            "Vui lòng vào bài học gỡ bỏ Quiz này ra trước."
         )
 
-    # Nếu không vướng check ở trên, tức là quiz này là "mồ côi"
-    # và user là superuser, cho phép xóa
+    # 4. Nếu không vướng bận gì -> Xóa
     quiz.delete()
-    return # Không trả về gì

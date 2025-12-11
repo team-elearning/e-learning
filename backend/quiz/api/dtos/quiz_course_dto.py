@@ -93,7 +93,7 @@ class QuestionInstructorOutput(BaseModel):
     # Pydantic sẽ tự động map các trường từ model Question
 
 
-class QuizInstructorOutput(BaseModel):
+class QuizPublicOutput(BaseModel):
     """
     DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
     """
@@ -120,11 +120,14 @@ class QuizInstructorOutput(BaseModel):
         return int(td.total_seconds())
 
 
-class QuizAdminOutput(QuizInstructorOutput):
+class QuizAdminOutput(QuizPublicOutput):
     """
     DTO Output chi tiết cho Quiz (dành cho Admin).
     Hiện tại giống hệt Public, nhưng nên tách riêng
     để có thể mở rộng sau này (ví dụ: thêm thông tin owner).
     """
-    pass
+    model_config = ConfigDict(from_attributes=True)
+
+    owner_id: Optional[uuid.UUID]
+    owner_name: Optional[str]
 

@@ -4,7 +4,8 @@ from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetai
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
 from quiz.api.views.parse_view import QuizParseToolView
 from quiz.api.views.quiz_user_view import QuizInfoView, QuizAttemptStartView, AttemptDetailView, AttemptSaveAnswerView, AttemptSubmitView, AttemptResultView, QuizListView
-from quiz.api.views.quiz_course_view import QuizCourseAttemptView
+from quiz.api.views.quiz_course_view import QuizCourseAttemptView, IntructorQuizCourseDetailView, AdminQuizDetailView, AdminQuizListView
+from quiz.api.views.question_view import InstructorQuestionListView, InstructorQuestionDetailView
 
 
 
@@ -23,6 +24,12 @@ urlpatterns = [
     path('tools/quiz-parser/', QuizParseToolView.as_view(), name='quiz-parse'), # Cho instructor chủ yếu
 
     # INSTRUCTOR
+    # Course
+    path('instructor/quizzes/<uuid:quiz_id>/', IntructorQuizCourseDetailView.as_view(), name='instructor-quiz-detail'),
+    path('instructor/quizzes/<uuid:quiz_id>/questions/', InstructorQuestionListView.as_view(), name='instructor-question-list'),
+    path('instructor/questions/<uuid:question_id>/', InstructorQuestionDetailView.as_view(), name='instructor-question-detail'),
+    
+    # Exam
     path('instructor/exams/', InstructorExamListView.as_view(), name='instructor-exam-list-create'),
     path('instructor/exams/<uuid:pk>/', InstructorExamDetailView.as_view(), name='instructor-exam-detail'),
 
@@ -31,6 +38,10 @@ urlpatterns = [
 
 
     # ADMIN
+    # Course
+    path('admin/quizzes/', AdminQuizListView.as_view(), name='admin-quiz-list'),
+    path('admin/quizzes/<uuid:pk>/', AdminQuizDetailView.as_view(), name='admin-quiz-detail'),
+
     path('admin/exams/', AdminExamListView.as_view(), name='admin-exam-list-create'),
     path('admin/exams/<uuid:pk>/', AdminExamDetailView.as_view(), name='admin-exam-detail'),
 

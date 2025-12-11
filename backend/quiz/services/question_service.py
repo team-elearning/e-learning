@@ -1,17 +1,26 @@
+import logging
 import uuid
 from typing import Dict, Any, List
 from django.db import transaction
 from django.conf import settings
+from django.db.models import Max
 
 from content.domains.question_domain import QuestionDomain
 from core.exceptions import DomainError
-from media.services.file_service import commit_files_by_ids_for_object
+from media.services.cloud_service import s3_copy_object
+from media.models import UploadedFile, FileStatus
 from quiz.models import Quiz, Question
 
 
 
 UserModel = settings.AUTH_USER_MODEL
 
+logger = logging.getLogger(__name__)
+
+
+# ==========================================
+# PUBLIC INTERFACE (HELPERS)
+# ==========================================
 
 def _extract_file_ids_from_json(data: Any) -> List[str]:
     """Tìm tất cả value có key là 'image_id' hoặc 'file_id' trong JSON"""
@@ -28,70 +37,172 @@ def _extract_file_ids_from_json(data: Any) -> List[str]:
     return ids
 
 
+def _promote_single_file(staging_id: str, question: Question) -> dict | None:
+    """
+    Input: UUID của file Staging.
+    Output: Dict chứa path mới và metadata (để replace vào JSON cũ).
+    """
+    try:
+        # 1. Tìm file trong bảng tạm
+        uploaded_file = UploadedFile.objects.get(id=staging_id, status=FileStatus.STAGING)
+        
+        # 2. Tạo đường dẫn "Sạch" cho Question
+        # Cấu trúc: courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}/{uuid}.ext
+        ext = uploaded_file.file.name.split('.')[-1]
+        
+        relative_path = f"quizzes/{question.quiz_id}/questions/{question.id}/{uuid.uuid4()}.{ext}"
+        
+        s3_src_key = uploaded_file.file.name
+        s3_dest_key = f"private/{relative_path}" # Prefix 'private/'
+
+        # 3. Move trên S3
+        s3_copy_object(s3_src_key, s3_dest_key, is_public=False)
+
+        # 4. Trả về data mới để update vào JSON
+        meta = {
+            "file_path": relative_path,
+            "file_name": uploaded_file.original_filename,
+            "file_size": uploaded_file.file_size,
+            "storage_type": "s3_private"
+        }
+        
+        # 5. Dọn dẹp DB
+        uploaded_file.delete()
+
+        return meta
+
+    except UploadedFile.DoesNotExist:
+        logger.warning(f"Staging file {staging_id} not found or already processed.")
+        return None
+    except Exception as e:
+        logger.error(f"Error promoting question file: {e}")
+        return None
+    
+
+def _recursive_process_json(data: Any, question: Question) -> Any:
+    """
+    Duyệt JSON input:
+    - Tìm key kết thúc bằng '_staging_id'.
+    - Promote file lên S3 Private.
+    - Trả về data mới đã thay thế '_staging_id' bằng '_data' (chứa file_path).
+    """
+    if isinstance(data, dict):
+        new_data = {}
+        for key, value in data.items():
+            # QUY ƯỚC: Frontend gửi key dạng 'image_staging_id', 'audio_staging_id'
+            if isinstance(key, str) and key.endswith('_staging_id') and value:
+                base_key = key.replace('_staging_id', '_url')
+
+                # 1. Tìm thấy "mồi ngon" -> Xử lý ngay
+                file_info = _promote_single_file(value, question)
+                
+                if file_info:
+                    # 2. Xóa key cũ (_staging_id)
+                    # 3. Thêm key mới (bỏ chữ _staging_id đi, hoặc dùng key cố định)
+                    # Ví dụ: 'image_staging_id' -> 'image_data'
+                    new_data[base_key] = file_info
+                else:
+                    # THẤT BẠI (ID sai, file không tồn tại, UUID rác):
+                    # Gán NULL để Frontend biết đường xử lý (ẩn ảnh hoặc hiện placeholder)
+                    new_data[base_key] = None
+            else:
+                # Nếu không phải key file, tiếp tục đệ quy sâu hơn
+                new_data[key] = _recursive_process_json(value, question)
+        return new_data
+
+    elif isinstance(data, list):
+        # Nếu là List (ví dụ danh sách đáp án), duyệt từng phần tử
+        return [_recursive_process_json(item, question) for item in data]
+
+    # Giá trị cơ bản (str, int, bool) -> Giữ nguyên
+    return data
+
+
+# ==========================================
+# PUBLIC INTERFACE (CREATE)
+# ==========================================
+
 @transaction.atomic
-def create_question(quiz: Quiz, data: Dict[str, Any], actor: UserModel) -> QuestionDomain:
-    # 1. Tạo Question
+def create_question(quiz_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDomain:
+    """
+    Tạo câu hỏi rỗng (Skeleton).
+    Nếu data không có 'type', mặc định là 'multiple_choice'.
+    """
+    try:
+        quiz = Quiz.objects.get(id=quiz_id)
+    except Quiz.DoesNotExist:
+        raise ValueError("Quiz không tồn tại.")
+
+    # 1. Tự động tính Position (Append vào cuối danh sách)
+    max_pos = Question.objects.filter(quiz=quiz).aggregate(Max('position'))['position__max']
+    new_position = 1 if max_pos is None else max_pos + 1
+
+    # 2. Lấy type (Mặc định nếu thiếu)
+    # Bạn có thể define hằng số DEFAULT_QUESTION_TYPE = 'multiple_choice'
+    q_type = data.get('type', 'multiple_choice')
+
+    # 3. Tạo Question với payload rỗng
     new_q = Question.objects.create(
         quiz=quiz,
-        position=data.get('position', 0),
-        type=data.get('type', 'multiple_choice_single'),
-        prompt=data.get('prompt', {}),
-        answer_payload=data.get('answer_payload', {}),
-        hint=data.get('hint', {})
+        position=new_position,
+        type=q_type,     # Type đã xử lý default
+        prompt={},       # Luôn rỗng khi mới tạo
+        answer_payload={},
+        hint={}
     )
-
-    # 2. Thu thập tất cả file ID có trong question này
-    # Quét từ prompt (đề bài), answer (đáp án), hint (gợi ý)
-    file_ids_to_commit = []
-    file_ids_to_commit.extend(_extract_file_ids_from_json(new_q.prompt))
-    file_ids_to_commit.extend(_extract_file_ids_from_json(new_q.answer_payload))
-    file_ids_to_commit.extend(_extract_file_ids_from_json(new_q.hint))
-
-    # 3. Commit file và GẮN VÀO QUESTION (Quan trọng)
-    if file_ids_to_commit:
-        # Lưu ý: actor lấy ở đâu? 
-        # Tốt nhất nên truyền actor từ create_quiz xuống, hoặc tạm thời để None
-        # (Nếu để None thì logic commit của bạn cần cho phép owner của Quiz hoặc Course)
-        
-        # Vì Question chưa có field 'owner', hàm commit cần check quyền dựa trên cha (Quiz/Course)
-        # Hoặc đơn giản: Question thuộc Quiz, Quiz thuộc ai thì người đó có quyền.
-        
-        commit_files_by_ids_for_object(
-            file_ids=file_ids_to_commit,
-            related_object=new_q,  # File này thuộc về QUESTION, không phải Course
-            actor=actor # Cần refactor để truyền actor xuống nếu muốn check chặt
-        )
-
+    
     return QuestionDomain.from_model(new_q)
 
 
+# ==========================================
+# PUBLIC INTERFACE (UPDATE)
+# ==========================================
+
 @transaction.atomic
-def patch_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDomain:
+def update_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDomain:
     """
-    Cập nhật (vá) MỘT Question.
-    Hàm này được gọi bởi 'quiz_service.patch_quiz'.
+    Cập nhật Question.
+    Hỗ trợ:
+    1. Cập nhật field thường (type, position).
+    2. Cập nhật JSON (prompt, answer, hint) VÀ tự động quét file mới để promote lên S3 Private.
     """
     try:
         q_to_update = Question.objects.get(id=question_id)
     except Question.DoesNotExist:
         raise DomainError(f"Question {question_id} không tìm thấy để cập nhật.")
 
-    # Lấy các trường có thể patch từ model của bạn
-    # (position được gán ở service cha)
-    if 'position' in data: 
-        q_to_update.position = data['position']
+    # 1. Update các trường cơ bản (Primitive fields)
     if 'type' in data: 
         q_to_update.type = data['type']
-    if 'prompt' in data: 
-        q_to_update.prompt = data['prompt']
-    if 'answer_payload' in data: 
-        q_to_update.answer_payload = data['answer_payload']
-    if 'hint' in data: 
-        q_to_update.hint = data['hint']
+    if 'score' in data:
+        q_to_update.score = data['score']
+
+    # 2. Update JSON fields với logic quét File (Recursive Scan)
     
+    # --- Xử lý Prompt ---
+    if 'prompt' in data: 
+        # Frontend gửi toàn bộ nội dung mới của prompt.
+        # Hàm quét sẽ tìm các key '_staging_id' mới để xử lý.
+        # Các key cũ (đã là '_data') sẽ được giữ nguyên.
+        q_to_update.prompt = _recursive_process_json(data['prompt'], q_to_update)
+
+    # --- Xử lý Answer Payload ---
+    if 'answer_payload' in data: 
+        q_to_update.answer_payload = _recursive_process_json(data['answer_payload'], q_to_update)
+
+    # --- Xử lý Hint ---
+    if 'hint' in data: 
+        q_to_update.hint = _recursive_process_json(data['hint'], q_to_update)
+    
+    # 3. Save
     q_to_update.save()
+    
     return QuestionDomain.from_model(q_to_update)
 
+
+# ==========================================
+# PUBLIC INTERFACE (DELETE)
+# ==========================================
 
 @transaction.atomic
 def delete_question(question_id: uuid.UUID):
@@ -107,9 +218,25 @@ def delete_question(question_id: uuid.UUID):
     return
 
 
+# ==========================================
+# PUBLIC INTERFACE (GET)
+# ==========================================
+
 def list_questions_for_quiz(quiz_id: uuid.UUID) -> List[QuestionDomain]:
     """
     Lấy danh sách các Question (dưới dạng Domain) cho 1 Quiz.
     """
     questions = Question.objects.filter(quiz_id=quiz_id).order_by('position')
     return [QuestionDomain.from_model(q) for q in questions]
+
+
+def get_question_detail(question_id: uuid.UUID) -> QuestionDomain:
+    """
+    Lấy chi tiết một Question theo ID.
+    """
+    try:
+        # select_related 'quiz' để tối ưu nếu cần truy xuất thông tin quiz cha
+        question = Question.objects.select_related('quiz').get(id=question_id)
+        return QuestionDomain.from_model(question)
+    except Question.DoesNotExist:
+        raise ValueError(f"Question với ID {question_id} không tồn tại.")

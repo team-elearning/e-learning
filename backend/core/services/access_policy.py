@@ -1,7 +1,7 @@
 from django.utils import timezone
 
 from content.models import Course, Enrollment, Quiz
-from quiz.models import QuizAttempt
+from quiz.models import QuizAttempt, Question
 
 
 
@@ -18,6 +18,7 @@ def _resolve_course(obj):
         return None
     if isinstance(obj, Course):
         return obj
+    
     if hasattr(obj, 'course'): # Module, Enrollment...
         return obj.course
     if hasattr(obj, 'module') and hasattr(obj.module, 'course'): # Lesson
@@ -150,3 +151,26 @@ def can_access_file(user, file_object):
 
     # Với các file bài giảng thông thường, quy về quyền xem Course
     return can_view_course_content(user, related_object)
+
+
+def is_quiz_owner_logic(user, obj):
+    """
+    Logic check quyền sở hữu Quiz (Standalone Mode).
+    """
+    if not user.is_authenticated:
+        return False
+        
+    # 1. Admin/Superuser
+    if user.is_staff or user.is_superuser:
+        return True
+
+    # 2. Check Owner trực tiếp (Nếu Quiz model có field owner)
+    # Áp dụng cho cả Quiz và Question (Question.quiz.owner)
+    quiz_obj = obj
+    if isinstance(obj, Question):
+        quiz_obj = obj.quiz
+    
+    if hasattr(quiz_obj, 'owner') and quiz_obj.owner == user:
+        return True
+
+    return False

@@ -116,4 +116,4 @@ def s3_copy_object(src_path, dest_path, is_public=True):
     )
 
     # (Tùy chọn) Xóa file gốc ở Staging luôn để dọn rác
-    # s3.delete_object(Bucket=bucket_name, Key=src_key)
+    s3.delete_object(Bucket=bucket_name, Key=src_path)
