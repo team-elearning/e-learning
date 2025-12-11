@@ -10,6 +10,10 @@ from media.models import UploadedFile
 
 
 
+def cloudfront_base64(data):
+        return base64.b64encode(data).decode('utf-8').translate(str.maketrans('+=/', '-_~'))
+
+
 def generate_cloudfront_signed_url(object_key, expire_minutes=60):
     """
     Hàm sinh URL có chữ ký CloudFront.
@@ -57,8 +61,6 @@ def generate_cloudfront_signed_url(object_key, expire_minutes=60):
     )
 
     # 5. Mã hóa Base64 an toàn cho URL (Thay thế ký tự đặc biệt)
-    def cloudfront_base64(data):
-        return base64.b64encode(data).decode('utf-8').translate(str.maketrans('+=/', '-_~'))
 
     encoded_policy = cloudfront_base64(policy_json.encode('utf-8'))
     encoded_signature = cloudfront_base64(signature)
@@ -117,3 +119,79 @@ def s3_copy_object(src_path, dest_path, is_public=True):
 
     # (Tùy chọn) Xóa file gốc ở Staging luôn để dọn rác
     s3.delete_object(Bucket=bucket_name, Key=src_path)
+
+
+def generate_cloudfront_signed_cookies_util(resource_url, expire_minutes=60):
+    """
+    Hàm tiện ích cấp thấp: Nhận input thô -> Trả về cookies thô.
+    Không quan tâm ai dùng, dùng để làm gì.
+    """
+    if not settings.MY_CLOUDFRONT_KEY_ID or not settings.MY_CLOUDFRONT_KEY_PATH:
+        raise ValueError("Server chưa cấu hình CloudFront Key!")
+
+    expire_dt = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
+    expire_timestamp = int(expire_dt.timestamp())
+
+    policy_dict = {
+        "Statement": [{
+            "Resource": resource_url,
+            "Condition": {
+                "DateLessThan": {"AWS:EpochTime": expire_timestamp}
+            }
+        }]
+    }
+    policy_json = json.dumps(policy_dict, separators=(',', ':'))
+
+    try:
+        with open(settings.MY_CLOUDFRONT_KEY_PATH, 'rb') as key_file:
+            private_key = serialization.load_pem_private_key(key_file.read(), password=None)
+    except FileNotFoundError:
+        raise ValueError("Không tìm thấy Private Key file.")
+
+    signature = private_key.sign(
+        policy_json.encode('utf-8'),
+        padding.PKCS1v15(),
+        hashes.SHA1()
+    )
+
+    return {
+        'CloudFront-Policy': cloudfront_base64(policy_json.encode('utf-8')),
+        'CloudFront-Signature': cloudfront_base64(signature),
+        'CloudFront-Key-Pair-Id': settings.MY_CLOUDFRONT_KEY_ID,
+        'Expires': expire_timestamp
+    }
+
+
+def generate_access_cookies() -> dict:
+    """
+    Nghiệp vụ: Cấp quyền cho User truy cập kho Private trong 12 tiếng.
+    """
+    # 1. Định nghĩa "Luật" của App
+    # App quy định: Đã login là xem được tất cả trong folder private
+    resource_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/private/*"
+    expire_minutes = 720 # 12 tiếng
+
+    # 2. Gọi Util để tính toán (Delegation)
+    cookies_raw = generate_cloudfront_signed_cookies_util(
+        resource_url=resource_url,
+        expire_minutes=expire_minutes
+    )
+
+    # 3. Đóng gói kết quả trả về cho View
+    return {
+        "cookies": {
+            'CloudFront-Policy': cookies_raw['CloudFront-Policy'],
+            'CloudFront-Signature': cookies_raw['CloudFront-Signature'],
+            'CloudFront-Key-Pair-Id': cookies_raw['CloudFront-Key-Pair-Id'],
+        },
+        "metadata": {
+            "expires_at": cookies_raw['Expires'],
+            "expires_in_seconds": expire_minutes * 60,
+            "resource": resource_url
+        }
+    }
+
+
+
+
+

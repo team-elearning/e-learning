@@ -32,15 +32,25 @@ class PrivateMediaStorage(S3Boto3Storage):
     location = 'private' # Lưu vào folder /private trên S3
     default_acl = 'private'
     file_overwrite = False
-    # custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
-    querystring_auth = True # <--- Bật chữ ký bảo mật
+    custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
+    querystring_auth = False 
 
     def __init__(self, *args, **kwargs):
-        # --- 3. NẠP THỦ CÔNG TỪ BIẾN ĐÃ ĐỔI TÊN ---
-        self.cloudfront_key_id = getattr(settings, 'MY_CLOUDFRONT_KEY_ID', None)
-        self.cloudfront_key = get_cloudfront_key_data()
-        
         super().__init__(*args, **kwargs)
+        
+    # (Optional) Nếu bạn muốn custom cách sinh URL
+    def url(self, name, parameters=None, expire=None):
+        # Đảm bảo URL trả về luôn là: https://cdn.school.com/private/file.jpg
+        # Không dính dáng gì đến key/id/signature
+        url = super().url(name, parameters, expire)
+        return url
+
+    # def __init__(self, *args, **kwargs):
+    #     # --- 3. NẠP THỦ CÔNG TỪ BIẾN ĐÃ ĐỔI TÊN ---
+    #     self.cloudfront_key_id = getattr(settings, 'MY_CLOUDFRONT_KEY_ID', None)
+    #     self.cloudfront_key = get_cloudfront_key_data()
+        
+    #     super().__init__(*args, **kwargs)
 
 
     

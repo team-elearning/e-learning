@@ -5,7 +5,7 @@ from django.db import transaction
 from django.conf import settings
 from django.db.models import Max
 
-from content.domains.question_domain import QuestionDomain
+from quiz.domains.question_domain import QuestionDomain
 from core.exceptions import DomainError
 from media.services.cloud_service import s3_copy_object
 from media.models import UploadedFile, FileStatus

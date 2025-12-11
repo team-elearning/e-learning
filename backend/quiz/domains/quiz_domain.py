@@ -6,7 +6,7 @@ from dataclasses import field
 
 
 from content.models import Quiz
-from content.domains.question_domain import QuestionDomain
+from quiz.domains.question_domain import QuestionDomain
 
 
 

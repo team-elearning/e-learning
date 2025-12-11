@@ -1,5 +1,6 @@
 import uuid
 from bs4 import BeautifulSoup
+from django.conf import settings
 from typing import Optional, List, Dict, Any
 
 from core.exceptions import DomainValidationError
@@ -106,43 +107,96 @@ class ContentBlockDomain:
         }
         return icons.get(block_type, 'box')
 
+    # @staticmethod
+    # def _process_payload_heavy(model):
+    #     """
+    #     Logic xử lý nặng:
+    #     1. Tạo Signed URL từ file_path (cho Video/PDF Private).
+    #     2. Rich Text: Giữ nguyên HTML (Vì ảnh đã được xử lý thành Public URL lúc Save rồi).
+    #     """
+    #     # Copy payload để không ảnh hưởng object gốc
+    #     processed_payload = model.payload.copy() if model.payload else {}
+        
+    #     try:
+    #         # -------------------------------------------------------
+    #         # CASE 1: CÁC LOẠI FILE PRIVATE (Video, PDF, Audio)
+    #         # -------------------------------------------------------
+    #         # Service đã lưu: 'file_path': 'courses/123/lessons/456/block_789.mp4'
+    #         if 'file_path' in processed_payload:
+    #             path = processed_payload['file_path']
+
+    #             # QUAN TRỌNG: Phải ghép prefix 'private/' vào nếu CloudFront map full bucket
+    #             full_s3_key = f"private/{path}"
+                
+    #             # Gọi hàm ký tên URL dựa trên PATH (Không phải ID)
+    #             # Hàm này dùng thư viện cloudfront signer hoặc s3 signer
+    #             # Ví dụ: trả về https://cdn.lms.com/private/courses/...?Signature=...
+    #             signed_url = generate_cloudfront_signed_url(full_s3_key, expire_minutes=360) 
+                
+    #             # Gán URL vào để frontend dùng
+    #             processed_payload['url'] = signed_url
+
+    #         # -------------------------------------------------------
+    #         # CASE 2: RICH TEXT (Đơn giản hóa)
+    #         # -------------------------------------------------------
+    #         # Với cách mới, ảnh trong bài viết (Rich Text) nên được lưu Public.
+    #         # Lúc lưu (Service), ta đã replace ID bằng URL public rồi.
+    #         # Nên lúc Read (Domain), ta KHÔNG CẦN LÀM GÌ CẢ.
+    #         elif model.type == 'rich_text':
+    #             pass # HTML đã có sẵn src="https://cdn..." rồi.
+
+    #         # -------------------------------------------------------
+    #         # CASE 3: QUIZ
+    #         # -------------------------------------------------------
+    #         elif model.type == 'quiz':
+    #              if model.quiz_ref_id:
+    #                 processed_payload['quiz_id'] = str(model.quiz_ref_id)
+
+    #     except Exception as e:
+    #         # Logger nên được inject vào đây thay vì print
+    #         print(f"Error processing payload for block {model.id}: {e}")
+    #         pass
+
+    #     return processed_payload
+
     @staticmethod
     def _process_payload_heavy(model):
         """
-        Logic xử lý nặng:
-        1. Tạo Signed URL từ file_path (cho Video/PDF Private).
-        2. Rich Text: Giữ nguyên HTML (Vì ảnh đã được xử lý thành Public URL lúc Save rồi).
+        Logic xử lý Payload cho Content Block (Video/PDF/RichText).
+        Bây giờ chỉ cần ghép URL CDN vì Browser đã có Cookie.
         """
-        # Copy payload để không ảnh hưởng object gốc
         processed_payload = model.payload.copy() if model.payload else {}
+        cdn_domain = settings.AWS_S3_CUSTOM_DOMAIN # VD: cdn.school.com
         
         try:
             # -------------------------------------------------------
             # CASE 1: CÁC LOẠI FILE PRIVATE (Video, PDF, Audio)
             # -------------------------------------------------------
-            # Service đã lưu: 'file_path': 'courses/123/lessons/456/block_789.mp4'
-            if 'file_path' in processed_payload:
+            if 'file_path' in processed_payload and processed_payload.get('storage_type') == 's3_private':
                 path = processed_payload['file_path']
-
-                # QUAN TRỌNG: Phải ghép prefix 'private/' vào nếu CloudFront map full bucket
-                full_s3_key = f"private/{path}"
                 
-                # Gọi hàm ký tên URL dựa trên PATH (Không phải ID)
-                # Hàm này dùng thư viện cloudfront signer hoặc s3 signer
-                # Ví dụ: trả về https://cdn.lms.com/private/courses/...?Signature=...
-                signed_url = generate_cloudfront_signed_url(full_s3_key, expire_minutes=360) 
+                # Logic cũ: generate_signed_url(...) -> XÓA
                 
-                # Gán URL vào để frontend dùng
-                processed_payload['url'] = signed_url
+                # Logic mới: Clean URL
+                # Kết quả: https://cdn.school.com/private/courses/123/video.mp4
+                processed_payload['url'] = f"https://{cdn_domain}/private/{path}"
 
             # -------------------------------------------------------
-            # CASE 2: RICH TEXT (Đơn giản hóa)
+            # CASE 2: RICH TEXT (HTML Content)
             # -------------------------------------------------------
-            # Với cách mới, ảnh trong bài viết (Rich Text) nên được lưu Public.
-            # Lúc lưu (Service), ta đã replace ID bằng URL public rồi.
-            # Nên lúc Read (Domain), ta KHÔNG CẦN LÀM GÌ CẢ.
             elif model.type == 'rich_text':
-                pass # HTML đã có sẵn src="https://cdn..." rồi.
+                # Nếu trong HTML lưu đường dẫn tương đối (VD: src="courses/...")
+                # Ta cần thêm prefix domain vào.
+                html = processed_payload.get('html_content', '')
+                
+                # Hàm helper đơn giản để replace (hoặc dùng BeautifulSoup nếu cần chuẩn xác)
+                # Giả sử DB lưu: src="courses/uuid/img.jpg"
+                # Cần ra: src="https://cdn.../private/courses/uuid/img.jpg"
+                prefix = f"https://{cdn_domain}/private/"
+                
+                # Replace đơn giản các đường dẫn tương đối (tùy vào cách bạn lưu lúc upload)
+                if html and 'src="courses/' in html:
+                    processed_payload['html_content'] = html.replace('src="courses/', f'src="{prefix}courses/')
 
             # -------------------------------------------------------
             # CASE 3: QUIZ
@@ -152,7 +206,7 @@ class ContentBlockDomain:
                     processed_payload['quiz_id'] = str(model.quiz_ref_id)
 
         except Exception as e:
-            # Logger nên được inject vào đây thay vì print
+            # Nên dùng logger thật thay vì print
             print(f"Error processing payload for block {model.id}: {e}")
             pass
 
