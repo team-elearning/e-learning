@@ -8,12 +8,13 @@ import logging
 # Import các mixins của bạn
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from media.services import cloud_service
+from media.api.dtos.cloud_dto import MediaCookieOutput
 
 logger = logging.getLogger(__name__)
 
 class CloudFrontCookieView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    POST /api/auth/media-cookies/
+    POST /cookies/
     Cấp quyền truy cập file Private (Ảnh/Video) thông qua CloudFront Signed Cookies.
     """
     permission_classes = [IsAuthenticated]
@@ -23,9 +24,9 @@ class CloudFrontCookieView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIVi
 
     # Dù trả về cookie header là chính, nhưng body vẫn có thể dùng DTO nếu muốn chuẩn hóa
     # Ở đây mình để None hoặc default vì body chỉ mang tính thông báo
-    output_dto_public = None 
-    output_dto_instructor = None
-    output_dto_admin = None
+    output_dto_public = MediaCookieOutput 
+    output_dto_instructor = MediaCookieOutput
+    output_dto_admin = MediaCookieOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

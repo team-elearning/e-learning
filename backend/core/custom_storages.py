@@ -20,6 +20,7 @@ class PublicMediaStorage(S3Boto3Storage):
     default_acl = 'public-read'
     file_overwrite = False
     querystring_auth = False # <--- QUAN TRỌNG: Tắt chữ ký cho kho này
+    custom_domain = settings.AWS_S3_CUSTOM_DOMAIN
     
     # --- QUAN TRỌNG: Ghi đè thành None để tránh lỗi ---
     # Public Storage không bao giờ cần ký tên, nên set None để

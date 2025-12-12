@@ -332,7 +332,8 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "")
-AWS_S3_CUSTOM_DOMAIN = 'd2t4m4nzg5dowd.cloudfront.net'
+AWS_S3_CUSTOM_DOMAIN = 'cdn.eduriot.fit' 
+CLOUDFRONT_COOKIE_DOMAIN = '.eduriot.fit' # Domain dùng để set cookie (Quan trọng: có dấu chấm ở đầu)
 
 
 MY_CLOUDFRONT_KEY_ID = os.getenv("AWS_CLOUDFRONT_KEY_ID") 
