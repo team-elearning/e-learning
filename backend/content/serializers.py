@@ -427,6 +427,7 @@ class ContentBlockCreateSerializer(serializers.Serializer):
     Dùng riêng cho POST: Chỉ cần biết loại block để tạo khung xương (Skeleton).
     Không validate payload chi tiết ở bước này.
     """
+    title = serializers.CharField(required=False, max_length=255)
     type = serializers.ChoiceField(
         choices=[c[0] for c in ContentBlock._meta.get_field('type').choices],
         required=True

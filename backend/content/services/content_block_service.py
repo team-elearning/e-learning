@@ -207,6 +207,8 @@ def create_content_block(
         lesson = Lesson.objects.get(id=lesson_id)
     except Lesson.DoesNotExist:
         raise Lesson.DoesNotExist(f"Bài học {lesson_id} không tồn tại.")
+    
+    title = data.get('title')
 
     # 1. Tính Position (Giữ nguyên logic của bạn - rất chuẩn)
     # Nếu FE gửi position cụ thể (ví dụ chèn vào giữa), ưu tiên dùng nó
@@ -248,6 +250,7 @@ def create_content_block(
 
     # 3. Tạo ngay lập tức
     new_block = ContentBlock.objects.create(
+        title=title or "Untitled",
         lesson=lesson,
         type=block_type,
         payload=initial_payload,
