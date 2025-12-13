@@ -14,10 +14,12 @@ from content.models import Course, Enrollment
 User = get_user_model()
 
 @transaction.atomic
-def enroll_user_in_course(course_id: uuid.UUID, user: UserModel) -> EnrollmentDomain:
+def enroll_user_in_course(course_id: uuid.UUID, user: UserModel, force_enroll: bool = False) -> EnrollmentDomain:
     """
     Ghi danh user.
     Refactor: Thêm select_related để tối ưu query nếu cần dùng data course sau này.
+    :param force_enroll: True nếu gọi từ luồng thanh toán (bỏ qua check giá).
+                         False nếu user tự bấm nút ghi danh (phải check free).
     """
     # 1. Tìm khóa học (Kết hợp check published ngay trong query)
     try:
@@ -30,7 +32,14 @@ def enroll_user_in_course(course_id: uuid.UUID, user: UserModel) -> EnrollmentDo
     if course.owner_id == user.id: # So sánh ID nhanh hơn so sánh object
         raise DomainError("Bạn không thể tự ghi danh vào khóa học của chính mình.")
 
-    # 3. Tạo enrollment
+    # 3. Validation riêng cho luồng User tự bấm (API Public)
+    if not force_enroll:
+        # Nếu không phải là "ép ghi danh" (từ admin/payment), thì phải check giá
+        if not course.is_free:
+             # Có thể raise lỗi khác để Frontend biết đường redirect sang trang thanh toán
+            raise DomainError("Khóa học này có phí. Vui lòng thực hiện thanh toán.")
+
+    # 4. Tạo enrollment
     try:
         # get_or_create là chuẩn, giữ nguyên
         enrollment, created = Enrollment.objects.get_or_create(
@@ -55,22 +64,30 @@ def enroll_user_in_course(course_id: uuid.UUID, user: UserModel) -> EnrollmentDo
 def unenroll_user_from_course(course_id: uuid.UUID, user: UserModel) -> None:
     """
     Hủy ghi danh.
-    Refactor: Dùng filter().delete() để tiết kiệm 1 query SELECT.
+    Logic:
+    - Khóa Free: Xóa record.
+    - Khóa Paid: Báo lỗi không cho xóa.
     """
-    # 1. Xóa trực tiếp (QuerySet Delete)
-    # Hàm delete() trả về tuple (số lượng xóa, chi tiết). VD: (1, {'app.Enrollment': 1})
-    deleted_count, _ = Enrollment.objects.filter(
-        user=user,
-        course_id=course_id
-    ).delete()
+    # 1. Tìm bản ghi Enrollment
+    # Dùng select_related('course') để lấy luôn thông tin khóa học trong 1 lần query
+    try:
+        enrollment = Enrollment.objects.select_related('course').get(
+            user=user, 
+            course_id=course_id
+        )
+    except Enrollment.DoesNotExist:
+        raise DomainError("Bạn chưa ghi danh vào khóa học này.")
 
-    # 2. Kiểm tra kết quả
-    if deleted_count == 0:
-        # Nếu = 0 nghĩa là chưa từng enroll -> Báo lỗi nghiệp vụ
-        raise DomainError("Bạn chưa ghi danh vào khóa học này hoặc đã hủy trước đó.")
-        
+    # 2. Kiểm tra giá tiền (Giả sử field giá là 'price')
+    # Nếu khóa học mất phí (> 0) thì chặn lại ngay
+    if enrollment.course.price > 0:
+        raise DomainError("Không thể hủy ghi danh đối với khóa học có tính phí.")
+
+    # 3. Nếu là khóa Free -> Thực hiện xóa
+    enrollment.delete()
+
     # TODO: Xử lý dọn dẹp tiến độ học tập (Progress) nếu cần
-    
+
     return None
 
 

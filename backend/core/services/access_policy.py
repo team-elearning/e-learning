@@ -114,9 +114,9 @@ def can_view_course_content(user, obj):
     if course.owner == user:
         return True
 
-    # 3. Public Course (nếu có logic xem thử)
-    if getattr(course, 'published', False) or getattr(course, 'is_public', False):
-        return True
+    # # 3. Public Course (nếu có logic xem thử)
+    # if getattr(course, 'published', False) or getattr(course, 'is_public', False):
+    #     return True
 
     # 4. Học viên đã ghi danh
     if is_enrolled(user, course):

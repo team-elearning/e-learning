@@ -47,7 +47,12 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
     if filters.enrolled_user:
         # Logic: Tìm khóa học mà user đã ghi danh
         query_set = query_set.filter(enrollments__user=filters.enrolled_user).distinct()
+    # --- (MỚI) Logic: LOẠI BỎ khóa học ĐÃ ghi danh (Public/Unregistered Courses) ---
+    if filters.exclude_enrolled_user:
+        # exclude ngược lại với filter: Bỏ đi những course mà user này nằm trong bảng enrollments
+        query_set = query_set.exclude(enrollments__user=filters.exclude_enrolled_user)
 
+        
     # --- B. TỐI ƯU HÓA QUERY (STRATEGY) ---
     # 1. Join bảng Owner để lấy tên giảng viên (1 query thay vì N)
     query_set = query_set.select_related('owner', 'subject')
@@ -65,6 +70,7 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
     )
 
     if strategy in [
+        CourseFetchStrategy.BASIC,
         CourseFetchStrategy.CATALOG_LIST, 
         CourseFetchStrategy.INSTRUCTOR_DASHBOARD,
         CourseFetchStrategy.STRUCTURE,
