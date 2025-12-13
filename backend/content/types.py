@@ -37,5 +37,6 @@ class CourseFilter:
     ids: Optional[List[uuid.UUID]] = None       # Lấy 1 danh sách ID cụ thể
     owner: Optional[UserModel] = None           # Lấy của ai tạo
     enrolled_user: Optional[UserModel] = None   # Lấy khóa user này đã mua/enroll
+    exclude_enrolled_user: Optional[UserModel] = None  # Dùng để loại trừ khóa "Của tôi" ra khỏi list public
     published_only: bool = False                # Chỉ lấy public
     search_term: Optional[str] = None           # Tìm kiếm

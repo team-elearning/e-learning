@@ -14,7 +14,7 @@ from content.api.dtos.course_dto import CourseMetadataCreateInput, CourseTemplat
 from content.types import CourseFetchStrategy, CourseFilter
 from content.services import course_service
 from content.models import Course
-from core.exceptions import DomainError
+from core.exceptions import DomainError, CourseNotFoundError
 from core.api.permissions import IsInstructor, IsCourseOwner
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 
@@ -22,130 +22,13 @@ from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 
 logger = logging.getLogger(__name__)
 
-# # ==========================================
-# # PUBLIC INTERFACE (PUBLIC)
-# # ==========================================
+# ==========================================
+# PUBLIC INTERFACE (PUBLIC)
+# ==========================================
 
-# class PublicCourseListView(RoleBasedOutputMixin, APIView):
-#     """
-#     GET /courses/ - List tất cả courses (public).
-#     """
-#     # IsAuthenticated: Phải đăng nhập
-#     # IsAllowAny: Ai cũng thấy (thay thế nếu cần)
-#     permission_classes = [permissions.IsAuthenticated] 
 
-#     # Cấu hình DTO output
-#     output_dto_public = CoursePublicOutput
-#     output_dto_admin  = CourseAdminOutput 
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.course_service = course_service
-
-#     def get(self, request, *args, **kwargs):
-#         """
-#         Xử lý GET request để list tất cả courses.
-#         """
-#         try:
-#             courses_list = self.course_service.get_courses(
-#                 filters=CourseFilter(published_only=True),
-#                 strategy=CourseFetchStrategy.CATALOG_LIST
-#             )
-#             return Response({"instance": courses_list}, status=status.HTTP_200_OK)
-#         except Exception as e:
-#             logger.error(f"Lỗi trong PublicCourseListView (GET): {e}", exc_info=True)
-#             return Response(
-#                 {"detail": f"Đã xảy ra lỗi: {str(e)}"}, 
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#             )
         
 
-# class PublicCourseSyllabusView(RoleBasedOutputMixin, APIView):
-#     """
-#     GET /courses/<pk>/syllabus/ - Xem mục lục/giới thiệu (Preview).
-#     Dùng cho màn hình "Giới thiệu khóa học" trước khi mua.
-#     """
-#     # IsAuthenticated: User phải login mới xem được (hoặc IsAllowAny nếu muốn public hoàn toàn)
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     # Cấu hình DTO output
-#     # Domain trả về data "nhẹ" (lite_mode=True), DTO chỉ việc serialize
-#     output_dto_public = CoursePublicOutput 
-#     output_dto_admin  = CourseAdminOutput 
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.course_service = course_service
-
-#     def get(self, request, pk: uuid.UUID, *args, **kwargs):
-#         """
-#         Lấy syllabus (cấu trúc bài học, không có payload nội dung).
-#         """
-#         try:
-#             # 1. Gọi Service với Strategy SYLLABUS_PREVIEW
-#             # Lưu ý: Không truyền 'enrolled_user' vào filter vì chưa mua cũng được xem syllabus
-#             course = self.course_service.get_course_single(
-#                 filters=CourseFilter(
-#                     course_id=pk, 
-#                     published_only=True # Chỉ xem được course đã public
-#                 ), 
-#                 strategy=CourseFetchStrategy.STRUCTURE
-#             )
-            
-#             # 2. Return instance (Mixin sẽ tự map sang DTO)
-#             return Response({"instance": course}, status=status.HTTP_200_OK)
-        
-#         except DomainError as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        
-#         except Exception as e:
-#             logger.error(f"Lỗi trong PublicCourseSyllabusView (GET): {e}", exc_info=True)
-#             return Response(
-#                 {"detail": f"Lỗi máy chủ: {str(e)}"}, 
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#             )
-        
-
-# class PublicCourseDetailView(RoleBasedOutputMixin, APIView):
-#     """
-#     GET /courses/<pk>/ - Lấy chi tiết course (public).
-#     """
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     # Cấu hình DTO output
-#     output_dto_public = CoursePublicOutput
-#     output_dto_admin  = CourseAdminOutput 
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.course_service = course_service
-
-#     def get(self, request, pk: uuid.UUID, *args, **kwargs):
-#         """
-#         Xử lý GET request để lấy chi tiết một course.
-#         """
-#         try:
-#             course = self.course_service.get_course_single(
-#                 filters=CourseFilter(course_id=pk, enrolled_user=request.user), # Check đã enroll chưa
-#                 strategy=CourseFetchStrategy.STRUCTURE
-#             )
-#             return Response({"instance": course}, status=status.HTTP_200_OK)
-        
-#         except DomainError as e: # Lỗi "Not Found"
-#             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        
-#         except CourseNotFoundError as e:
-#             # Trường hợp chưa ghi danh hoặc không có quyền truy cập khóa học
-#             return Response(
-#                 {"detail": "Bạn chưa ghi danh vào khóa học này."},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-
-#         except Exception as e:
-#             logger.error(f"Lỗi trong PublicCourseDetailView (GET): {e}", exc_info=True)
-#             return Response({"detail": f"Lỗi máy chủ: {str(e)}"},
-#                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
 
 # # ==========================================
 # # PUBLIC INTERFACE (ADMIN)

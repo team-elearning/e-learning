@@ -6,17 +6,18 @@ from content.api.views.module_view import InstructorModuleListCreateView, Instru
 from content.api.views.lesson_view import InstructorLessonListCreateView, InstructorLessonDetailView, InstructorLessonReorderView
 from content.api.views.content_block_view import InstructorContentBlockListCreateView, InstructorContentBlockConvertView, InstructorContentBlockDetailView, InstructorContentBlockReorderView
 from quiz.api.views.quiz_course_view import AdminQuizListView, AdminQuizDetailView, QuizCourseAttemptView, IntructorQuizCourseDetailView
-from content.api.views.enrollment_view import CourseEnrollView, MyEnrolledCourseListView, InstructorCourseParticipantListView, InstructorCourseParticipantDetailView, AdminCourseParticipantListView, AdminCourseParticipantDetailView
+from content.api.views.enrollment_view import CourseEnrollView, PublicCourseListView, MyEnrolledCourseListView, CourseStructureView, ContentBlockDetailView
 
 
 
 urlpatterns = [
     # # ---------------------------- PUBLIC ---------------------------------------
-    # path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
-    # path('courses/<uuid:pk>/enroll/', CourseEnrollView.as_view(), name='public-course-enroll'),
-    # path('courses/<uuid:pk>/unenroll/', CourseEnrollView.as_view(), name='public-course-unenroll'),
-    # path('my-courses/', MyEnrolledCourseListView.as_view(), name='public-course-list'),
-    # path('courses/<uuid:pk>/', PublicCourseDetailView.as_view(), name='public-course-detail'),
+    path('courses/', PublicCourseListView.as_view(), name='public-course-list'),
+    path('courses/<uuid:pk>/enroll/', CourseEnrollView.as_view(), name='public-course-enroll'),
+    path('courses/<uuid:pk>/unenroll/', CourseEnrollView.as_view(), name='public-course-unenroll'),
+    path('my-courses/', MyEnrolledCourseListView.as_view(), name='public-course-list'),
+    path('courses/<uuid:course_id>/', CourseStructureView.as_view(), name='public-course-detail'),
+    path('blocks/<uuid:block_id>/', ContentBlockDetailView.as_view(), name='public-block-detail'),
 
 
     # # ---------------------------- ADMIN ---------------------------------------
@@ -27,8 +28,8 @@ urlpatterns = [
 
     path('admin/subjects/', AdminSubjectListView.as_view(), name='admin-subject-list'),
 
-    path('admin/courses/<uuid:pk>/users/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
-    path('admin/courses/<uuid:pk>/users/<uuid:user_id>/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
+    # path('admin/courses/<uuid:pk>/users/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
+    # path('admin/courses/<uuid:pk>/users/<uuid:user_id>/', AdminCourseParticipantListView.as_view(), name='admin-course-participant'),
 
     # # ---------------------------- INSTRUCTOR ---------------------------------------
     # Course
@@ -54,6 +55,6 @@ urlpatterns = [
     path('lessons/<uuid:lesson_id>/blocks/reorder/', InstructorContentBlockReorderView.as_view(), name='instructor-block-reorder'),
 
     # User in course
-    path('instructor/courses/<uuid:pk>/users/', InstructorCourseParticipantListView.as_view(), name='instructor-course-participant'),
-    path('instructor/courses/<uuid:pk>/users/<uuid:user_id>/', InstructorCourseParticipantDetailView.as_view(), name='instructor-course-participant'),
+    # path('instructor/courses/<uuid:pk>/users/', InstructorCourseParticipantListView.as_view(), name='instructor-course-participant'),
+    # path('instructor/courses/<uuid:pk>/users/<uuid:user_id>/', InstructorCourseParticipantDetailView.as_view(), name='instructor-course-participant'),
 ]
