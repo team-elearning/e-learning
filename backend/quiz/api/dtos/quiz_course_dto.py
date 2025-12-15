@@ -93,31 +93,74 @@ class QuestionInstructorOutput(BaseModel):
     # Pydantic sẽ tự động map các trường từ model Question
 
 
-class QuizPublicOutput(BaseModel):
+class QuizAttemptInfoOutput(BaseModel):
     """
-    DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
+    DTO trả về khi gọi POST init attempt.
+    Chỉ chứa ID và danh sách ID câu hỏi (để vẽ thanh navigation 1,2,3...)
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_id: uuid.UUID = Field(alias="id") # Map từ QuizAttempt.id
+    quiz_title: str 
+    time_limit_seconds: Optional[int]
+    time_start: datetime
+    
+    # Chỉ trả về List ID để client biết tổng số câu và thứ tự
+    questions_order: List[str] 
+    
+    current_index: int = 0 # Resume lại vị trí cũ
+    status: str
+
+    @field_serializer('time_limit_seconds')
+    def serialize_duration(self, v, _info):
+        return v # Giả sử domain đã tính ra giây hoặc view xử lý
+
+
+# --- DTO 2: Nội dung chi tiết từng câu hỏi (Load từng câu) ---
+class QuestionOptionDTO(BaseModel):
+    id: str
+    text: str
+
+class QuestionContentOutput(BaseModel):
+    """
+    DTO trả về nội dung của MỘT câu hỏi cụ thể
     """
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    title: str
-    time_limit: Optional[timedelta]
-    time_open: Optional[datetime]
-    time_close: Optional[datetime]
+    type: str
+    prompt_text: str = Field(..., description="Nội dung câu hỏi")
+    prompt_image: Optional[str] = None
     
-    # Tự động lồng DTO Question con
-    questions: List[QuestionInstructorOutput] = []
+    # Options này sẽ được shuffle ở tầng Domain hoặc Service trước khi đẩy vào đây
+    options: List[QuestionOptionDTO] = []
 
-    @field_serializer('time_limit')
-    def serialize_time_limit(self, td: Optional[timedelta]) -> Optional[int]:
-        """
-        Chuyển đổi timedelta thành TỔNG SỐ GIÂY (dạng integer).
-        Ví dụ: 30 phút -> 1800
-        """
-        if td is None:
-            return None
-        # Lấy tổng số giây (float) và ép kiểu về int
-        return int(td.total_seconds())
+
+# class QuizPublicOutput(BaseModel):
+#     """
+#     DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
+#     """
+#     model_config = ConfigDict(from_attributes=True)
+
+#     id: uuid.UUID
+#     title: str
+#     time_limit: Optional[timedelta]
+#     time_open: Optional[datetime]
+#     time_close: Optional[datetime]
+    
+#     # Tự động lồng DTO Question con
+#     questions: List[QuestionInstructorOutput] = []
+
+#     @field_serializer('time_limit')
+#     def serialize_time_limit(self, td: Optional[timedelta]) -> Optional[int]:
+#         """
+#         Chuyển đổi timedelta thành TỔNG SỐ GIÂY (dạng integer).
+#         Ví dụ: 30 phút -> 1800
+#         """
+#         if td is None:
+#             return None
+#         # Lấy tổng số giây (float) và ép kiểu về int
+#         return int(td.total_seconds())
 
 
 class QuizAdminOutput(QuizPublicOutput):

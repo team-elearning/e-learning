@@ -9,10 +9,11 @@ from django.core.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
 
 from core.api.mixins import RoleBasedOutputMixin
-from quiz.models import UserAnswer, Question, QuizAttempt, Quiz
+from quiz.models import Question, Quiz
 from quiz.services import quiz_user_service
 from quiz.serializers import QuestionTakingSerializer, QuizAttemptStartSerializer, SaveAnswerSerializer
 from quiz.api.dtos.quiz_user_dto import QuizPreflightOutput, StartAttemptOutput, QuizAttemptStartInput, AttemptTakingOutput, SaveAnswerInput, SaveAnswerOutput, SubmitOutput, AttemptResultOutput, QuizItemOutput
+from progress.models import QuizAttempt
 
 
 

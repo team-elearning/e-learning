@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from core.services.access_policy import can_edit_course_content, can_view_course_content, is_quiz_owner_logic
+from core.services.access_policy import can_edit_course_content, can_view_course_content, is_quiz_owner_logic, can_access_attempt
 
 
 
@@ -43,3 +43,13 @@ class IsQuizOwner(BasePermission):
     """
     def has_object_permission(self, request, view, obj):
         return is_quiz_owner_logic(request.user, obj)
+    
+
+class IsAttemptOwner(BasePermission):
+    """    
+    Cho phép:
+    1. Học viên (chủ sở hữu lượt thi).
+    2. Giáo viên (chủ sở hữu đề thi) - để vào xem/chấm.
+    """
+    def has_object_permission(self, request, view, obj):
+        return can_access_attempt(request.user, obj)

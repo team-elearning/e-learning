@@ -7,16 +7,18 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from pydantic import ValidationError as PydanticValidationError
 import logging
 
-from core.api.mixins import RoleBasedOutputMixin
-from progress.services import interaction_service
+from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
+from core.api.permissions import CanViewCourseContent
+from progress.services import tracking_service
 from progress.api.dtos.heart_beat_dto import BlockHeartbeatInput, BlockProgressPublicOutput, BlockProgressAdminOutput, BlockCompletionInput, CourseResumeAdminOutput, CourseResumePublicOutput
 from progress.serializers import BlockHeartbeatSerializer, BlockCompletionInputSerializer
+from content.models import ContentBlock
 
 
 
 logger = logging.getLogger(__name__)
 
-class BlockInteractionHeartbeatView(RoleBasedOutputMixin, APIView):
+class BlockInteractionHeartbeatView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
     GET /tracking/heartbeat/?block_id=... 
         -> Lấy vị trí cũ để RESUME (Tiếp tục xem).
@@ -25,7 +27,9 @@ class BlockInteractionHeartbeatView(RoleBasedOutputMixin, APIView):
     API nhận tín hiệu 'nhịp tim' từ client để lưu vị trí video/pdf.
     Nên gọi API này mỗi 5-10s hoặc sự kiện onPause, onDestroy phía Client.
     """
-    permission_classes = [IsAuthenticated] # Chỉ User đã login mới được track
+    permission_classes = [IsAuthenticated, CanViewCourseContent] 
+
+    permission_lookup = {'block_id': ContentBlock}
 
     output_dto_public = BlockProgressPublicOutput
     output_dto_admin = BlockProgressAdminOutput
@@ -33,7 +37,7 @@ class BlockInteractionHeartbeatView(RoleBasedOutputMixin, APIView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Khởi tạo service (hoặc inject dependency nếu dùng container)
-        self.interaction_service = interaction_service
+        self.interaction_service = tracking_service
 
     def get(self, request, *args, **kwargs):
         """
@@ -91,10 +95,13 @@ class BlockInteractionHeartbeatView(RoleBasedOutputMixin, APIView):
             )
             
             # Return 200 OK rỗng để tiết kiệm băng thông (Heartbeat cần nhẹ)
-            return Response({"instance": user_block_progress_domain}, status=status.HTTP_200_OK)
+            return Response({"status": "synced", "is_completed": user_block_progress_domain.is_completed}, status=status.HTTP_200_OK)
         
         except PydanticValidationError as e:
             return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except PermissionError:
+            return Response({"detail": "Chưa ghi danh."}, status=403)
 
         except ValueError as e:
             # Lỗi logic (ví dụ block không tồn tại)
@@ -120,7 +127,7 @@ class BlockCompletionView(RoleBasedOutputMixin, APIView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = interaction_service  # Inject Service
+        self.interaction_service = tracking_service  # Inject Service
 
     def post(self, request, *args, **kwargs):
         serializer = BlockCompletionInputSerializer(data=request.data)
@@ -167,7 +174,7 @@ class CourseResumeView(RoleBasedOutputMixin, APIView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = interaction_service
+        self.interaction_service = tracking_service
 
     def get(self, request, course_id, *args, **kwargs):
         try:

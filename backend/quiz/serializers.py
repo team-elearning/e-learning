@@ -1,13 +1,14 @@
 from rest_framework import serializers
 
-from quiz.models import Quiz, Question, UserAnswer
+from quiz.models import Quiz, Question, QUESTION_TYPES
+from progress.models import QuizAttempt
 
 
 
 class QuestionSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True)
     position = serializers.IntegerField(default=0, required=False)
-    type = serializers.ChoiceField(choices=[q_type[0] for q_type in Question.QUESTION_TYPES], default='multiple_choice_single_answer', required=False)
+    type = serializers.ChoiceField(choices=[q_type[0] for q_type in QUESTION_TYPES], default='multiple_choice_single_answer', required=False)
     prompt = serializers.JSONField(required=False, allow_null=True)
     answer_payload = serializers.JSONField(required=False, allow_null=True)
     hint = serializers.JSONField(required=False, allow_null=True)
@@ -39,7 +40,7 @@ class QuestionInputSerializer(serializers.Serializer):
     id = serializers.UUIDField(required=False, allow_null=True) # Có ID -> Update, Không ID -> Create
     
     # Validate loại câu hỏi theo choices trong Model
-    type = serializers.ChoiceField(choices=Question.QUESTION_TYPES, required=False)
+    type = serializers.ChoiceField(choices=QUESTION_TYPES, required=False)
     
     # JSON Fields: DRF dùng DictField để hứng JSON object
     prompt = serializers.DictField(
@@ -204,7 +205,7 @@ class UserAnswerDetailSerializer(serializers.ModelSerializer):
     correct_answer = serializers.SerializerMethodField()
 
     class Meta:
-        model = UserAnswer
+        model = QuizAttempt
         fields = ['question_id', 'question_prompt', 'selected_options', 'is_correct', 'score_obtained', 'question_explanation', 'correct_answer']
 
     def get_question_explanation(self, obj):

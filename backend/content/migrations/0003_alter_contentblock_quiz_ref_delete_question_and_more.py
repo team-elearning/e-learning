@@ -8,15 +8,20 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('content', '0002_course_created_at_course_updated_at'),
-        ('quiz', '0001_initial'),
+        # ('quiz', '0001_initial'),
     ]
 
     operations = [
-        migrations.AlterField(
+        # migrations.AlterField(
+        #     model_name='contentblock',
+        #     name='quiz_ref',
+        #     field=models.ForeignKey(blank=True, help_text="Tham chiếu đến một Quiz nếu type='quiz'", null=True, on_delete=django.db.models.deletion.CASCADE, related_name='content_blocks', to='quiz.quiz'),
+        # ),
+        migrations.RemoveField(
             model_name='contentblock',
             name='quiz_ref',
-            field=models.ForeignKey(blank=True, help_text="Tham chiếu đến một Quiz nếu type='quiz'", null=True, on_delete=django.db.models.deletion.CASCADE, related_name='content_blocks', to='quiz.quiz'),
         ),
+        
         migrations.DeleteModel(
             name='Question',
         ),

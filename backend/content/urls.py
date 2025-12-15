@@ -5,7 +5,7 @@ from content.api.views.subject_view import AdminSubjectListView
 from content.api.views.module_view import InstructorModuleListCreateView, InstructorModuleDetailView, InstructorModuleReorderView
 from content.api.views.lesson_view import InstructorLessonListCreateView, InstructorLessonDetailView, InstructorLessonReorderView
 from content.api.views.content_block_view import InstructorContentBlockListCreateView, InstructorContentBlockConvertView, InstructorContentBlockDetailView, InstructorContentBlockReorderView
-from quiz.api.views.quiz_course_view import AdminQuizListView, AdminQuizDetailView, QuizCourseAttemptView, IntructorQuizCourseDetailView
+# from quiz.api.views.quiz_course_view import 
 from content.api.views.enrollment_view import CourseEnrollView, PublicCourseListView, MyEnrolledCourseListView, CourseStructureView, ContentBlockDetailView
 
 
