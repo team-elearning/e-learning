@@ -3,163 +3,173 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
+from progress.models import QuizAttempt
+
 
 
 @dataclass
 class QuizAttemptDomain:
     """Entity: Đại diện cho 1 lần làm bài"""
     id: UUID
-    quiz_id: UUID
+    quiz_title: str
+    time_limit_seconds: Optional[int]
+    time_start: datetime
+    questions_order: List[str]
+    current_index: int
     user_id: int
     status: str
-    time_start: datetime
-    current_question_index: int
     
     @classmethod
-    def from_model(cls, model):
+    def from_model(cls, attempt: "QuizAttempt"):
+        # Tính toán time limit (nếu cần xử lý logic bù giờ)
+        limit_sec = int(attempt.quiz.time_limit.total_seconds()) if attempt.quiz.time_limit else None
+        
         return cls(
-            id=model.id,
-            quiz_id=model.quiz_id,
-            user_id=model.user_id,
-            status=model.status,
-            time_start=model.time_start,
-            current_question_index=model.current_question_index
+            id=attempt.id,
+            quiz_title=attempt.quiz.title,
+            time_limit_seconds=limit_sec,
+            time_start=attempt.time_start,
+            questions_order=attempt.questions_order,
+            current_index=attempt.current_question_index,
+            status=attempt.status,
         )
 
 
-@dataclass
-class AttemptCreationResultDomain:
-    """
-    Aggregate: Kết quả của hành động 'Bắt đầu làm bài'.
-    Gói gọn cả Object Attempt và Metadata hành động.
-    """
-    attempt: QuizAttemptDomain
-    action: str  # 'created' | 'resumed'
-    detail: str  # Message thông báo
 
 
-@dataclass
-class QuestionTakingDomain:
-    """
-    Entity: Một câu hỏi trong giao diện làm bài.
-    Bao gồm: Nội dung câu hỏi + Trạng thái trả lời của user (nếu có).
-    Moodle gọi đây là 'Slot' (kết hợp Question + Response).
-    """
-    id: UUID
-    type: str
-    prompt: Dict[str, Any] # Nội dung câu hỏi (Text, Ảnh)
+# @dataclass
+# class AttemptCreationResultDomain:
+#     """
+#     Aggregate: Kết quả của hành động 'Bắt đầu làm bài'.
+#     Gói gọn cả Object Attempt và Metadata hành động.
+#     """
+#     attempt: QuizAttemptDomain
+#     action: str  # 'created' | 'resumed'
+#     detail: str  # Message thông báo
+
+
+# @dataclass
+# class QuestionTakingDomain:
+#     """
+#     Entity: Một câu hỏi trong giao diện làm bài.
+#     Bao gồm: Nội dung câu hỏi + Trạng thái trả lời của user (nếu có).
+#     Moodle gọi đây là 'Slot' (kết hợp Question + Response).
+#     """
+#     id: UUID
+#     type: str
+#     prompt: Dict[str, Any] # Nội dung câu hỏi (Text, Ảnh)
     
-    # State của User (Resume)
-    current_selection: Optional[Dict[str, Any]] = None # User đã chọn gì?
-    is_answered: bool = False # Đã làm chưa? (Dùng để tô màu xanh/trắng navigation)
+#     # State của User (Resume)
+#     current_selection: Optional[Dict[str, Any]] = None # User đã chọn gì?
+#     is_answered: bool = False # Đã làm chưa? (Dùng để tô màu xanh/trắng navigation)
 
-    is_flagged: bool = False
+#     is_flagged: bool = False
     
-    # Bảo mật: Tuyệt đối KHÔNG có answer_payload ở đây
+#     # Bảo mật: Tuyệt đối KHÔNG có answer_payload ở đây
 
 
-@dataclass
-class AttemptTakingDomain:
-    """
-    Aggregate Root: Toàn bộ ngữ cảnh màn hình làm bài.
-    """
-    attempt_id: UUID
-    quiz_title: str
+# @dataclass
+# class AttemptTakingDomain:
+#     """
+#     Aggregate Root: Toàn bộ ngữ cảnh màn hình làm bài.
+#     """
+#     attempt_id: UUID
+#     quiz_title: str
     
-    # Time
-    time_remaining_seconds: Optional[int]
+#     # Time
+#     time_remaining_seconds: Optional[int]
     
-    # Navigation
-    current_question_index: int
-    total_questions: int
+#     # Navigation
+#     current_question_index: int
+#     total_questions: int
     
-    # Content
-    questions: List[QuestionTakingDomain]
+#     # Content
+#     questions: List[QuestionTakingDomain]
 
 
-@dataclass
-class SaveAnswerResultDomain:
-    """
-    Domain Entity: Kết quả của hành động lưu bài.
-    Service sẽ trả về cái này.
-    """
-    status: str
-    saved_at: datetime
+# @dataclass
+# class SaveAnswerResultDomain:
+#     """
+#     Domain Entity: Kết quả của hành động lưu bài.
+#     Service sẽ trả về cái này.
+#     """
+#     status: str
+#     saved_at: datetime
 
 
-@dataclass
-class SubmitAttemptResultDomain:
-    attempt_id: UUID
-    status: str          # 'completed'
+# @dataclass
+# class SubmitAttemptResultDomain:
+#     attempt_id: UUID
+#     status: str          # 'completed'
 
-    score_obtained: float
-    max_score: float       
-    percentage: float
+#     score_obtained: float
+#     max_score: float       
+#     percentage: float
 
-    correct_count: int      # <--- Thêm
-    total_questions: int    # <--- Thêm
+#     correct_count: int      # <--- Thêm
+#     total_questions: int    # <--- Thêm
 
-    passed: bool         # True/False dựa trên pass_score
-    completion_time: datetime
-    message: str         # "Nộp bài thành công"
-    overall_feedback: str
+#     passed: bool         # True/False dựa trên pass_score
+#     completion_time: datetime
+#     message: str         # "Nộp bài thành công"
+#     overall_feedback: str
 
 
-@dataclass
-class QuestionReviewDomain:
-    """
-    Chi tiết kết quả của 1 câu hỏi.
-    """
-    id: UUID
-    prompt: Dict[str, Any]      # Nội dung câu hỏi
-    user_selected: Any          # Đáp án user chọn (List ID hoặc Text)
-    is_correct: bool            # Đúng hay sai?
-    score_obtained: float       # Điểm đạt được câu này
+# @dataclass
+# class QuestionReviewDomain:
+#     """
+#     Chi tiết kết quả của 1 câu hỏi.
+#     """
+#     id: UUID
+#     prompt: Dict[str, Any]      # Nội dung câu hỏi
+#     user_selected: Any          # Đáp án user chọn (List ID hoặc Text)
+#     is_correct: bool            # Đúng hay sai?
+#     score_obtained: float       # Điểm đạt được câu này
     
-    # Các field nhạy cảm (Chỉ hiện khi Practice Mode hoặc Config cho phép)
-    correct_answer: Optional[Any] = None  # Đáp án đúng là gì?
-    explanation: Optional[str] = None     # Giải thích chi tiết
+#     # Các field nhạy cảm (Chỉ hiện khi Practice Mode hoặc Config cho phép)
+#     correct_answer: Optional[Any] = None  # Đáp án đúng là gì?
+#     explanation: Optional[str] = None     # Giải thích chi tiết
 
 
-@dataclass
-class AttemptResultDomain:
-    """
-    Tổng quan kết quả bài thi.
-    """
-    attempt_id: UUID
-    quiz_title: str
-    status: str
-    time_taken_seconds: int     # Thời gian làm bài
-    time_submitted: datetime
+# @dataclass
+# class AttemptResultDomain:
+#     """
+#     Tổng quan kết quả bài thi.
+#     """
+#     attempt_id: UUID
+#     quiz_title: str
+#     status: str
+#     time_taken_seconds: int     # Thời gian làm bài
+#     time_submitted: datetime
     
-    # Điểm số
-    score_obtained: float       # Điểm thô
-    max_score: float            # Tổng điểm của đề
-    is_passed: bool             # Đạt/Trượt
+#     # Điểm số
+#     score_obtained: float       # Điểm thô
+#     max_score: float            # Tổng điểm của đề
+#     is_passed: bool             # Đạt/Trượt
 
-    correct_count: int      
-    total_questions: int   
+#     correct_count: int      
+#     total_questions: int   
     
-    # Danh sách chi tiết (Có thể rỗng nếu mode Exam không cho xem lại bài)
-    questions: List[QuestionReviewDomain] = field(default_factory=list)
+#     # Danh sách chi tiết (Có thể rỗng nếu mode Exam không cho xem lại bài)
+#     questions: List[QuestionReviewDomain] = field(default_factory=list)
 
 
-@dataclass
-class QuizSummaryDomain:
-    # Thông tin cơ bản từ Quiz
-    id: UUID
-    title: str
-    mode: str
+# @dataclass
+# class QuizSummaryDomain:
+#     # Thông tin cơ bản từ Quiz
+#     id: UUID
+#     title: str
+#     mode: str
     
-    # Thông tin thời gian (đã xử lý logic hiển thị)
-    time_open: Optional[datetime]
-    time_close: Optional[datetime]
-    time_limit_str: Optional[str]
+#     # Thông tin thời gian (đã xử lý logic hiển thị)
+#     time_open: Optional[datetime]
+#     time_close: Optional[datetime]
+#     time_limit_str: Optional[str]
     
-    # Trạng thái người dùng & Điểm số
-    user_status: str
-    best_score: Optional[float]
-    attempts_count: int
+#     # Trạng thái người dùng & Điểm số
+#     user_status: str
+#     best_score: Optional[float]
+#     attempts_count: int
     
-    # Logic computed (đã tính toán ở service)
-    is_available: bool
+#     # Logic computed (đã tính toán ở service)
+#     is_available: bool

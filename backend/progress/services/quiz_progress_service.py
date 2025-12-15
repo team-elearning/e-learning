@@ -2,7 +2,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
 
-from quiz.models import QuizAttempt, Quiz
+from quiz.models import Quiz
+from progress.models import QuizAttempt
 from progress.domains.quiz_attempt_domain import QuizAttemptDomain
 
 

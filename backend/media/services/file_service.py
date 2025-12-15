@@ -19,13 +19,13 @@ from django.utils import timezone
 
 from core.exceptions import DomainError, FileNotFoundError
 from custom_account.models import UserModel
-from quiz.models import QuizAttempt
 from content.models import Course, Enrollment
 from media.models import UploadedFile, FileStatus, Component
 from media.domains.file_domain import FileDomain
 from media.domains.presigned_upload_domain import PresignedUploadDomain
 from media.domains.cleanup_task_domain import CleanupTaskDomain
 from media.services.cloud_service import generate_cloudfront_signed_url
+from progress.models import QuizAttempt
 
 
 

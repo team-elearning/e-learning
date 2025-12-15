@@ -10,50 +10,61 @@ class UserBlockProgressDomain:
     id: Optional[UUID]  # None nếu chưa lưu DB
     user_id: UUID   
     block_id: UUID
+    enrollment_id: UUID
     
     # --- Trạng thái học tập ---
     status: str  # Thay vì bool is_completed, dùng Enum: 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'
+    is_completed: bool
+    completed_at: Optional[datetime]
+
     time_spent_seconds: int
-    resume_data: Dict[str, Any]
+    interaction_data: Dict[str, Any]
     last_accessed: Optional[datetime]
-    score: Optional[float] = None
     
-    # --- MỞ RỘNG: Metadata từ ContentBlock (Để Frontend hiển thị) ---
-    # Giúp FE biết tổng thời lượng để vẽ thanh loading mà không cần gọi API khác
-    block_total_duration: Optional[int] = None 
-    block_passing_score: Optional[float] = None
-    
-    # --- Calculated Field ---
-    progress_percentage: float = 0.0 
+    block_type: str             # 'video', 'quiz', 'pdf'...
+    total_duration: int = 0     # Thời lượng tổng của video (giây)
+    progress_percentage: float = 0.0
 
     @classmethod
     def from_model(cls, progress_model, content_block) -> 'UserBlockProgressDomain':
         """
-        Factory method kết hợp dữ liệu từ Progress (User) và ContentBlock (System).
+        Factory Method: Merge dữ liệu từ Model Progress (User) và Model Block (System).
         """
-        # Logic tính status & percentage
+        # 1. Tính toán Status
         status = 'IN_PROGRESS'
         if progress_model.is_completed:
             status = 'COMPLETED'
+        elif progress_model.time_spent_seconds == 0 and not progress_model.interaction_data:
+            status = 'NOT_STARTED'
+
+        # 2. Lấy Metadata từ Block (Payload thường lưu duration video)
+        payload = content_block.payload or {}
+        duration = payload.get('duration', 0) # Mặc định 0 nếu không có
         
-        # Tính phần trăm (Ví dụ đơn giản)
+        # 3. Tính % tiến độ (Chỉ tính cho Video/Audio, Text thì là 0 hoặc 100)
         percent = 0.0
-        if content_block.duration_seconds and content_block.duration_seconds > 0:
-            percent = min(100.0, (progress_model.time_spent_seconds / content_block.duration_seconds) * 100)
-            
+        if progress_model.is_completed:
+            percent = 100.0
+        elif duration > 0:
+            percent = min(100.0, (progress_model.time_spent_seconds / duration) * 100)
+        
         return cls(
             id=progress_model.id,
             user_id=progress_model.user_id,
             block_id=progress_model.block_id,
-            status=status, # Mới
-            time_spent_seconds=progress_model.time_spent_seconds,
-            resume_data=progress_model.resume_data or {},
-            last_accessed=progress_model.last_accessed,
-            score=progress_model.score,
+            enrollment_id=progress_model.enrollment_id,
             
-            # Map dữ liệu từ Block sang
-            block_total_duration=content_block.duration_seconds, # Giả sử model Block có trường này
-            block_passing_score=content_block.passing_score,
+            status=status,
+            is_completed=progress_model.is_completed,
+            completed_at=progress_model.completed_at,
+            
+            time_spent_seconds=progress_model.time_spent_seconds,
+            interaction_data=progress_model.interaction_data or {},
+            last_accessed=progress_model.last_accessed,
+            
+            # Metadata
+            block_type=content_block.type,
+            total_duration=duration,
             progress_percentage=round(percent, 2)
         )
     

@@ -7,7 +7,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import List
 
-from quiz.models import Quiz, QuizAttempt 
+from quiz.models import Quiz 
 from quiz.domains.exam_domain import ExamDomain
 
 

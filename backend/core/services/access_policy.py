@@ -1,7 +1,8 @@
 from django.utils import timezone
 
 from content.models import Course, Enrollment, Quiz
-from quiz.models import QuizAttempt, Question
+from quiz.models import Question
+from progress.models import QuizAttempt
 
 
 
@@ -171,6 +172,45 @@ def is_quiz_owner_logic(user, obj):
         quiz_obj = obj.quiz
     
     if hasattr(quiz_obj, 'owner') and quiz_obj.owner == user:
+        return True
+
+    return False
+
+
+def can_access_attempt(user, obj):
+    """
+    Check quyền truy cập vào một lượt làm bài (Attempt).
+    Logic:
+    1. Admin/Staff -> Full quyền.
+    2. Học viên chính chủ (người làm bài) -> Được xem/làm tiếp.
+    3. Giáo viên (chủ sở hữu Quiz) -> Được xem để chấm điểm.
+    """
+    if not user.is_authenticated:
+        return False
+        
+    # 1. Admin quyền tối thượng
+    if user.is_staff or user.is_superuser:
+        return True
+
+    # 2. Resolve object về Attempt
+    # obj có thể là QuizAttempt hoặc QuestionAnswer (con của Attempt)
+    attempt = obj
+    if hasattr(obj, 'attempt'): 
+        attempt = obj.attempt
+    
+    # Nếu obj không phải là Attempt hay Answer (ví dụ truyền nhầm), return False
+    # (Tùy logic model của bạn, ở đây giả sử obj hợp lệ có field user)
+    if not hasattr(attempt, 'user') or not hasattr(attempt, 'quiz'):
+        return False
+
+    # 3. Check quyền "Chính chủ" (Student)
+    if attempt.user == user:
+        return True
+
+    # 4. Check quyền "Giáo viên" (Người sở hữu Quiz/Course)
+    # Tận dụng lại hàm is_quiz_owner_logic bạn đã có
+    # Giáo viên cần quyền này để vào chấm điểm (View/Grade)
+    if is_quiz_owner_logic(user, attempt.quiz):
         return True
 
     return False

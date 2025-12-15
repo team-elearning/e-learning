@@ -150,17 +150,22 @@ class Enrollment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='enrollments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
+    
+    # --- TIẾN ĐỘ TỔNG HỢP (Aggregation) ---
+    # Cache lại % để hiển thị Dashboard nhanh, không cần count(*) mỗi lần load
+    percent_completed = models.FloatField(default=0.0) 
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
     enrolled_at = models.DateTimeField(auto_now_add=True)
+    last_accessed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Đảm bảo mỗi user chỉ ghi danh vào 1 course 1 lần
         unique_together = ('user', 'course')
-        verbose_name = ('Enrollment')
-        verbose_name_plural = ('Enrollments')
-        ordering = ['-enrolled_at']
-
-    def __str__(self):
-        return f"{self.user.username} enrolled in {self.course.title}"
+        indexes = [
+            models.Index(fields=['user', 'course']), # Query check quyền học
+            models.Index(fields=['user', '-last_accessed_at']) # Query dashboard
+        ]
       
 
 class ContentBlock(models.Model):
