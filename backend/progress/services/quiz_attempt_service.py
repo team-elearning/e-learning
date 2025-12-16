@@ -21,20 +21,20 @@ logger = logging.getLogger(__name__)
 # PUBLIC INTERFACE (HELPER)
 # ==========================================
 
-def _build_result_domain(attempt) -> QuizAttemptDomain:
-    time_taken = 0
-    if attempt.time_submitted and attempt.time_start:
-        time_taken = int((attempt.time_submitted - attempt.time_start).total_seconds())
+# def _build_result_domain(attempt) -> QuizAttemptDomain:
+#     time_taken = 0
+#     if attempt.time_submitted and attempt.time_start:
+#         time_taken = int((attempt.time_submitted - attempt.time_start).total_seconds())
 
-    return QuizAttemptDomain(
-        id=attempt.id,
-        status=attempt.status,
-        score=attempt.score,
-        max_score=attempt.max_score,
-        is_passed=attempt.is_passed,
-        time_taken_seconds=time_taken,
-        completed_at=attempt.time_submitted
-    )
+#     return QuizAttemptDomain(
+#         id=attempt.id,
+#         status=attempt.status,
+#         score=attempt.score,
+#         max_score=attempt.max_score,
+#         is_passed=attempt.is_passed,
+#         time_taken_seconds=time_taken,
+#         completed_at=attempt.time_submitted
+#     )
 
 # def start_quiz_attempt(user, quiz_id: str) -> QuizAttemptDomain:
 #     """
@@ -176,7 +176,20 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
 
     # Idempotency: Nếu đã nộp rồi thì trả về kết quả cũ luôn, không chấm lại
     if attempt.status == 'submitted':
-        return _build_result_domain(attempt)
+        # Load answers kèm question để tránh N+1
+        answers = list(attempt.answers.select_related('question').all())
+        
+        # Sắp xếp lại answers theo đúng thứ tự đề thi (questions_order)
+        ans_map = {a.question_id: a for a in answers}
+        ordered_answers = []
+        for q_id_str in attempt.questions_order:
+            qid = uuid.UUID(q_id_str)
+            if qid in ans_map:
+                ordered_answers.append(ans_map[qid])
+        
+        # Gán vào cache để from_model sử dụng
+        attempt._cached_answers = ordered_answers
+        return QuizAttemptDomain.from_model(attempt)
 
     # 2. --- BATCH GRADING (Chấm điểm hàng loạt) ---
     # Lấy danh sách ID câu hỏi trong đề thi này (theo thứ tự đã random)
@@ -186,10 +199,6 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     # Dùng in_bulk để map ID -> Object cho nhanh
     saved_answers = QuestionAnswer.objects.filter(attempt=attempt).in_bulk(field_name='question_id')
     
-    # Chỉ query Question gốc cho những câu CẦN CHẤM LẠI (Draft hoặc Chưa làm)
-    # Để tối ưu, ta lọc ra những ID cần chấm trước
-    ids_to_grade = []
-
     total_score = 0.0
     total_max_score = 0.0 # Tính tổng điểm trần của đề thi
 
@@ -203,6 +212,8 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
 
     answers_to_update = []
     answers_to_create = []
+
+    final_processed_answers = []
 
     for q_id_str in question_ids:
         q_uuid = uuid.UUID(q_id_str)
@@ -219,7 +230,7 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
         if answer_obj and answer_obj.is_graded:
             # CASE A: Đã chấm rồi (Submit từng câu) -> Tin tưởng DB
             total_score += answer_obj.score
-            # Không cần làm gì thêm
+            final_processed_answers.append(answer_obj)
         
         else:
             # CASE B: Chưa chấm (Draft) HOẶC Chưa làm (None)
@@ -237,10 +248,11 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
                 answer_obj.feedback = feedback
                 answer_obj.is_graded = True # <--- Chốt sổ
                 answers_to_update.append(answer_obj)
+                final_processed_answers.append(answer_obj)
             
             # Nếu chưa từng đụng vào -> Tạo record 0 điểm
             else:
-                answers_to_create.append(QuestionAnswer(
+                new_ans = QuestionAnswer(
                     attempt=attempt,
                     question=question,
                     question_type=question.type,
@@ -249,7 +261,9 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
                     is_correct=False,
                     is_graded=True, # <--- Chốt sổ
                     feedback="Bạn chưa trả lời câu này."
-                ))
+                )
+                answers_to_create.append(new_ans)
+                final_processed_answers.append(new_ans)
             
             total_score += score
 
@@ -274,22 +288,22 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     attempt.time_submitted = timezone.now()
     attempt.save()
 
-    # 5. (Optional) Trigger Update Course Progress
+    # 5. --- ATTACH & RETURN ---
+    # Trick: Gắn list answers vào object để lớp trên dùng luôn, khỏi query
+    # Lưu ý: Sắp xếp lại theo đúng order của đề thi
+    answer_map = {a.question_id: a for a in final_processed_answers}
+    ordered_answers = []
+    for q_id_str in attempt.questions_order:
+        qid = uuid.UUID(q_id_str)
+        if qid in answer_map:
+            ordered_answers.append(answer_map[qid])
+            
+    attempt._cached_answers = ordered_answers
+
+    # 6. (Optional) Trigger Update Course Progress
     # update_enrollment_progress(attempt.enrollment)
 
-    time_taken = 0
-    if attempt.time_submitted and attempt.time_start:
-        time_taken = int((attempt.time_submitted - attempt.time_start).total_seconds())
-
-    return QuizAttemptDomain(
-        id=attempt.id,
-        status=attempt.status,
-        score=attempt.score,
-        max_score=attempt.max_score,
-        is_passed=attempt.is_passed,
-        time_taken_seconds=time_taken,
-        completed_at=attempt.time_submitted
-    )
+    return QuizAttemptDomain.from_model(attempt)
 
 
 # ==========================================
@@ -363,7 +377,7 @@ def regrade_quiz_attempt(attempt_id: uuid.UUID) -> QuizAttemptDomain:
     # Không update time_submitted vì regrade không thay đổi thời gian nộp bài
     attempt.save()
 
-    return _build_result_domain(attempt)
+    return QuizAttemptDomain.from_model(attempt)
 
 
 def regrade_all_attempts_in_quiz(quiz_id: uuid.UUID):
