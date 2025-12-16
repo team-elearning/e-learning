@@ -4,15 +4,13 @@ from quiz.api.views.exam_view import InstructorExamListView, InstructorExamDetai
 from quiz.api.views.practice_view import InstructorPracticeListView, InstructorPracticeDetailView, AdminPracticeDetailView, AdminPracticeListView
 from quiz.api.views.parse_view import QuizParseToolView
 from quiz.api.views.quiz_user_view import QuizInfoView, QuizAttemptStartView, AttemptDetailView, AttemptSaveAnswerView, AttemptSubmitView, AttemptResultView, QuizListView
-from quiz.api.views.quiz_course_view import QuizAttemptInitView, QuizAttemptQuestionDetailView, IntructorQuizCourseDetailView
+from quiz.api.views.quiz_course_view import IntructorQuizCourseDetailView
 from quiz.api.views.question_view import InstructorQuestionListView, InstructorQuestionDetailView
 
 
 
 urlpatterns = [
     # USER
-    path('quizzes/<quiz_id>/attempt/', QuizAttemptInitView.as_view(), name='quiz-attempt-init'),
-    path('attempts/<attempt_id>/questions/<question_id>/', QuizAttemptQuestionDetailView.as_view(), name='attempt-question-detail'),
 
     path('exam/<uuid:pk>/info/', QuizInfoView.as_view(), name='student-quiz-info'),
     path('exam/<uuid:pk>/attempt/', QuizAttemptStartView.as_view(), name='quiz-attempt-start'),

@@ -11,6 +11,7 @@ from custom_account.models import UserModel
 QUIZ_MODES = [ # === CHẾ ĐỘ LÀM BÀI ===
         ('exam', 'Kiểm tra (Nghiêm ngặt)'),
         ('practice', 'Ôn luyện (Thoải mái)'),
+        ('quiz', 'Quiz'),
     ]
 
 

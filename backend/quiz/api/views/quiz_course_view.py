@@ -10,7 +10,7 @@ from core.exceptions import DomainError
 from core.api.permissions import IsInstructor, IsQuizOwner, CanViewCourseContent, IsAttemptOwner
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from quiz.serializers import QuizUpdateMetadataSerializer
-from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizAdminOutput, QuizPublicOutput, QuizAttemptInfoOutput, QuestionContentOutput
+from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizAdminOutput, QuizPublicOutput
 from quiz.services import quiz_course_service
 from quiz.models import Quiz
 from progress.models import QuizAttempt
@@ -24,69 +24,7 @@ logger = logging.getLogger(__name__)
 # 1. VIEW (USER)
 # ======================================================================
 
-class QuizAttemptInitView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
-    """
-    GET quizzes/<quiz_id>/attempt/
-    Chức năng: Bắt đầu làm bài hoặc Resume bài cũ. 
-    Trả về ID bài làm và danh sách ID câu hỏi (để client tự loop gọi content)
-    """
-    permission_classes = [permissions.IsAuthenticated, CanViewCourseContent] # Học viên chỉ cần login
 
-    permission_lookup = {'quiz_id': Quiz}
-
-    output_dto_admin = QuizAttemptInfoOutput
-    output_dto_public = QuizAttemptInfoOutput
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.service = quiz_course_service
-
-    def get(self, request, quiz_id: uuid.UUID, *args, **kwargs):
-        """ Xem màn hình chờ (Info) """
-        try:
-            # 1. Gọi Service lấy Domain Data
-            attempt_domain = self.service.start_or_resume_attempt(
-                quiz_id=quiz_id, 
-                user=request.user
-            )
-            return Response({"instance": attempt_domain}, status=status.HTTP_200_OK)
-        except DomainError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class QuizAttemptQuestionDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
-    """
-    GET attempts/<attempt_id>/questions/<question_id>/
-    Chức năng: Lấy nội dung của MỘT câu hỏi cụ thể (kèm options đã shuffle).
-    """
-    permission_classes = [permissions.IsAuthenticated, IsAttemptOwner]
-    
-    # Ở đây lookup theo attempt, cần check user sở hữu attempt đó (AutoPermissionCheckMixin lo hoặc view tự check)
-    # permission_lookup = {'attempt_id': QuizAttempt} 
-
-    output_dto_public = QuestionContentOutput
-    output_dto_admin = QuestionContentOutput
-
-    permission_lookup = {'attempt_id': QuizAttempt}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.service = quiz_course_service
-
-    def get(self, request, attempt_id: uuid.UUID, question_id: uuid.UUID, *args, **kwargs):
-        try:
-            # Service trả về QuestionContentDomain
-            question_domain = self.service.get_question_in_attempt(
-                attempt_id=attempt_id,
-                question_id=question_id,
-                user=request.user
-            )
-            return Response({"instance": question_domain}, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
 # # ======================================================================

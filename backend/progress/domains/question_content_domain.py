@@ -16,3 +16,4 @@ class QuestionContentDomain:
     options: List[dict] # List option đã được shuffle
     current_answer: dict  # Chứa answer_data (ví dụ: {"selected_ids": [...]})
     is_flagged: bool # Trạng thái cắm cờ
+    submission_result: Optional[dict]
