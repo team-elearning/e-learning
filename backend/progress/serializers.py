@@ -26,3 +26,11 @@ class BlockCompletionInputSerializer(serializers.Serializer):
 class StartQuizInputSerializer(serializers.Serializer):
     """Validate đầu vào"""
     quiz_id = serializers.UUIDField()
+
+
+class QuestionAnswerInputSerializer(serializers.Serializer):
+    """ Chỉ validate phần body, question_id sẽ lấy từ URL """
+    answer_data = serializers.JSONField(required=True)
+
+
+

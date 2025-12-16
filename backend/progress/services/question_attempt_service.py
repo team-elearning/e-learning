@@ -228,7 +228,7 @@ def get_question_in_attempt(attempt_id: uuid.UUID, question_id: uuid.UUID, user)
              
              # Logic lấy đáp án đúng (chỉ hiện nếu là Practice hoặc Exam cho phép review)
              correct_display = None
-             if attempt.attempt_mode == 'practice' or attempt.attempt_mode == 'quiz': 
+             if attempt.attempt_mode in ['practice', 'quiz']:
                  correct_display = get_correct_answer_for_display(question)
                  
              submission_result = {
@@ -257,7 +257,8 @@ def get_question_in_attempt(attempt_id: uuid.UUID, question_id: uuid.UUID, user)
 @transaction.atomic
 def save_question_draft(
     attempt_id: uuid.UUID, 
-    submission: dict, # Chứa question_id và answer_data
+    question_id: uuid.UUID,
+    submission_data: dict, # Chứa answer_data
     user
 ) -> bool:
     """
@@ -273,10 +274,13 @@ def save_question_draft(
     if attempt.status != 'in_progress':
         raise DomainError("Bài làm đã đóng, không thể lưu nháp.")
 
-    if str(submission.question_id) not in attempt.questions_order:
+    if str(question_id) not in attempt.questions_order:
         raise DomainError("Câu hỏi không thuộc bài làm này.")
 
-    question = Question.objects.get(id=submission.question_id)
+    try:
+        question = Question.objects.get(id=question_id)
+    except Question.DoesNotExist:
+        raise DomainError("Câu hỏi không tồn tại.")
 
     # 2. Lưu nháp (Update or Create)
     # Lưu ý: Không set score, không set is_correct, không set feedback
@@ -285,7 +289,7 @@ def save_question_draft(
         question=question,
         defaults={
             'question_type': question.type,
-            'answer_data': submission.answer_data,
+            'answer_data': submission_data['answer_data'],
             # Giữ nguyên các trường chấm điểm là mặc định (hoặc 0)
             # Nếu bản ghi đã tồn tại và đã được chấm điểm trước đó (trong practice mode),
             # việc user sửa lại đáp án sẽ làm kết quả cũ không còn giá trị -> Có thể reset score về 0.
@@ -305,7 +309,8 @@ def save_question_draft(
 @transaction.atomic
 def submit_question(
     attempt_id: uuid.UUID, 
-    submission: dict, # Chứa question_id, answer_data
+    question_id: uuid.UUID,
+    submission_data: dict, # Chứa answer_data
     user
 ) -> QuestionSubmissionDomain:
     
@@ -318,27 +323,28 @@ def submit_question(
     if attempt.status != 'in_progress':
         raise DomainError("Bài làm đã kết thúc, không thể nộp thêm.")
 
-    if str(submission.question_id) not in attempt.questions_order:
+    if str(question_id) not in attempt.questions_order:
         raise DomainError("Câu hỏi không thuộc bài làm này.")
 
     # 2. Lấy câu hỏi gốc
     try:
-        question = Question.objects.get(id=submission.question_id)
+        question = Question.objects.get(id=question_id)
     except Question.DoesNotExist:
         raise DomainError("Câu hỏi không tồn tại.")
 
     # 3. --- CHẤM ĐIỂM (GRADING LOGIC) ---
     # Tách logic chấm điểm ra hàm riêng để code gọn và dễ mở rộng
-    score_achieved, is_correct, system_feedback = evaluate_answer(question, submission.answer_data)
+    user_answer = submission_data['answer_data']
+    score_achieved, is_correct, system_feedback = evaluate_answer(question, user_answer)
 
     # 4. Lưu/Cập nhật vào bảng QuestionAnswer
     # Dùng update_or_create vì user có thể chọn lại đáp án nhiều lần trước khi nộp bài
-    question_answer, created = QuestionAnswer.objects.update_or_create(
+    QuestionAnswer.objects.update_or_create(
         attempt=attempt,
         question=question,
         defaults={
             'question_type': question.type,
-            'answer_data': submission.answer_data,
+            'answer_data': user_answer,
             'is_flagged': False, # Reset flag nếu user đã nộp
             'score': score_achieved,
             'is_correct': is_correct,
@@ -350,7 +356,7 @@ def submit_question(
     # Logic LMS: Practice thì hiện luôn. Exam thì ẩn.
     correct_answer_display = None
     
-    if attempt.attempt_mode == 'practice' or attempt.attempt_mode == 'quiz':
+    if attempt.attempt_mode in ['practice', 'quiz']:
         # Lấy đáp án đúng đã được format sạch sẽ cho Frontend
         correct_answer_display = get_correct_answer_for_display(question)
     

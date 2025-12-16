@@ -26,7 +26,7 @@ UserModel = settings.AUTH_USER_MODEL
 # ==========================================
 
 @transaction.atomic
-def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
+def create_quiz(data: Dict[str, Any], actor: UserModel, mode='quiz') -> QuizDomain:
     """
     Tạo Quiz và các Question con từ DTO.
     """
@@ -35,7 +35,7 @@ def create_quiz(data: Dict[str, Any], actor: UserModel) -> QuizDomain:
     # 1. Tạo Quiz (object gốc)
     new_quiz = Quiz.objects.create(
         title=data.get('title', 'Bài tập không tiêu đề'),
-        mode=data.get('mode'),
+        mode=mode,
         time_limit=data.get('time_limit') or None,
         time_open=data.get('time_open') or None,
         time_close=data.get('time_close') or None,
