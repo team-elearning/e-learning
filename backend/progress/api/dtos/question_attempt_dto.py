@@ -2,11 +2,20 @@ import uuid
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from dataclasses import dataclass
 
 
 
-# --- DTO 2: Nội dung chi tiết từng câu hỏi (Load từng câu) ---
-class QuestionOptionDTO(BaseModel):
+@dataclass
+class QuestionSubmissionInput:
+    """ DTO dùng chung cho việc Save Draft và Submit """
+    answer_data: Dict[str, Any]
+
+    def to_dict(self, exclude_none: bool = True) -> dict:
+        return self.model_dump(exclude_none=exclude_none)
+
+
+class QuestionOptionOutput(BaseModel):
     id: str
     text: str
 
@@ -22,6 +31,16 @@ class QuestionContentOutput(BaseModel):
     prompt_image: Optional[str] = None
     
     # Options này sẽ được shuffle ở tầng Domain hoặc Service trước khi đẩy vào đây
-    options: List[QuestionOptionDTO] = []
+    options: List[QuestionOptionOutput] = []
     current_answer: Optional[dict]  # Chứa answer_data (ví dụ: {"selected_ids": [...]})
     is_flagged: bool
+
+
+@dataclass
+class QuestionSubmissionOutput:
+    """ DTO Output trả về cho Client """
+    question_id: uuid.UUID
+    is_correct: bool
+    score: float
+    feedback: Optional[str]
+    correct_answer_data: Optional[Dict[str, Any]]
