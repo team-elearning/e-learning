@@ -134,6 +134,8 @@ class QuestionContentOutput(BaseModel):
     
     # Options này sẽ được shuffle ở tầng Domain hoặc Service trước khi đẩy vào đây
     options: List[QuestionOptionDTO] = []
+    current_answer: Optional[dict]  # Chứa answer_data (ví dụ: {"selected_ids": [...]})
+    is_flagged: bool
 
 
 # class QuizPublicOutput(BaseModel):
