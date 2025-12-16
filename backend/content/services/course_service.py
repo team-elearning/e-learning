@@ -544,13 +544,7 @@ def publish_course(
     # 1. Lấy khóa học & Kiểm tra quyền (Logic giống Patch/Delete)
     # -----------------------------------------------------------
     try:
-        qs = Course.objects.all()
-        is_admin = getattr(actor, 'is_staff', False) or getattr(actor, 'is_superuser', False)
-        if is_admin:
-            course = qs.get(pk=course_id)
-        else:
-            course = qs.get(pk=course_id, owner=actor)
-
+        course = Course.objects.get(pk=course_id)
     except Course.DoesNotExist:
         raise ValueError("Không tìm thấy khóa học hoặc bạn không có quyền thực hiện.")
 

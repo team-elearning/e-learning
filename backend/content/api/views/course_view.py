@@ -425,95 +425,95 @@ class InstructorCourseDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin,
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
         
 
-# class InstructorCoursePublishView(RoleBasedOutputMixin, APIView):
-#     permission_classes = [permissions.IsAuthenticated, IsInstructor]
+class InstructorCoursePublishView(RoleBasedOutputMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated, IsInstructor]
 
-#     output_dto_public = CoursePublicOutput
-#     output_dto_admin  = CourseAdminOutput
-
-#     def post(self, request, pk):
-#         """
-#         POST /instructor/courses/<pk>/publish/
-#         """
-
-#         try:
-#             course = course_service.publish_course(
-#                 course_id=pk, 
-#                 actor=request.user, 
-#                 publish_action=True
-#             )
-
-#             return Response({"instance": course}, status=status.HTTP_200_OK)
-            
-#         except ValueError as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class InstructorCourseUnpublishView(RoleBasedOutputMixin, APIView):
-#     permission_classes = [permissions.IsAuthenticated, IsInstructor]
-
-#     output_dto_public = CoursePublicOutput
-#     output_dto_admin  = CourseAdminOutput
-
-#     def post(self, request, pk):
-#         """
-#         POST /instructor/courses/<pk>/publish/
-#         """
-
-#         try:
-#             course = course_service.publish_course(
-#                 course_id=pk, 
-#                 actor=request.user, 
-#                 publish_action=False
-#             )
-
-#             return Response({"instance": course}, status=status.HTTP_200_OK)
-            
-#         except ValueError as e:
-#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class InstructorCourseTemplateCreateView(RoleBasedOutputMixin, APIView):
-    """
-    POST /instructor/courses/template/ - Tạo course template mới (owner là TÔI).
-    """
-    permission_classes = [IsInstructor] # Chỉ Instructor mới được vào
-
-    # Instructor cũng thấy DTO admin cho course của mình
     output_dto_public = CoursePublicOutput
     output_dto_admin  = CourseAdminOutput
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.course_service = course_service
-        
-    def post(self, request, *args, **kwargs):
-        """ Tạo course mới (logic y hệt Admin post) """
-        
-        serializer = CourseSerializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-            validated_data = serializer.validated_data
-        except DRFValidationError:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, pk):
+        """
+        POST /instructor/courses/<pk>/publish/
+        """
 
         try:
-            course_create_dto = CourseTemplateCreateInput(**validated_data)
-        except PydanticValidationError as e:
-            return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # Gọi hàm create_course chung, vì owner đã được truyền vào
-            new_course = self.course_service.create_course_from_template(
-                data=course_create_dto.model_dump(),
-                created_by=request.user,
-                output_strategy=CourseFetchStrategy.STRUCTURE
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=True
             )
-            return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
-        except DomainError as e: 
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({"instance": course}, status=status.HTTP_200_OK)
+            
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
-            return Response({"detail": f"Lỗi máy chủ khi tạo course - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class InstructorCourseUnpublishView(RoleBasedOutputMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated, IsInstructor]
+
+    output_dto_public = CoursePublicOutput
+    output_dto_admin  = CourseAdminOutput
+
+    def post(self, request, pk):
+        """
+        POST /instructor/courses/<pk>/publish/
+        """
+
+        try:
+            course = course_service.publish_course(
+                course_id=pk, 
+                actor=request.user, 
+                publish_action=False
+            )
+
+            return Response({"instance": course}, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# class InstructorCourseTemplateCreateView(RoleBasedOutputMixin, APIView):
+#     """
+#     POST /instructor/courses/template/ - Tạo course template mới (owner là TÔI).
+#     """
+#     permission_classes = [IsInstructor] # Chỉ Instructor mới được vào
+
+#     # Instructor cũng thấy DTO admin cho course của mình
+#     output_dto_public = CoursePublicOutput
+#     output_dto_admin  = CourseAdminOutput
+
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.course_service = course_service
+        
+#     def post(self, request, *args, **kwargs):
+#         """ Tạo course mới (logic y hệt Admin post) """
+        
+#         serializer = CourseSerializer(data=request.data)
+#         try:
+#             serializer.is_valid(raise_exception=True)
+#             validated_data = serializer.validated_data
+#         except DRFValidationError:
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             course_create_dto = CourseTemplateCreateInput(**validated_data)
+#         except PydanticValidationError as e:
+#             return Response({"detail": f"Dữ liệu input không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             # Gọi hàm create_course chung, vì owner đã được truyền vào
+#             new_course = self.course_service.create_course_from_template(
+#                 data=course_create_dto.model_dump(),
+#                 created_by=request.user,
+#                 output_strategy=CourseFetchStrategy.STRUCTURE
+#             )
+#             return Response({"instance": new_course}, status=status.HTTP_201_CREATED)
+#         except DomainError as e: 
+#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except ValueError as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as e:
+#             logger.error(f"Lỗi trong InstructorCourseListCreateView (POST): {e}", exc_info=True)
+#             return Response({"detail": f"Lỗi máy chủ khi tạo course - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from content.api.views.course_view import InstructorCourseListCreateView, InstructorCourseDetailView
+from content.api.views.course_view import InstructorCourseListCreateView, InstructorCourseDetailView, InstructorCoursePublishView, InstructorCourseUnpublishView
 from content.api.views.subject_view import AdminSubjectListView
 from content.api.views.module_view import InstructorModuleListCreateView, InstructorModuleDetailView, InstructorModuleReorderView
 from content.api.views.lesson_view import InstructorLessonListCreateView, InstructorLessonDetailView, InstructorLessonReorderView
@@ -35,8 +35,8 @@ urlpatterns = [
     # Course
     path('instructor/courses/', InstructorCourseListCreateView.as_view(), name='instructor-course-list-create'),
     path('instructor/courses/<uuid:pk>/', InstructorCourseDetailView.as_view(), name='instructor-course-detail'),
-    # path('instructor/courses/<uuid:pk>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-public'),
-    # path('instructor/courses/<uuid:pk>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublic'),
+    path('instructor/courses/<uuid:pk>/publish/', InstructorCoursePublishView.as_view(), name='instructor-course-public'),
+    path('instructor/courses/<uuid:pk>/unpublish/', InstructorCourseUnpublishView.as_view(), name='instructor-course-unpublic'),
 
     # Module
     path('instructor/courses/<uuid:course_id>/modules/', InstructorModuleListCreateView.as_view(), name='instructor-module-list'),

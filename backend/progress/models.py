@@ -124,6 +124,7 @@ class QuizAttempt(models.Model):
         indexes = [
             models.Index(fields=['user', 'quiz']), # Để tìm lịch sử làm bài
             models.Index(fields=['enrollment']),   # Để tính điểm trung bình khóa học
+            models.Index(fields=['status']), # Index thêm status để lọc bài đang làm dở nhanh hơn
         ]
 
     @property
@@ -150,6 +151,7 @@ class QuestionAnswer(models.Model):
     answer_data = models.JSONField(default=dict)
 
     is_flagged = models.BooleanField(default=False)
+    is_graded = models.BooleanField(default=False)
 
     # Kết quả chấm điểm từng câu
     score = models.FloatField(default=0.0) # Điểm đạt được cho câu này
