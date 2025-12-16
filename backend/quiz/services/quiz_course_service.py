@@ -80,18 +80,18 @@ def update_quiz(quiz_id: uuid.UUID, data: Dict[str, Any]) -> QuizDomain:
     return QuizDomain.from_model(quiz)
 
 
-# def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
-#     """
-#     Lấy chi tiết 1 Quiz (lồng cả questions) và check quyền.
-#     """
-#     try:
-#         # Tải sẵn 'questions' để QuizDomain.from_model có thể dùng
-#         quiz = Quiz.objects.prefetch_related('questions').get(id=quiz_id)
-#     except Quiz.DoesNotExist:
-#         raise DomainError("Bài quiz không tìm thấy.")
+def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
+    """
+    Lấy chi tiết 1 Quiz (lồng cả questions) và check quyền.
+    """
+    try:
+        # Tải sẵn 'questions' để QuizDomain.from_model có thể dùng
+        quiz = Quiz.objects.prefetch_related('questions').get(id=quiz_id)
+    except Quiz.DoesNotExist:
+        raise DomainError("Bài quiz không tìm thấy.")
         
-#     # from_model giờ đã tự động lồng 'questions'
-#     return QuizDomain.from_model(quiz)
+    # from_model giờ đã tự động lồng 'questions'
+    return QuizDomain.from_model(quiz)
 
 
 # def get_quiz_content(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
