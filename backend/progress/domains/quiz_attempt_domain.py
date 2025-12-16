@@ -4,36 +4,9 @@ from datetime import datetime
 from uuid import UUID
 from django.utils import timezone
 
-from progress.models import QuizAttempt, QuestionAnswer
+from progress.models import QuizAttempt
+from progress.domains.question_result_domain import QuizItemResultDomain
 
-
-
-@dataclass
-class QuizItemResultDomain:
-    """Kết quả chi tiết của 1 câu hỏi"""
-    question_id: UUID
-    question_text: str       # Text câu hỏi (để hiển thị review)
-    user_answer: dict        # Câu trả lời của user
-    correct_answer: Optional[dict]     # Đáp án đúng (để so sánh)
-    score: float             # Điểm đạt được
-    max_score: float         # Điểm tối đa của câu
-    is_correct: bool
-    feedback: str            # Lời giải thích
-
-    @classmethod
-    def from_model(cls, ans: "QuestionAnswer") -> "QuizItemResultDomain":
-        # Helper map từ Model Answer -> Domain Item
-        return cls(
-            question_id=ans.question_id,
-            question_text=ans.question.content if ans.question else "Câu hỏi đã bị xóa", # Cần field content
-            user_answer=ans.answer_data,
-            # Chỉ trả về đáp án đúng nếu logic cho phép (VD: bài thi đã đóng)
-            correct_answer=ans.question.get_correct_answer_payload() if ans.question else None,
-            score=ans.score,
-            max_score=getattr(ans.question, 'score', 1.0),
-            is_correct=ans.is_correct,
-            feedback=ans.feedback
-        )
 
 
 @dataclass

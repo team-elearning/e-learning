@@ -197,7 +197,8 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     
     # Lấy tất cả câu trả lời user đã lưu (Draft hoặc đã Submit lẻ)
     # Dùng in_bulk để map ID -> Object cho nhanh
-    saved_answers = QuestionAnswer.objects.filter(attempt=attempt).in_bulk(field_name='question_id')
+    saved_answers_qs = QuestionAnswer.objects.filter(attempt=attempt)
+    saved_answers = {a.question_id: a for a in saved_answers_qs}
     
     total_score = 0.0
     total_max_score = 0.0 # Tính tổng điểm trần của đề thi
@@ -265,7 +266,7 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
                 answers_to_create.append(new_ans)
                 final_processed_answers.append(new_ans)
             
-            total_score += score
+            total_score += (answer_obj.score if answer_obj else 0.0)
 
     # 3. Bulk Update/Create (Chỉ tác động những câu draft/new)
     if answers_to_update:

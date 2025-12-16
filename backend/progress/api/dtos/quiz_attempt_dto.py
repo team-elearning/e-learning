@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, Dict, Any, List
 
+from progress.api.dtos.question_attempt_dto import QuizItemResultOutput
+
 
 
 # # --- INPUT DTO ---
@@ -60,21 +62,6 @@ class QuizAttemptInfoOutput(BaseModel):
     def serialize_duration(self, v, _info):
         return v # Giả sử domain đã tính ra giây hoặc view xử lý
     
-
-class QuizItemResultOutput(BaseModel):
-    """DTO cho từng câu hỏi trong bảng kết quả"""
-    question_id: uuid.UUID
-    question_text: str
-    score: float
-    max_score: float
-    is_correct: bool
-    feedback: Optional[str] = None
-    
-    # Tùy config: Có cho hiện đáp án đúng ngay không?
-    # Ở đây mình giả sử là cho hiện luôn.
-    user_answer: dict 
-    correct_answer: Optional[dict] = None
-
 
 @dataclass
 class QuizAttemptResultOutput(BaseModel):

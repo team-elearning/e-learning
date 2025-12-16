@@ -11,7 +11,7 @@ from core.services.media_service import recursive_inject_cdn_url
 from quiz.models import Quiz, Question
 from progress.models import QuizAttempt, QuestionAnswer
 from progress.domains.question_content_domain import QuestionContentDomain
-from progress.domains.question_submission_domain import QuestionSubmissionDomain
+from progress.domains.question_result_domain import QuizItemResultDomain
 
 
 
@@ -42,7 +42,7 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         u_sel = user_answer_data.get('selected_ids', [])
         user_val = u_sel[0] if isinstance(u_sel, list) and u_sel else user_answer_data.get('selected_id')
         
-        correct_val = payload.get('correct_id')
+        correct_val = payload.get('correct_ids')
 
         if str(user_val) == str(correct_val):
             score = max_score
@@ -112,6 +112,20 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
             is_correct = (correct_count == total_pairs)
             feedback = f"Bạn ghép đúng {correct_count}/{total_pairs} cặp."
 
+    # --- CASE 5: Essay (Tự luận) ---
+    elif question.type == 'essay':
+        # Logic: Có chữ là có điểm
+        user_text = str(user_answer_data.get('text', '')).strip()
+        
+        if len(user_text) > 0:
+            score = max_score
+            is_correct = True
+            feedback = "Đã ghi nhận câu trả lời."
+        else:
+            score = 0.0
+            is_correct = False
+            feedback = "Bạn chưa nhập nội dung."
+
     # Ghép explanation chung vào feedback
     if explanation:
         feedback += f" \nGiải thích: {explanation}"
@@ -130,9 +144,9 @@ def get_correct_answer_for_display(question: Question) -> Dict[str, Any]:
     # Data gốc từ DB
     raw_display_data = {}
 
-    if q_type in ['multiple_choice_single', 'true_false']:
+    if q_type in ['multiple_choice_single']:
         raw_display_data = {
-            "correct_id": payload.get('correct_id')
+            "correct_id": payload.get('correct_id', [])
         }
 
     elif q_type == 'multiple_choice_multi':
@@ -140,11 +154,16 @@ def get_correct_answer_for_display(question: Question) -> Dict[str, Any]:
             "correct_ids": payload.get('correct_ids', [])
         }
 
+    elif q_type == 'true_false':
+        # Ví dụ payload: { "correct_value": true }
+        raw_display_data = {
+            "correct_value": payload.get('correct_value')
+        }
+
     elif q_type in ['short_answer', 'fill_in_the_blank']:
         # Chỉ hiện 1 đáp án mẫu đầu tiên
-        accepted = payload.get('accepted_texts', [])
         raw_display_data = {
-            "correct_text": accepted[0] if accepted else ""
+            "accepted_texts": payload.get('accepted_answers', []) # Map sang key FE dễ hiểu
         }
 
     elif q_type == 'matching':
@@ -158,8 +177,17 @@ def get_correct_answer_for_display(question: Question) -> Dict[str, Any]:
             "correct_order": payload.get('correct_order', [])
         }
 
+    elif q_type == 'essay':
+        # Essay không có đáp án đúng sai tuyệt đối.
+        # Ta trả về hướng dẫn chấm (Rubric) hoặc bài mẫu để FE hiển thị
+        raw_display_data = {
+            "rubric": payload.get('grading_rubric', ''),
+            "model_answer": payload.get('model_answer', '') # Nếu có bài văn mẫu
+        }
+
     # Thêm explanation chung
-    raw_display_data['explanation'] = payload.get('explanation')
+    if 'explanation' in payload:
+        raw_display_data['explanation'] = payload['explanation']
 
     # QUAN TRỌNG: Inject URL vào dữ liệu hiển thị này
     # Vì có thể explanation chứa ảnh, hoặc matches chứa ảnh
@@ -276,6 +304,17 @@ def save_question_draft(
     if str(question_id) not in attempt.questions_order:
         raise DomainError("Câu hỏi không thuộc bài làm này.")
 
+    # 2. Check trạng thái câu hỏi hiện tại (Logic mới thêm)
+    # Tìm xem câu này đã từng được trả lời chưa
+    existing_ans = QuestionAnswer.objects.filter(
+        attempt=attempt, 
+        question_id=question_id
+    ).first()
+
+    # NẾU ĐÃ CHẤM RỒI -> CHẶN LUÔN
+    if existing_ans and existing_ans.is_graded:
+        raise DomainError("Câu hỏi này đã nộp, không thể sửa lại.")
+
     try:
         question = Question.objects.get(id=question_id)
     except Question.DoesNotExist:
@@ -312,7 +351,7 @@ def submit_question(
     question_id: uuid.UUID,
     submission_data: dict, # Chứa answer_data
     user
-) -> QuestionSubmissionDomain:
+) -> QuizItemResultDomain:
     
     # 1. Validate Attempt
     try:
@@ -325,12 +364,27 @@ def submit_question(
 
     if str(question_id) not in attempt.questions_order:
         raise DomainError("Câu hỏi không thuộc bài làm này.")
+    
+    # Check trạng thái câu hỏi (Logic mới thêm)
+    existing_ans = QuestionAnswer.objects.filter(
+        attempt=attempt, 
+        question_id=question_id
+    ).select_related('question').first() # select_related để tối ưu nếu dùng lại
+
+    # NẾU ĐÃ CHẤM RỒI -> CHẶN NỘP LẠI
+    if existing_ans and existing_ans.is_graded:
+        # Tùy chọn: Có thể trả về kết quả cũ thay vì raise Error (Idempotency)
+        # Nhưng theo yêu cầu chặt chẽ, ta raise Error
+        raise DomainError("Bạn đã nộp câu hỏi này rồi.")
 
     # 2. Lấy câu hỏi gốc
-    try:
-        question = Question.objects.get(id=question_id)
-    except Question.DoesNotExist:
-        raise DomainError("Câu hỏi không tồn tại.")
+    if existing_ans:
+        question = existing_ans.question
+    else:
+        try:
+            question = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            raise DomainError("Câu hỏi không tồn tại.")
 
     # 3. --- CHẤM ĐIỂM (GRADING LOGIC) ---
     # Tách logic chấm điểm ra hàm riêng để code gọn và dễ mở rộng
@@ -339,7 +393,7 @@ def submit_question(
 
     # 4. Lưu/Cập nhật vào bảng QuestionAnswer
     # Dùng update_or_create vì user có thể chọn lại đáp án nhiều lần trước khi nộp bài
-    QuestionAnswer.objects.update_or_create(
+    ans_obj, created = QuestionAnswer.objects.update_or_create(
         attempt=attempt,
         question=question,
         defaults={
@@ -353,19 +407,15 @@ def submit_question(
         }
     )
 
-    # 5. Xử lý Output (Hiển thị đáp án đúng hay không?)
-    # Logic LMS: Practice thì hiện luôn. Exam thì ẩn.
-    correct_answer_display = None
-    
-    if attempt.attempt_mode in ['practice', 'quiz']:
-        # Lấy đáp án đúng đã được format sạch sẽ cho Frontend
-        correct_answer_display = get_correct_answer_for_display(question)
-    
-    # Return Domain Object
-    return QuestionSubmissionDomain(
-        question_id=question.id,
-        is_correct=is_correct,
-        score=score_achieved,
-        feedback=system_feedback, # Luôn trả về feedback (lời giải thích)
-        correct_answer_data=correct_answer_display
+    # Optimization: Gán ngược lại question object vào ans_obj để from_orm không phải query lại
+    ans_obj.question = question
+
+    # 5. Determine Visibility
+    # Logic: Practice/Quiz -> Hiện đáp án ngay. Exam -> Ẩn.
+    should_show_answer = attempt.attempt_mode in ['practice', 'quiz']
+
+    # 6. Return Domain
+    return QuizItemResultDomain.from_model(
+        ans=ans_obj, 
+        show_correct_answer=should_show_answer
     )

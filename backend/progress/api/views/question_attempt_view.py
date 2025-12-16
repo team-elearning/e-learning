@@ -12,7 +12,7 @@ from quiz.models import Quiz
 from progress.services import quiz_attempt_service, question_attempt_service
 from progress.serializers import StartQuizInputSerializer
 from progress.api.dtos.quiz_attempt_dto import QuizAttemptInfoOutput
-from progress.api.dtos.question_attempt_dto import QuestionSubmissionInput, QuestionContentOutput, QuestionSubmissionOutput
+from progress.api.dtos.question_attempt_dto import QuestionSubmissionInput, QuestionContentOutput, QuizItemResultOutput
 from progress.models import QuizAttempt
 from progress.serializers import QuestionAnswerInputSerializer
 
@@ -80,7 +80,7 @@ class AttemptQuestionSaveDraftView(RoleBasedOutputMixin, AutoPermissionCheckMixi
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         # 2. Map to Input DTO
-        # Ghép question_id từ URL và answer_data từ Body vào DTO
+        # Ghép answer_data từ Body vào DTO
         try:
             submission_dto = QuestionSubmissionInput(
                 answer_data=serializer.validated_data['answer_data']
@@ -117,8 +117,8 @@ class AttemptQuestionSubmitView(RoleBasedOutputMixin, AutoPermissionCheckMixin, 
     permission_lookup = {'attempt_id': QuizAttempt}
 
     # Định nghĩa Output DTO để Mixin tự động serialize domain trả về
-    output_dto_public = QuestionSubmissionOutput
-    output_dto_admin = QuestionSubmissionOutput
+    output_dto_public = QuizItemResultOutput
+    output_dto_admin = QuizItemResultOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -144,7 +144,8 @@ class AttemptQuestionSubmitView(RoleBasedOutputMixin, AutoPermissionCheckMixin, 
         try:
             submission_domain = self.service.submit_question(
                 attempt_id=attempt_id,
-                submission=submission_dto,
+                question_id=question_id,
+                submission_data=submission_dto.to_dict(),
                 user=request.user
             ) 
             return Response({"instance": submission_domain}, status=status.HTTP_200_OK)
@@ -153,4 +154,4 @@ class AttemptQuestionSubmitView(RoleBasedOutputMixin, AutoPermissionCheckMixin, 
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Lỗi Submit Question: {e}", exc_info=True)
-            return Response({"detail": "Lỗi hệ thống."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"Lỗi hệ thống - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -172,8 +172,8 @@ def update_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDom
         raise DomainError(f"Question {question_id} không tìm thấy để cập nhật.")
 
     # 1. Update các trường cơ bản (Primitive fields)
-    if 'type' in data: 
-        q_to_update.type = data['type']
+    # if 'type' in data: 
+    #     q_to_update.type = data['type']
     if 'score' in data:
         q_to_update.score = data['score']
 
