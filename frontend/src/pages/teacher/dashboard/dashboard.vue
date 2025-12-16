@@ -99,59 +99,43 @@ const source = ref<TeacherCourse[]>([])
 const totals = ref({ courses: 0, students: 0, assignments: 0 })
 
 async function loadCourses() {
+  loading.value = true
   try {
-    const { items } = await courseService.list({ page: 1, pageSize: 8 })
-    source.value = (items as CourseSummary[]).map((c) => ({
-      id: Number(c.id),
+    const token = localStorage.getItem('access')
+
+    const res = await fetch('/api/content/instructor/courses/', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const data = await res.json()
+
+    source.value = data.map((c: any) => ({
+      id: c.id,
       title: c.title,
-      enrolled: c.enrollments,
-      lessons: c.lessonsCount,
-      status: c.status as Status,
+      enrolled: c.stats?.students_count ?? 0,
+      lessons: c.stats?.total_lessons ?? 0,
+      status: c.published ? 'published' : 'draft',
     }))
-  } catch {
-    source.value = Array.from({ length: 5 }, (_, i) => ({
-      id: i + 1,
-      title: `Khoá học #${i + 1}`,
-      enrolled: 20 + i * 7,
-      lessons: 8 + i * 3,
-      status: (i % 2 === 0 ? 'published' : 'draft') as Status,
-    }))
+  } catch (err) {
+    console.error('Lỗi load courses:', err)
+    source.value = []
   } finally {
     loading.value = false
   }
 }
 
 async function computeTotals() {
-  const pageSize = 50
-  let page = 1
-  let total = 0
-  let sumStudents = 0
-  let sumLessons = 0
-  let knownTotal = false
+  const token = localStorage.getItem('access')
+  const res = await fetch('/api/content/instructor/courses/', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json()
 
-  while (true) {
-    const res = await courseService.list({ page, pageSize })
-    if (!knownTotal) {
-      total = res.total || res.items.length
-      knownTotal = true
-    }
-
-    const producedSoFar = (page - 1) * pageSize
-    const remaining = Math.max(0, total - producedSoFar)
-    const take = Math.min(remaining, res.items.length)
-
-    const chunk = (res.items as CourseSummary[]).slice(0, take)
-    for (const c of chunk) {
-      sumStudents += c.enrollments || 0
-      sumLessons += c.lessonsCount || 0
-    }
-
-    if (page * pageSize >= total || take <= 0) break
-    page++
-    if (page > 50) break
+  totals.value = {
+    courses: data.length,
+    students: data.reduce((a, c) => a + (c.stats?.students_count ?? 0), 0),
+    assignments: data.reduce((a, c) => a + (c.stats?.total_lessons ?? 0), 0),
   }
-
-  totals.value = { courses: total, students: sumStudents, assignments: sumLessons }
 }
 
 onMounted(async () => {
@@ -159,12 +143,15 @@ onMounted(async () => {
 })
 
 type Pt = { x: number; y: number }
-function sparkFor(id: number, enrolled: number): Pt[] {
-  const n = 6
-  return Array.from({ length: n }, (_, i) => {
-    const y = 6 + ((id * (i + 3) + enrolled) % 13)
-    return { x: i + 1, y }
-  })
+function sparkFor(id: number | string, enrolled: number): Pt[] {
+  const base = String(id)
+    .split('')
+    .reduce((a, b) => a + b.charCodeAt(0), 0)
+
+  return Array.from({ length: 6 }, (_, i) => ({
+    x: i + 1,
+    y: 6 + ((base * (i + 3) + enrolled) % 13),
+  }))
 }
 
 const myCourses = computed<TeacherCourse[]>(() => source.value.slice())

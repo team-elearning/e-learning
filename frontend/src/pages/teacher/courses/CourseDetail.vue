@@ -72,39 +72,26 @@
             class="h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 sm:h-56"
           >
             <!-- Có image_url -->
-            <template v-if="course.image_url">
-              <div
-                v-if="coverLoading"
-                class="flex h-full w-full items-center justify-center text-xs text-slate-400"
-              >
-                Đang tải ảnh bìa…
-              </div>
-              <div
-                v-else-if="coverError"
-                class="flex h-full w-full items-center justify-center px-3 text-center text-xs text-rose-600"
-              >
-                {{ coverError }}
-              </div>
+            <template v-if="course.thumbnail_url">
               <img
-                v-else-if="coverBlobUrl"
-                :src="coverBlobUrl"
+                :src="course.thumbnail_url"
                 :alt="course.title"
                 class="h-full w-full object-cover"
               />
-              <div
-                v-else
-                class="flex h-full w-full items-center justify-center text-5xl text-slate-300"
-              >
-                🎓
-              </div>
             </template>
 
-            <!-- Không có image_url -->
             <template v-else>
               <div class="flex h-full w-full items-center justify-center text-5xl text-slate-300">
                 🎓
               </div>
             </template>
+
+            <!-- Không có image_url -->
+            <!-- <template v-else>
+              <div class="flex h-full w-full items-center justify-center text-5xl text-slate-300">
+                🎓
+              </div>
+            </template> -->
           </div>
 
           <!-- Meta -->
@@ -117,6 +104,13 @@
 
             <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
               <span
+                v-if="course.subject"
+                class="rounded-full bg-violet-50 px-2.5 py-1 font-medium text-violet-700"
+              >
+                {{ course.subject.title }}
+              </span>
+
+              <span
                 v-if="course.grade"
                 class="rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700"
               >
@@ -125,21 +119,20 @@
 
               <span
                 v-for="cat in course.categories"
-                :key="cat"
+                :key="cat.id"
                 class="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700"
               >
-                {{ cat }}
+                {{ cat.name }}
               </span>
 
               <span
                 v-for="tag in course.tags"
-                :key="tag"
+                :key="tag.id"
                 class="rounded-full bg-slate-100 px-2 py-1 text-slate-700"
               >
-                #{{ tag }}
+                #{{ tag.name }}
               </span>
             </div>
-
             <p class="mt-3 text-xs text-slate-500">{{ course.modules?.length || 0 }} chương học</p>
           </div>
         </section>
@@ -218,10 +211,12 @@
                       </div>
 
                       <!-- TEXT -->
-                      <div v-if="b.type === 'text'">
-                        <p class="whitespace-pre-wrap text-sm text-slate-700">
-                          {{ b.payload?.text }}
-                        </p>
+                      <div v-if="b.type === 'rich_text'" class="prose max-w-none">
+                        <div
+                          v-html="
+                            b.payload?.html_content || b.payload?.content || b.payload?.text || ''
+                          "
+                        ></div>
                       </div>
 
                       <!-- IMAGE -->
@@ -267,49 +262,31 @@
                       </div>
 
                       <!-- VIDEO -->
+                      <!-- VIDEO -->
                       <div v-else-if="b.type === 'video'" class="space-y-2">
-                        <div
-                          class="w-full max-h-72 rounded-lg bg-black flex items-center justify-center"
-                        >
-                          <!-- Loading -->
-                          <p v-if="b._loading" class="text-xs text-slate-300">Đang tải video…</p>
-
-                          <!-- Error -->
-                          <p v-else-if="b._error" class="px-3 text-center text-xs text-rose-300">
-                            {{ b._error }}
-                          </p>
-
-                          <!-- Loaded -->
-                          <video
-                            v-else-if="b.payload?._video_blob_url"
-                            :src="b.payload._video_blob_url"
-                            controls
-                            class="w-full max-h-72 rounded-lg bg-black"
-                          ></video>
-
-                          <p v-else class="text-xs text-slate-300">Không tìm thấy video.</p>
-                        </div>
-                      </div>
-
-                      <!-- PDF / DOCX -->
-                      <div v-else-if="b.type === 'pdf' || b.type === 'docx'" class="space-y-2">
                         <div
                           class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
                         >
                           <div class="flex items-center gap-2">
-                            <span class="text-lg">{{ b.type === 'pdf' ? '📄' : '📘' }}</span>
+                            <span class="text-lg">🎥</span>
                             <div>
                               <p class="font-medium text-slate-800">
-                                {{ b.payload?.filename || 'Tài liệu' }}
+                                {{ b.payload?.filename || 'Video bài giảng' }}
                               </p>
-                              <p class="text-[11px] text-slate-500">{{ b.type.toUpperCase() }}</p>
+                              <p class="text-[11px] text-slate-500">VIDEO</p>
 
-                              <!-- Loading / Error trạng thái file -->
+                              <!-- Trạng thái -->
                               <p v-if="b._loading" class="mt-1 text-[11px] text-slate-400">
-                                Đang tải file…
+                                Đang tải video…
                               </p>
                               <p v-else-if="b._error" class="mt-1 text-[11px] text-rose-600">
                                 {{ b._error }}
+                              </p>
+                              <p
+                                v-else-if="!b.payload?.video_url && b.payload?.processing"
+                                class="mt-1 text-[11px] text-amber-600"
+                              >
+                                Video đang được xử lý, vui lòng thử lại sau.
                               </p>
                             </div>
                           </div>
@@ -317,32 +294,126 @@
                           <div class="flex items-center gap-2">
                             <button
                               v-if="
-                                (b.payload?._file_blob_url || b.payload?.file_url) &&
+                                (b.payload?._video_blob_url || b.payload?.video_url) &&
                                 !b._loading &&
                                 !b._error
                               "
                               type="button"
                               class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              @click="openDocViewer(b)"
+                              @click="openVideoViewer(b)"
                             >
-                              Xem trực tiếp
+                              ▶ Xem video
                             </button>
 
-                            <span v-else-if="b._loading" class="text-[11px] text-slate-400">
-                              Đang chuẩn bị file…
-                            </span>
+                            <span v-else class="text-[11px] text-slate-400">Không có video</span>
+                          </div>
+                        </div>
+                      </div>
 
-                            <span v-else-if="b._error" class="text-[11px] text-rose-500">
-                              Lỗi tải file
-                            </span>
+                      <!-- PDF / DOCX -->
+                      <!-- PDF / DOCX -->
+                      <!-- PDF -->
+                      <div v-if="b.type === 'pdf'" class="space-y-2">
+                        <div
+                          class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
+                        >
+                          <div class="flex items-center gap-2">
+                            <span class="text-lg">📄</span>
+                            <div>
+                              <p class="font-medium text-slate-800">
+                                {{ b.payload?.filename || 'Tài liệu PDF' }}
+                              </p>
+                              <p class="text-[11px] text-slate-500">PDF</p>
+
+                              <p
+                                v-if="!b.payload?.file_url"
+                                class="mt-1 text-[11px] text-amber-600"
+                              >
+                                File đang được xử lý, vui lòng thử lại sau.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div class="flex items-center gap-2">
+                            <button
+                              v-if="b.payload?.file_url"
+                              type="button"
+                              class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              @click="openDocViewer(b)"
+                            >
+                              📂 Xem PDF
+                            </button>
 
                             <span v-else class="text-[11px] text-slate-400">Không có file</span>
                           </div>
                         </div>
                       </div>
 
+                      <!-- DOCX -->
+                      <div v-else-if="b.type === 'docx'" class="space-y-2">
+                        <div
+                          class="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
+                        >
+                          <div class="flex items-center gap-2">
+                            <span class="text-lg">📘</span>
+                            <div>
+                              <p class="font-medium text-slate-800">
+                                {{ b.payload?.filename || 'Tài liệu DOCX' }}
+                              </p>
+                              <p class="text-[11px] text-slate-500">DOCX</p>
+
+                              <p
+                                v-if="!b.payload?.file_url"
+                                class="mt-1 text-[11px] text-amber-600"
+                              >
+                                File đang được xử lý, vui lòng thử lại sau.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div class="flex items-center gap-2">
+                            <a
+                              v-if="b.payload?.file_url"
+                              :href="b.payload.file_url"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              ⬇ Tải / Mở
+                            </a>
+
+                            <span v-else class="text-[11px] text-slate-400">Không có file</span>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- ========= VIDEO VIEWER MODAL ========= -->
+                      <div
+                        v-if="videoViewerOpen && videoViewerUrl"
+                        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                        @click.self="closeVideoViewer"
+                      >
+                        <div class="relative w-full max-w-4xl rounded-xl overflow-hidden bg-black">
+                          <video
+                            v-if="videoViewerUrl"
+                            :src="videoViewerUrl"
+                            controls
+                            preload="metadata"
+                            class="w-full max-h-[85vh]"
+                          ></video>
+
+                          <button
+                            type="button"
+                            class="absolute top-2 right-2 rounded-full bg-white/80 p-1 text-slate-700 hover:bg-white"
+                            @click="closeVideoViewer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                      <!-- ========= END VIDEO VIEWER MODAL ========= -->
+
                       <!-- QUIZ (dùng quiz_id) -->
-                      <div v-else-if="b.type === 'quiz'" class="space-y-2">
+                      <!-- <div v-else-if="b.type === 'quiz'" class="space-y-2">
                         <p class="text-sm font-semibold text-slate-800">Bài kiểm tra</p>
                         <p class="text-xs text-slate-500">
                           Mã bài kiểm tra:
@@ -354,6 +425,17 @@
                           type="button"
                           class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
                           @click="openQuiz(b.payload?.quiz_id)"
+                        >
+                          Xem bài kiểm tra
+                        </button>
+                      </div> -->
+                      <div v-else-if="b.type === 'quiz'" class="space-y-2">
+                        <p class="text-sm font-semibold text-slate-800">Bài kiểm tra</p>
+
+                        <button
+                          type="button"
+                          class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+                          @click="openQuizFromBlock(b)"
                         >
                           Xem bài kiểm tra
                         </button>
@@ -874,6 +956,14 @@
                 >
                   Đóng
                 </button>
+                <button
+                  v-if="quizModal.data && !quizEditMode"
+                  type="button"
+                  class="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+                  @click="deleteQuiz"
+                >
+                  Xoá bài kiểm tra
+                </button>
               </div>
             </div>
           </div>
@@ -912,6 +1002,46 @@ import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
+interface ContentBlockPayload {
+  text?: string
+  caption?: string
+  image_url?: string
+  _image_blob_url?: string
+  video_url?: string
+  _video_blob_url?: string
+  file_url?: string
+  _file_blob_url?: string
+  filename?: string
+  quiz_id?: string
+  processing?: boolean
+  // tuỳ loại câu hỏi
+  choices?: Array<{ id: string; text: string; is_correct: boolean }>
+  answer?: boolean
+  valid_answers?: Array<{ answer: string; case_sensitive: boolean }>
+  blanks?: Array<{ id: string; answer: string }>
+}
+
+interface ContentBlock {
+  id: string
+  type: 'text' | 'image' | 'video' | 'pdf' | 'docx' | 'quiz' | string
+  payload: ContentBlockPayload
+  _loading?: boolean
+  _error?: string
+  title?: string
+}
+
+interface Lesson {
+  id: string
+  title: string
+  content_blocks: ContentBlock[]
+}
+
+interface Module {
+  id: string
+  title: string
+  lessons: Lesson[]
+}
+
 /* IMAGE VIEWER */
 const imageViewerOpen = ref(false)
 const imageViewerUrl = ref<string | null>(null)
@@ -933,40 +1063,34 @@ const getAuthHeaders = () => {
 }
 
 /* ========== TYPES ========== */
-interface ContentBlock {
-  id?: string
-  type: string
-  position: number
-  payload: any
-  // trạng thái media (thêm dynamic)
-  _loading?: boolean
-  _error?: string
+interface CategoryItem {
+  id: string
+  name: string
+  slug: string
 }
 
-interface Lesson {
-  id?: string
-  title: string
-  position: number
-  content_type: string
-  published?: boolean
-  content_blocks: ContentBlock[]
+interface TagItem {
+  id: string
+  name: string
+  slug: string
 }
-interface Module {
-  id?: string
+
+interface SubjectItem {
+  id: string
   title: string
-  position: number
-  lessons: Lesson[]
+  slug: string
 }
+
 interface CourseDetail {
   id: string
   title: string
   description: string
   grade: string | null
-  image_url: string | null
-  subject: string | null
+  thumbnail_url: string | null // ✅ đổi sang thumbnail_url
+  subject: SubjectItem | null
   slug: string
-  categories: string[]
-  tags: string[]
+  categories: CategoryItem[]
+  tags: TagItem[]
   modules: Module[]
 }
 
@@ -1028,11 +1152,26 @@ const quizSaving = ref(false)
 const quizSaveError = ref('')
 const quizTimeLimitMinutes = ref<number | null>(null)
 let quizSnapshot: QuizDetail | null = null // dùng để rollback khi Hủy
+/* VIDEO VIEWER MODAL */
+const videoViewerOpen = ref(false)
+const videoViewerUrl = ref<string | null>(null)
+
+function openVideoViewer(block: any) {
+  videoViewerUrl.value = block.payload._video_blob_url || block.payload.video_url || null
+  if (videoViewerUrl.value) videoViewerOpen.value = true
+}
+
+function closeVideoViewer() {
+  videoViewerOpen.value = false
+  videoViewerUrl.value = null
+}
 
 /* ========== HELPERS ========== */
 function blockTypeLabel(type: string) {
   switch (type) {
     case 'text':
+      return 'Văn bản'
+    case 'rich_text':
       return 'Văn bản'
     case 'image':
       return 'Hình ảnh'
@@ -1103,7 +1242,6 @@ async function fetchBlobUrl(path: string): Promise<string | null> {
   try {
     const res = await axios.get(path, {
       responseType: 'blob',
-      headers: { ...getAuthHeaders() },
     })
     const url = URL.createObjectURL(res.data)
     blobUrls.add(url)
@@ -1131,6 +1269,33 @@ function closeDocViewer() {
   docViewerType.value = null
 }
 
+async function openQuizFromBlock(block: ContentBlock) {
+  if (!block?.id) {
+    alert('Không tìm thấy block quiz')
+    return
+  }
+
+  try {
+    // 1️⃣ Lấy block detail để biết quiz_id
+    const { data: blockDetail } = await axios.get(`/api/content/instructor/blocks/${block.id}/`, {
+      headers: getAuthHeaders(),
+    })
+
+    const quizId = blockDetail?.payload?.quiz_id
+
+    if (!quizId) {
+      alert('Quiz chưa được khởi tạo')
+      return
+    }
+
+    // 2️⃣ Mở quiz modal như bạn đã làm
+    openQuiz(quizId)
+  } catch (e) {
+    console.error('❌ Không thể tải quiz từ block:', e)
+    alert('Không thể tải bài kiểm tra')
+  }
+}
+
 /* Quiz */
 async function openQuiz(quizId?: string) {
   quizModal.value.open = true
@@ -1149,7 +1314,7 @@ async function openQuiz(quizId?: string) {
   }
 
   try {
-    const { data } = await axios.get<QuizDetail>(`/api/content/instructor/quizzes/${quizId}/`, {
+    const { data } = await axios.get<QuizDetail>(`/api/quiz/instructor/quizzes/${quizId}/`, {
       headers: { ...getAuthHeaders() },
     })
     quizModal.value.data = data
@@ -1169,6 +1334,40 @@ function closeQuiz() {
   quizModal.value.open = false
   quizEditMode.value = false
   quizSaveError.value = ''
+}
+
+// xóa quiz
+async function deleteQuiz() {
+  if (!quizModal.value.data) return
+
+  const ok = confirm(
+    'Bạn có chắc chắn muốn xoá bài kiểm tra này?\nHành động này không thể hoàn tác.',
+  )
+  if (!ok) return
+
+  try {
+    await axios.delete(`/api/quiz/instructor/quizzes/${quizModal.value.data.id}/`, {
+      headers: getAuthHeaders(),
+    })
+
+    alert('Đã xoá bài kiểm tra')
+
+    // đóng modal
+    closeQuiz()
+
+    // reload lại course để block quiz biến mất
+    await fetchCourse()
+  } catch (e: any) {
+    console.error('❌ Lỗi xoá quiz:', e)
+
+    if (e?.response?.status === 400) {
+      alert(
+        e.response.data?.detail || 'Quiz đang được sử dụng trong bài học. Vui lòng gỡ block trước.',
+      )
+    } else {
+      alert('Không thể xoá bài kiểm tra. Vui lòng thử lại.')
+    }
+  }
 }
 
 /* Quiz edit mode */
@@ -1204,48 +1403,28 @@ async function saveQuiz() {
 
   try {
     const qz = quizModal.value.data
-    const timeStr = minutesToHHMMSS(quizTimeLimitMinutes.value)
 
     const payload: any = {
       title: qz.title,
-      // nếu muốn giữ nguyên time_limit khi input null, có thể bỏ trường này đi:
-      time_limit: timeStr,
-      questions: qz.questions.map((q, idx) => ({
-        id: q.id,
-        position: idx,
-        type: q.type,
-        prompt: { text: q.prompt?.text || '' },
-        answer_payload: q.answer_payload,
-        hint: q.hint,
-      })),
+      description: qz.description || null,
+      time_limit: minutesToHHMMSS(quizTimeLimitMinutes.value),
+      shuffle_questions: qz.shuffle_questions ?? false,
+      grading_method: qz.grading_method ?? 'highest',
+      is_published: qz.is_published ?? false,
     }
 
-    const { data } = await axios.patch(`/api/content/instructor/quizzes/${qz.id}/`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    const { data } = await axios.patch(
+      `/api/content/instructor/courses/quizzes/${qz.id}/`,
+      payload,
+      { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } },
+    )
 
-    // data.time_limit có thể là chuỗi "HH:MM:SS"
-    const merged: QuizDetail = {
-      ...qz,
-      ...data,
-      questions: data.questions ?? qz.questions,
-    }
-    quizModal.value.data = merged
-
-    const secs = toSecondsFromTimeLimit(merged.time_limit)
-    quizTimeLimitMinutes.value = secs != null ? Math.floor(secs / 60) : null
-
+    quizModal.value.data = { ...qz, ...data }
     quizEditMode.value = false
-    quizSnapshot = deepClone(merged)
+    quizSnapshot = deepClone(quizModal.value.data)
   } catch (e: any) {
-    console.error('❌ Lỗi khi cập nhật bài kiểm tra:', e)
-    quizSaveError.value =
-      e?.response?.data?.detail ||
-      e?.message ||
-      'Có lỗi xảy ra khi lưu bài kiểm tra. Vui lòng thử lại.'
+    console.error('❌ Lỗi lưu quiz:', e)
+    quizSaveError.value = e?.response?.data?.detail || 'Không thể lưu cài đặt bài kiểm tra.'
   } finally {
     quizSaving.value = false
   }
@@ -1267,72 +1446,56 @@ async function fetchCourse() {
     })
     course.value = data
 
-    /* Cover image */
-    if (course.value.image_url) {
-      coverLoading.value = true
-      coverError.value = ''
-      fetchBlobUrl(course.value.image_url)
-        .then((url) => {
-          if (url) coverBlobUrl.value = url
-          else coverError.value = 'Không thể tải ảnh bìa.'
-        })
-        .finally(() => {
-          coverLoading.value = false
-        })
-    }
-
     // fetch blobs cho content blocks
     course.value.modules.forEach((m) => {
       m.lessons.forEach((lesson) => {
         lesson.content_blocks.forEach((b) => {
           const block = b as ContentBlock
 
+          // IMAGE
           if (block.type === 'image' && block.payload?.image_url) {
             block._loading = true
             block._error = ''
             fetchBlobUrl(block.payload.image_url)
               .then((url) => {
-                if (url) {
-                  block.payload._image_blob_url = url
-                } else {
-                  block._error = 'Không thể tải hình ảnh.'
-                }
+                if (url) block.payload._image_blob_url = url
+                else block._error = 'Không thể tải hình ảnh.'
               })
-              .finally(() => {
-                block._loading = false
-              })
+              .finally(() => (block._loading = false))
           }
 
+          // VIDEO
           if (block.type === 'video' && block.payload?.video_url) {
             block._loading = true
             block._error = ''
             fetchBlobUrl(block.payload.video_url)
               .then((url) => {
-                if (url) {
-                  block.payload._video_blob_url = url
-                } else {
-                  block._error = 'Không thể tải video.'
-                }
+                if (url) block.payload._video_blob_url = url
+                else block._error = 'Không thể tải video.'
               })
-              .finally(() => {
-                block._loading = false
-              })
+              .finally(() => (block._loading = false))
           }
 
+          // PDF / DOCX
           if ((block.type === 'pdf' || block.type === 'docx') && block.payload?.file_url) {
             block._loading = true
             block._error = ''
             fetchBlobUrl(block.payload.file_url)
               .then((url) => {
-                if (url) {
-                  block.payload._file_blob_url = url
-                } else {
-                  block._error = 'Không thể tải file tài liệu.'
-                }
+                if (url) block.payload._file_blob_url = url
+                else block._error = 'Không thể tải file tài liệu.'
               })
-              .finally(() => {
-                block._loading = false
-              })
+              .finally(() => (block._loading = false))
+          }
+
+          // THIẾU URL → gọi API block chi tiết
+          if (
+            (block.type === 'video' && !block.payload?.video_url) ||
+            ((block.type === 'pdf' || block.type === 'docx') && !block.payload?.file_url)
+          ) {
+            if (!block.payload) block.payload = {}
+            block.payload.processing = true
+            refreshBlockIfNeeded(block)
           }
         })
       })
@@ -1345,6 +1508,49 @@ async function fetchCourse() {
       'Không thể tải chi tiết khoá học. Vui lòng thử lại.'
   } finally {
     loading.value = false
+  }
+}
+
+// goi api file
+// nếu thiếu URL, gọi API block chi tiết để cập nhật lại payload (có file_url / video_url)
+async function refreshBlockIfNeeded(block: any) {
+  if (!block?.id) return
+  const needsRefresh =
+    (block.type === 'video' && !block.payload?.video_url) ||
+    ((block.type === 'pdf' || block.type === 'docx') && !block.payload?.file_url)
+
+  if (!needsRefresh) return
+
+  try {
+    const { data } = await axios.get(`/api/content/instructor/blocks/${block.id}/`, {
+      headers: { ...getAuthHeaders() },
+    })
+
+    // merge dữ liệu mới (payload chính thức từ BE)
+    block.payload = data.payload || block.payload
+    block.title = data.title ?? block.title
+
+    // Nếu có link thì fetch blob luôn
+    if (block.type === 'video' && block.payload?.video_url) {
+      block._loading = true
+      block._error = ''
+      const url = await fetchBlobUrl(block.payload.video_url)
+      if (url) block.payload._video_blob_url = url
+      else block._error = 'Không thể tải video.'
+      block._loading = false
+    }
+
+    if ((block.type === 'pdf' || block.type === 'docx') && block.payload?.file_url) {
+      block._loading = true
+      block._error = ''
+      const url = await fetchBlobUrl(block.payload.file_url)
+      if (url) block.payload._file_blob_url = url
+      else block._error = 'Không thể tải file tài liệu.'
+      block._loading = false
+    }
+  } catch (err: any) {
+    console.error('❌ Lỗi khi tải chi tiết block:', err)
+    block._error = err?.response?.data?.detail || 'Không thể tải chi tiết nội dung.'
   }
 }
 
