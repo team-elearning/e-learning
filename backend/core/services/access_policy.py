@@ -26,9 +26,6 @@ def _resolve_course(obj):
         return obj.module.course
     if hasattr(obj, 'lesson') and hasattr(obj.lesson, 'module'): # ContentBlock
         return obj.lesson.module.course
-    # # Nếu là File/UploadedFile, cần check content_object (logic cũ của bạn)
-    # if hasattr(obj, 'content_object'): 
-    #     return _resolve_course(obj.content_object)
     
     return None
 
@@ -98,7 +95,7 @@ def is_enrolled(user, obj):
     return Enrollment.objects.filter(user=user, course=course).exists()
 
 
-def can_view_course_content(user, obj):
+def can_view_course_content(user, obj, request=None):
     """
     Quyền xem nội dung (Module, Lesson, Video, File...).
     Logic: Admin > Owner > Public Course > Enrolled Student
@@ -106,6 +103,32 @@ def can_view_course_content(user, obj):
     # 1. Admin/Staff luôn có quyền
     if user.is_staff or user.is_superuser:
         return True
+    
+    # 2. Xử lý riêng nếu obj là QUIZ
+    if isinstance(obj, Quiz):
+        # 2.1. Owner của Quiz (Người tạo đề)
+        if obj.owner == user:
+            return True
+        
+        # 1. OPTIMIZATION: Nếu Client gửi kèm course_id
+        # Ta check thẳng vào khóa đó -> Nhanh hơn nhiều
+        course_id_param = request.query_params.get('course_id') if request else None
+
+        if course_id_param:
+            # Query này NHANH vì nó filter ngay course_id, DB không phải scan toàn bộ enrollment
+            # Vẫn phải join để đảm bảo Quiz này THỰC SỰ nằm trong Course đó (tránh user hack truyền course_id bừa)
+            return Enrollment.objects.filter(
+                user=user,
+                course_id=course_id_param, # <--- Fast Filter
+                # state='active',
+                course__modules__lessons__content_blocks__quiz_ref=obj # Security Check
+            ).exists()
+        
+        # 2. FALLBACK: Nếu không có course_id -> Dùng Magic Query (chậm hơn chút)
+        return Enrollment.objects.filter(
+            user=user,
+            course__modules__lessons__content_blocks__quiz_ref=obj
+        ).exists()
 
     course = _resolve_course(obj)
     if not course:

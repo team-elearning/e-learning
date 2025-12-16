@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
+from dataclasses import dataclass
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, Dict, Any, List
-from datetime import datetime
 
 
 
@@ -58,5 +59,37 @@ class QuizAttemptInfoOutput(BaseModel):
     @field_serializer('time_limit_seconds')
     def serialize_duration(self, v, _info):
         return v # Giả sử domain đã tính ra giây hoặc view xử lý
+    
 
+@dataclass
+class QuizAttemptResultOutput(BaseModel):
+    """ 
+    DTO trả về cho Frontend hiển thị màn hình 'Kết quả bài thi'.
+    Đã update để hứng toàn bộ computed fields từ Domain.
+    """
+    model_config = ConfigDict(from_attributes=True) # Pydantic v2 (orm_mode cũ)
+
+    # === Identification ===
+    id: uuid.UUID
+    quiz_id: uuid.UUID          # Frontend cần cái này để làm nút "Thử lại" (Re-take)
+    quiz_title: str             # Để hiển thị tiêu đề (Frontend đỡ phải query lại Quiz info)
+    user_id: uuid.UUID
+
+    # === Status & Time ===
+    status: str
+    is_finished: bool           # Helper từ Domain
+    
+    time_start: datetime
+    completed_at: Optional[datetime] = None
+    
+    # === Duration Info ===
+    # Frontend dùng 2 số này để hiển thị: "Làm trong 15 phút / 45 phút cho phép"
+    time_limit_seconds: Optional[int] = None 
+    time_taken_seconds: Optional[int] = 0
+
+    # === Score Metrics ===
+    score: float
+    max_score: float
+    percentage: float           # Quan trọng: Frontend dùng số này vẽ Circle/Bar chart
+    is_passed: bool             # Quan trọng: Frontend dùng để hiện màu Xanh/Đỏ
 

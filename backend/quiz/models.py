@@ -58,21 +58,21 @@ class Quiz(models.Model):
 
 
 QUESTION_TYPES = [
-        # --- NHÓM CƠ BẢN (Udemy/Coursera) ---
-        ('multiple_choice_single', 'Trắc nghiệm - Chọn 1'),
-        ('multiple_choice_multi', 'Trắc nghiệm - Chọn nhiều'),
-        ('true_false', 'Đúng / Sai'), # Thực chất là biến thể của Single, nhưng tách ra để Frontend vẽ UI khác (Toggle switch)
-        
-        # --- NHÓM TỰ LUẬN/TEXT ---
-        ('short_answer', 'Trả lời ngắn (Text)'), # So sánh chuỗi chính xác hoặc chứa từ khóa
-        ('essay', 'Tự luận (Chấm tay)'), # Giáo viên phải vào chấm điểm thủ công
-        
-        # --- NHÓM NÂNG CAO (Moodle/Khan Style) ---
-        ('fill_in_the_blank', 'Điền từ (Cloze)'), # Điền vào nhiều chỗ trống trong 1 đoạn văn
-        ('matching', 'Nối cặp'),                  # Nối cột A với cột B
-        ('ordering', 'Sắp xếp thứ tự'),           # Kéo thả sắp xếp trên dưới
-        ('numeric', 'Số học'),                    # So sánh toán học (sai số, phân số)
-    ]
+    # --- NHÓM CƠ BẢN (Udemy/Coursera) ---
+    ('multiple_choice_single', 'Trắc nghiệm - Chọn 1'),
+    ('multiple_choice_multi', 'Trắc nghiệm - Chọn nhiều'),
+    ('true_false', 'Đúng / Sai'), # Thực chất là biến thể của Single, nhưng tách ra để Frontend vẽ UI khác (Toggle switch)
+    
+    # --- NHÓM TỰ LUẬN/TEXT ---
+    ('short_answer', 'Trả lời ngắn (Text)'), # So sánh chuỗi chính xác hoặc chứa từ khóa
+    ('essay', 'Tự luận (Chấm tay)'), # Giáo viên phải vào chấm điểm thủ công
+    
+    # --- NHÓM NÂNG CAO (Moodle/Khan Style) ---
+    ('fill_in_the_blank', 'Điền từ (Cloze)'), # Điền vào nhiều chỗ trống trong 1 đoạn văn
+    ('matching', 'Nối cặp'),                  # Nối cột A với cột B
+    ('ordering', 'Sắp xếp thứ tự'),           # Kéo thả sắp xếp trên dưới
+    ('numeric', 'Số học'),                    # So sánh toán học (sai số, phân số)
+]
 
 class Question(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

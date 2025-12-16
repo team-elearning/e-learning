@@ -10,7 +10,6 @@ from core.exceptions import DomainError
 from core.services.media_service import recursive_inject_cdn_url
 from quiz.models import Quiz, Question
 from progress.models import QuizAttempt, QuestionAnswer
-from progress.domains.quiz_attempt_domain import QuizAttemptDomain
 from progress.domains.question_content_domain import QuestionContentDomain
 from progress.domains.question_submission_domain import QuestionSubmissionDomain
 
@@ -294,6 +293,7 @@ def save_question_draft(
             # Nếu bản ghi đã tồn tại và đã được chấm điểm trước đó (trong practice mode),
             # việc user sửa lại đáp án sẽ làm kết quả cũ không còn giá trị -> Có thể reset score về 0.
             'score': 0.0,
+            'is_graded': False,
             'is_correct': False,
             'feedback': None # Xóa feedback cũ nếu có
         }
@@ -347,6 +347,7 @@ def submit_question(
             'answer_data': user_answer,
             'is_flagged': False, # Reset flag nếu user đã nộp
             'score': score_achieved,
+            'is_graded': True,
             'is_correct': is_correct,
             'feedback': system_feedback 
         }

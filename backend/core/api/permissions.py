@@ -33,7 +33,7 @@ class CanViewCourseContent(BasePermission):
     Dùng cho các API: Get Course Detail, Get Lesson, Get File...
     """
     def has_object_permission(self, request, view, obj):
-        return can_view_course_content(request.user, obj)
+        return can_view_course_content(request.user, obj, request=request)
     
 
 class IsQuizOwner(BasePermission):
