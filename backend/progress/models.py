@@ -12,8 +12,8 @@ class ModuleCompletion(models.Model):
     CHECKPOINT: Dùng để xử lý logic 'Phải xong Module 1 mới mở Module 2'.
     Không lưu interaction_data, chỉ lưu trạng thái Done.
     """
-    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='completed_modules')
-    module = models.ForeignKey(Module, on_delete=models.CASCADE)
+    enrollment = models.ForeignKey("content.Enrollment", on_delete=models.CASCADE, related_name='completed_modules')
+    module = models.ForeignKey("content.Module", on_delete=models.CASCADE)
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(auto_now_add=True)
 
@@ -25,8 +25,8 @@ class LessonCompletion(models.Model):
     """
     CHECKPOINT: Dùng để xử lý logic 'Phải xong Lesson 1 mới mở Lesson 2'.
     """
-    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='completed_lessons', null=True, blank=True)
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True)
+    enrollment = models.ForeignKey("content.Enrollment", on_delete=models.CASCADE, related_name='completed_lessons', null=True, blank=True)
+    lesson = models.ForeignKey("content.Lesson", on_delete=models.CASCADE, null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(auto_now_add=True)
 
@@ -41,11 +41,11 @@ class UserBlockProgress(models.Model):
     Chỉ tạo record khi user CHẠM vào block (Lazy Creation).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='block_accesses', null=True, blank=True)
+    enrollment = models.ForeignKey("content.Enrollment", on_delete=models.CASCADE, related_name='block_accesses', null=True, blank=True)
 
     # Denormalization: Lưu thẳng ID để đỡ phải join bảng Enrollment
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='block_progress')
-    block = models.ForeignKey(ContentBlock, on_delete=models.CASCADE, related_name='user_progress')
+    block = models.ForeignKey("content.ContentBlock", on_delete=models.CASCADE, related_name='user_progress')
     
     # --- TRẠNG THÁI ---
     is_completed = models.BooleanField(default=False) 
@@ -86,7 +86,7 @@ class QuizAttempt(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts', null=True, blank=True)
+    quiz = models.ForeignKey("quiz.Quiz", on_delete=models.CASCADE, related_name='attempts', null=True, blank=True)
 
     # === NGỮ CẢNH (CONTEXT) - ĐÂY LÀ CHÌA KHÓA ===
     # Trường hợp 1: Làm trong khóa học
@@ -137,8 +137,8 @@ class QuestionAnswer(models.Model):
     Lưu câu trả lời chi tiết cho TỪNG CÂU HỎI trong một lần làm bài (Attempt).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='answers', null=True, blank=True)
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, null=True, blank=True)
+    attempt = models.ForeignKey("progress.QuizAttempt", on_delete=models.CASCADE, related_name='answers', null=True, blank=True)
+    question = models.ForeignKey("quiz.Question", on_delete=models.CASCADE, null=True, blank=True)
 
     # Snapshot loại câu hỏi (để render view kết quả nhanh hơn)
     question_type = models.CharField(choices=QUESTION_TYPES, max_length=50, blank=True)
@@ -170,8 +170,8 @@ class UserCertificate(models.Model):
     
     # Quan hệ
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='certificates')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='certificates')
-    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE) # Link để truy xuất ngày bắt đầu/kết thúc
+    course = models.ForeignKey("content.Course", on_delete=models.CASCADE, related_name='certificates')
+    enrollment = models.ForeignKey("content.Enrollment", on_delete=models.CASCADE) # Link để truy xuất ngày bắt đầu/kết thúc
 
     # Định danh chứng chỉ (Để nhà tuyển dụng verify)
     # Ví dụ: CERT-2025-ABCD-1234

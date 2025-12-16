@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass
 from django.conf import settings
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 from quiz.models import Question 
@@ -117,3 +117,4 @@ class QuestionDomain:
     def to_dict(self) -> dict:
         """ Chuyển đổi sang dạng dict (JSON-serializable). """
         return self.__dict__
+    
