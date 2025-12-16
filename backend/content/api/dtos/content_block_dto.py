@@ -23,7 +23,7 @@ class ContentBlockInput(BaseModel):
     'position' được quản lý bởi service (tạo ở cuối hoặc reorder), 
     nên không cần đưa vào đây.
     """
-    title: Optional[str]
+    title: Optional[str] = None
     type: BlockType
     payload: Dict[str, Any] = {}
 

@@ -234,7 +234,7 @@ def create_content_block(
 
     elif block_type == 'quiz':
         # Với Quiz, có thể tạo sẵn 1 cái Quiz draft rỗng luôn
-        new_quiz_domain = create_quiz(data={"title": "Untitled Quiz"}, actor=actor)
+        new_quiz_domain = create_quiz(data={"title": "Untitled Quiz"}, actor=actor, mode='quiz')
 
         try:
             quiz_ref_model = Quiz.objects.get(id=new_quiz_domain.id)

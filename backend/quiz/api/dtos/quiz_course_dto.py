@@ -93,51 +93,6 @@ class QuestionInstructorOutput(BaseModel):
     # Pydantic sẽ tự động map các trường từ model Question
 
 
-class QuizAttemptInfoOutput(BaseModel):
-    """
-    DTO trả về khi gọi POST init attempt.
-    Chỉ chứa ID và danh sách ID câu hỏi (để vẽ thanh navigation 1,2,3...)
-    """
-    model_config = ConfigDict(from_attributes=True)
-
-    attempt_id: uuid.UUID = Field(alias="id") # Map từ QuizAttempt.id
-    quiz_title: str 
-    time_limit_seconds: Optional[int]
-    time_start: datetime
-    
-    # Chỉ trả về List ID để client biết tổng số câu và thứ tự
-    questions_order: List[str] 
-    
-    current_index: int = 0 # Resume lại vị trí cũ
-    status: str
-
-    @field_serializer('time_limit_seconds')
-    def serialize_duration(self, v, _info):
-        return v # Giả sử domain đã tính ra giây hoặc view xử lý
-
-
-# --- DTO 2: Nội dung chi tiết từng câu hỏi (Load từng câu) ---
-class QuestionOptionDTO(BaseModel):
-    id: str
-    text: str
-
-class QuestionContentOutput(BaseModel):
-    """
-    DTO trả về nội dung của MỘT câu hỏi cụ thể
-    """
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    type: str
-    prompt_text: str = Field(..., description="Nội dung câu hỏi")
-    prompt_image: Optional[str] = None
-    
-    # Options này sẽ được shuffle ở tầng Domain hoặc Service trước khi đẩy vào đây
-    options: List[QuestionOptionDTO] = []
-    current_answer: Optional[dict]  # Chứa answer_data (ví dụ: {"selected_ids": [...]})
-    is_flagged: bool
-
-
 # class QuizPublicOutput(BaseModel):
 #     """
 #     DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
