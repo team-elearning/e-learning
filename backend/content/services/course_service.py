@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
-from django.db.models import Q, Count, Prefetch, Sum
+from django.db.models import Q, Count, Prefetch, Sum, F
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.text import slugify
@@ -47,6 +47,19 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
     if filters.enrolled_user:
         # Logic: Tìm khóa học mà user đã ghi danh
         query_set = query_set.filter(enrollments__user=filters.enrolled_user).distinct()
+    
+        # 2. [TỐI ƯU SQL] Lấy luôn thông tin tiến độ gán vào Course Object
+        # Vì quan hệ User-Course là unique (1-1 trong Enrollment), ta có thể lấy trực tiếp.
+        query_set = query_set.annotate(
+            # Tạo các field ảo (annotated fields) trên object Course
+            user_enrollment_id=F('enrollments__id'),
+            user_percent=F('enrollments__percent_completed'),
+            user_is_completed=F('enrollments__is_completed'),
+            user_enrolled_at=F('enrollments__enrolled_at'),
+            user_completed_at=F('enrollments__completed_at'),
+            user_last_accessed=F('enrollments__last_accessed_at'),
+        )
+
     # --- (MỚI) Logic: LOẠI BỎ khóa học ĐÃ ghi danh (Public/Unregistered Courses) ---
     if filters.exclude_enrolled_user:
         # exclude ngược lại với filter: Bỏ đi những course mà user này nằm trong bảng enrollments
@@ -71,7 +84,8 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
 
     if strategy in [
         CourseFetchStrategy.BASIC,
-        CourseFetchStrategy.CATALOG_LIST, 
+        CourseFetchStrategy.CATALOG_LIST,
+        CourseFetchStrategy.MY_ENROLLED,
         CourseFetchStrategy.INSTRUCTOR_DASHBOARD,
         CourseFetchStrategy.STRUCTURE,
         CourseFetchStrategy.INSTRUCTOR_DETAIL,
@@ -105,11 +119,40 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
     if strategy == CourseFetchStrategy.BASIC:
         pass
 
-    if strategy in [CourseFetchStrategy.CATALOG_LIST, CourseFetchStrategy.INSTRUCTOR_DASHBOARD]:
+    elif strategy in [CourseFetchStrategy.CATALOG_LIST, CourseFetchStrategy.INSTRUCTOR_DASHBOARD]:
         pass
 
     elif strategy == CourseFetchStrategy.ADMIN_LIST:
         pass
+
+    elif strategy == CourseFetchStrategy.MY_ENROLLED:
+        # Bắt buộc phải có user để join
+        if not filters.enrolled_user:
+            raise ValueError("Strategy MY_ENROLLED yêu cầu filter.enrolled_user")
+
+        # 1. Annotate các trường từ bảng Enrollment sang bảng Course
+        # Django sẽ tự động INNER JOIN vì ta đang filter theo enrollments__user
+        query_set = query_set.annotate(
+            user_enrollment_id=F('enrollments__id'),
+            user_percent=F('enrollments__percent_completed'),
+            user_is_completed=F('enrollments__is_completed'),
+            user_enrolled_at=F('enrollments__enrolled_at'),
+            user_completed_at=F('enrollments__completed_at'),
+            user_last_accessed=F('enrollments__last_accessed_at'),
+        )
+        
+        # 2. Sort theo lần học gần nhất (Bài nào mới học thì hiện lên đầu)
+        query_set = query_set.order_by('-enrollments__last_accessed_at')
+
+        # 3. Vẫn cần prefetch các thông tin phụ (ảnh, tag...)
+        query_set = query_set.select_related('owner', 'subject')
+        query_set = query_set.prefetch_related('categories', 'tags')
+        
+        # 4. Vẫn cần đếm số bài (để hiện: "Bạn đã học 5/20 bài")
+        query_set = query_set.annotate(
+            total_lessons=Count('modules__lessons', distinct=True)
+            # ... các count khác nếu cần
+        )
 
     # 2. STRUCTURE / DETAIL (Màn hình học/xem chi tiết)
     elif strategy in [CourseFetchStrategy.STRUCTURE, CourseFetchStrategy.INSTRUCTOR_DETAIL, CourseFetchStrategy.ADMIN_DETAIL]:

@@ -8,6 +8,7 @@ from content.api.dtos.subject_dto import SubjectPublicOutput, SubjectAdminOutput
 from content.api.dtos.category_dto import CategoryOutput
 from content.api.dtos.tag_dto import TagOutput
 from content.api.dtos.module_dto import ModuleCreateInput, ModuleUpdateInput, ModulePublicOutput, ModuleAdminOutput
+from progress.api.dtos.heart_beat_dto import CourseProgressPublicOutput
 
 
 
@@ -150,6 +151,15 @@ class CourseCatalogPublicOutput(BaseModel):
 
     def to_dict(self, exclude_none: bool = True) -> dict:
         return self.model_dump(exclude_none=exclude_none)
+    
+
+class MyCourseCatalogOutput(CourseCatalogPublicOutput):
+    """
+    DTO chuyên dụng cho màn hình 'Khóa học của tôi'.
+    Kế thừa từ Catalog gốc, nhưng bổ sung thêm field 'my_progress'.
+    """
+    # Nested DTO: Nhúng toàn bộ thông tin tiến độ vào đây
+    my_progress: Optional[CourseProgressPublicOutput] = None
     
 
 class CourseCatalogInstructorOutput(BaseModel):

@@ -12,6 +12,7 @@ from content.domains.tag_domain import TagDomain
 from content.types import CourseFetchStrategy
 from content.models import ContentBlock
 from media.services.cloud_service import get_signed_url_by_id
+from progress.domains.course_progress_domain import CourseProgressDomain
 
 
 
@@ -364,6 +365,31 @@ class CourseDomain:
             # Case 1: List đơn giản
             return cls(**data)
         
+        elif strategy == CourseFetchStrategy.MY_ENROLLED:
+            progress_obj = CourseProgressDomain(
+                enrollment_id=model.user_enrollment_id,
+                course_id=model.id,
+                user_id=model.user_enrollment_id, # Lưu ý: Field này trong annotate không có user_id, 
+                                                # nhưng ta biết nó thuộc về user đang request. 
+                                                # Có thể để None hoặc dummy nếu Domain cho phép Optional.
+                
+                percent_completed=model.user_percent,
+                is_completed=model.user_is_completed,
+                enrolled_at=model.user_enrolled_at,
+                completed_at=model.user_completed_at,
+                last_accessed_at=model.user_last_accessed,
+                
+                # Logic tính status
+                status_label='completed' if model.user_is_completed else ('not_started' if model.user_percent == 0 else 'in_progress')
+            )
+
+            # 2. Gán object vào data (hoặc truyền thẳng vào constructor)
+            # Lưu ý: MyCourseDomain kế thừa CourseDomain, nên nó nhận **data cũ + my_progress
+            
+            # Cách 1: Update dict data (như bạn làm, nhưng gán object)
+            data['my_progress'] = progress_obj
+            return cls(**data)
+        
         elif strategy == CourseFetchStrategy.STRUCTURE:
             # Case 3: Preview (Stats chi tiết + Syllabus rút gọn)
             domain = cls(**data)
@@ -372,18 +398,28 @@ class CourseDomain:
         
         elif strategy == CourseFetchStrategy.INSTRUCTOR_DASHBOARD:
             data.update({
-                "created_at": model.created_at,
-                "published_at": model.published_at,
-                "stats": {
-                    "total_modules": getattr(model, 'modules_count', 0),
-                    "total_lessons": getattr(model, 'total_lessons', 0),
-                    "total_videos": getattr(model, 'total_videos', 0),
-                    "total_quizzes": getattr(model, 'total_quizzes', 0),
-                    "students_count": getattr(model, 'students_count', 0),
-                    "total_seconds": getattr(model, 'total_seconds', 0),                    # NEW: Để frontend filter
-                    "duration_display": CourseDomain._format_duration(getattr(model, 'total_seconds', 0)),
-                }
+                "created_at": model.created_at,     # Để giảng viên biết ngày tạo
+                "published_at": model.published_at, # Để biết ngày công khai
             })
+
+            # 2. Xử lý Stats: MERGE thay vì OVERWRITE
+            # Lấy stats cơ bản đã được tạo ở _extract_base_data
+            current_stats = data.get("stats", {})
+
+            # Chỉ update/thêm những chỉ số dành riêng cho Instructor Dashboard
+            current_stats.update({
+                # Instructor cần biết chính xác có bao nhiêu học sinh trả tiền
+                "students_count": getattr(model, 'students_count', 0),
+                
+                # Nếu ở base data chưa có total_seconds/duration (tuỳ logic base của bạn),
+                # thì thêm vào đây. Nếu base có rồi thì bỏ dòng này đi cho gọn.
+                "total_seconds": getattr(model, 'total_seconds', 0),
+                "duration_display": CourseDomain._format_duration(getattr(model, 'total_seconds', 0)),
+            })
+
+            # Gán ngược lại
+            data["stats"] = current_stats
+
             return cls(**data)
 
         elif strategy == CourseFetchStrategy.INSTRUCTOR_DETAIL:
