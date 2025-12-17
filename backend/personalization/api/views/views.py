@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class AISyncView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    POST /content/ai/sync/
+    POST /ai/sync/
     -> Trigger việc tính toán vector cho các khóa học.
     """
     permission_classes = [IsAuthenticated] 
@@ -67,7 +67,7 @@ class AISyncView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
 
 class AIRecommendationView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    GET /content/ai/suggest/?q=...&top_n=5
+    GET /ai/suggest/?q=...&top_n=5
     -> Gợi ý khóa học dựa trên ngữ nghĩa.
     """
     permission_classes = [AllowAny] 
@@ -102,7 +102,7 @@ class AIRecommendationView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIVi
         # 3. Gọi Service lấy List Domain (QuerySet Course)
         try:
             courses_list_domain = self.ai_service.suggest_courses(
-                q=dto_input.q,
+                user_interest_text=dto_input.q,
                 top_n=dto_input.top_n
             )
             
@@ -111,4 +111,36 @@ class AIRecommendationView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIVi
 
         except Exception as e:
             logger.error(f"Lỗi trong AIRecommendationView (GET): {e}", exc_info=True)
+            return Response({"detail": f"Lỗi server: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class UserRecommendationView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /content/ai/recommend-for-me/
+    -> Tự động gợi ý dựa trên lịch sử học (Không cần nhập q)
+    """
+    permission_classes = [IsAuthenticated] 
+    
+    # Vẫn dùng DTO xịn xò
+    output_dto_public = CourseCatalogPublicOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ai_service = ai_recommendation_service
+
+    def get(self, request, *args, **kwargs):
+        try:
+            # Chỉ cần truyền request.user, service tự lo việc đào data
+            courses_list_domain = self.ai_service.recommend_for_user(
+                user=request.user,
+                top_n=5 # Mặc định lấy 5 khóa
+            )
+            
+            # Case Cold Start: Nếu list rỗng (user mới), có thể trả về thông báo hoặc list rỗng
+            # Frontend check length == 0 để hiện component khác (vd: "Khóa học mới nhất")
+            
+            return Response({"instance": courses_list_domain}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Lỗi trong UserRecommendationView: {e}", exc_info=True)
             return Response({"detail": f"Lỗi server: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
