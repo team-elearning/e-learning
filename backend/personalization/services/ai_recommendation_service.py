@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from django.conf import settings
 from django.db import models
 from openai import OpenAI
-from sentence_transformers import SentenceTransformer
 
 from content.models import Course, Enrollment
 from content.domains.course_domain import CourseDomain
