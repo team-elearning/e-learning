@@ -14,10 +14,11 @@ class CourseEmbedding(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     course = models.OneToOneField('content.Course', on_delete=models.CASCADE, related_name='embedding')
     
-    # Vector của OpenAI text-embedding-3-small có kích thước 1536 dimensions
-    # Lưu dưới dạng mảng số thực (float array)
+    # # Vector của OpenAI text-embedding-3-small có kích thước 1536 dimensions
+    # # Lưu dưới dạng mảng số thực (float array)
     vector = ArrayField(models.FloatField(), size=1536, blank=True, null=True)
-    
+    # vector = ArrayField(models.FloatField(), size=384, blank=True, null=True)
+
     # Lưu lại hash hoặc raw text để check xem nội dung có thay đổi không (cần update vector ko)
     updated_at = models.DateTimeField(auto_now=True)
 
