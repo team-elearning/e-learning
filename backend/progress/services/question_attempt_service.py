@@ -219,7 +219,7 @@ def get_question_in_attempt(attempt_id: uuid.UUID, question_id: uuid.UUID, user)
     processed_prompt = recursive_inject_cdn_url(question.prompt)
 
     # Lúc này các item trong list này đã có field 'url' (nếu là ảnh)
-    options_with_urls = processed_prompt.get('options', [])
+    options_with_urls = processed_prompt.get('options', ["chekc"])
 
     # # --- Logic Random Đáp Án (Option Shuffle) ---    
     # Để đảm bảo user F5 không bị đổi thứ tự đáp án liên tục, 
