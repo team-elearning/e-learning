@@ -366,6 +366,8 @@ class CourseDomain:
             return cls(**data)
         
         elif strategy == CourseFetchStrategy.MY_ENROLLED:
+            from content.domains.my_course_domain import MyCourseDomain
+            
             progress_obj = CourseProgressDomain(
                 enrollment_id=model.user_enrollment_id,
                 course_id=model.id,
@@ -383,12 +385,10 @@ class CourseDomain:
                 status_label='completed' if model.user_is_completed else ('not_started' if model.user_percent == 0 else 'in_progress')
             )
 
-            # 2. Gán object vào data (hoặc truyền thẳng vào constructor)
-            # Lưu ý: MyCourseDomain kế thừa CourseDomain, nên nó nhận **data cũ + my_progress
-            
-            # Cách 1: Update dict data (như bạn làm, nhưng gán object)
-            data['my_progress'] = progress_obj
-            return cls(**data)
+            return MyCourseDomain(
+                **data, 
+                my_progress=progress_obj
+            )
         
         elif strategy == CourseFetchStrategy.STRUCTURE:
             # Case 3: Preview (Stats chi tiết + Syllabus rút gọn)
