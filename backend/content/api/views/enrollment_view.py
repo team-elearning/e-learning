@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from core.exceptions import DomainError, CourseNotFoundError
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from core.api.permissions import CanViewCourseContent
-from content.api.dtos.course_dto import CourseCatalogPublicOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseAdminOutput
+from content.api.dtos.course_dto import CourseCatalogPublicOutput, MyCourseCatalogOutput, CourseCatalogAdminOutput, CoursePublicOutput, CourseAdminOutput
 from content.api.dtos.content_block_dto import ContentBlockPublicOutput, ContentBlockAdminOutput
 from content.api.dtos.enrollment_dto import EnrollmentInput, EnrollmentOutput, EnrollmentListOutput
 from content.types import CourseFetchStrategy, CourseFilter
@@ -151,13 +151,12 @@ class MyEnrolledCourseListView(RoleBasedOutputMixin, AutoPermissionCheckMixin, A
     """
     # 1. Bắt buộc phải đăng nhập
     permission_classes = [permissions.IsAuthenticated] 
-
     permission_lookup = {}
 
     # 2. Dùng chung DTO với public list (hoặc một DTO khác nếu muốn)
     #    User xem các khóa học của mình cũng chỉ cần thông tin public.
-    output_dto_public = CourseCatalogPublicOutput
-    output_dto_admin  = CourseCatalogAdminOutput 
+    output_dto_public = MyCourseCatalogOutput
+    output_dto_admin  = MyCourseCatalogOutput 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -171,7 +170,7 @@ class MyEnrolledCourseListView(RoleBasedOutputMixin, AutoPermissionCheckMixin, A
             # 3. Gọi hàm service MỚI, chuyên biệt
             enrolled_courses_list = self.course_service.get_courses(
                 filters=CourseFilter(enrolled_user=request.user), # Tự động distinct() bên trong
-                strategy=CourseFetchStrategy.CATALOG_LIST
+                strategy=CourseFetchStrategy.MY_ENROLLED
             )
             
             # 4. Trả về

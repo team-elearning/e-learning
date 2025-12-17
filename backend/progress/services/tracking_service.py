@@ -7,11 +7,13 @@ from typing import Optional
 
 
 from content.models import ContentBlock, Lesson, Module, Enrollment
-from progress.models import UserBlockProgress
+from progress.models import UserBlockProgress, LessonCompletion, ModuleCompletion, QuizAttempt
 from progress.domains.user_block_progress_domain import UserBlockProgressDomain
 from progress.domains.resume_position_domain import ResumePositionDomain
-# from progress.services.course_progress_service import handle_block_completion
+from progress.domains.reset_progress_result_domain import ResetProgressResultDomain
+from progress.domains.course_progress_domain import CourseProgressDomain
 from progress.services.completion_strategies import evaluate
+from progress.services.aggregation_service import calculate_aggregation
 
 
 
@@ -42,6 +44,30 @@ def get_interaction_status(user, block_id: str) -> UserBlockProgressDomain:
         # Not Found: Trả về Transient Object kèm Metadata của Block
         # FE sẽ nhận được: "User chưa học (0%), nhưng video này dài 10 phút"
         return UserBlockProgressDomain.create_transient(user, block)
+
+
+def get_course_progress(user, course_id: str) -> CourseProgressDomain:
+    """
+    Lấy tiến độ tổng quan của 1 khóa học.
+    """
+    try:
+        course_uuid = uuid.UUID(str(course_id))
+    except ValueError:
+        raise ValueError("course_id không hợp lệ.")
+
+    # 1. Tìm Enrollment
+    try:
+        # select_related không cần thiết lắm nếu chỉ lấy field của enrollment, 
+        # nhưng nếu domain cần title khóa học thì nên thêm.
+        enrollment = Enrollment.objects.get(user=user, course_id=course_uuid)
+    except Enrollment.DoesNotExist:
+        # Tùy nghiệp vụ: 
+        # - Nếu chưa enroll thì trả về lỗi 404 (Không tìm thấy tiến độ)
+        # - Hoặc trả về object rỗng 0% (nếu cho phép xem trước)
+        raise PermissionError("User chưa ghi danh khóa học này.")
+
+    # 2. Return Domain
+    return CourseProgressDomain.from_model(enrollment)
 
 
 # ==========================================
@@ -80,17 +106,18 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
         current_data = progress.interaction_data or {}
         current_data.update(incoming_interaction)
         progress.interaction_data = current_data
-    
-        progress.last_accessed = timezone.now()
+        should_save = True
     
     # Cộng dồn thời gian học 
     if 0 < time_add <= 300: # Cho phép tối đa 5 phút (nếu FE gửi 60s/lần)
-        progress.time_spent_seconds += F('time_spent_seconds') + time_add
+        progress.time_spent_seconds = F('time_spent_seconds') + time_add
 
-    progress.save()
-    
-    # Refresh lại từ DB để lấy giá trị số nguyên sau khi cộng F()
-    progress.refresh_from_db()
+    if should_save:
+        progress.last_accessed = timezone.now()
+        progress.save()
+        # Bắt buộc refresh để F() expression biến thành số thực (int) 
+        # trước khi truyền vào hàm evaluate
+        progress.refresh_from_db()
 
     # 5. Kiểm tra hoàn thành (Chỉ check nếu chưa xong)
     if not progress.is_completed:
@@ -111,68 +138,170 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
                     # Assign lại để trả về domain đúng
                     progress = locked_progress
             # Lưu ý: Không gọi tính toán % khóa học ở đây để tránh chậm API
-    
+
+                    enrollment_id_str = str(progress.enrollment_id)
+                    lesson_id_str = str(block.lesson_id)
+
+                    transaction.on_commit(
+                        lambda: calculate_aggregation.delay(enrollment_id_str, lesson_id_str)
+                    )
+
     return UserBlockProgressDomain.from_model(progress, block)
 
 
+# ==========================================
+# RESUME LEARNING
+# ==========================================
+
+def get_resume_state(user, course_id: str) -> UserBlockProgressDomain:
+    """
+    Logic:
+    1. Tìm bài học user học gần nhất (last_accessed).
+    2. Nếu chưa học bài nào -> Tìm bài học đầu tiên của khóa.
+    3. Trả về Domain Object (Real hoặc Transient).
+    """
+    try:
+        course_uuid = uuid.UUID(str(course_id))
+    except ValueError:
+        raise ValueError("course_id không hợp lệ.")
+
+    # 1. Kiểm tra Enrollment
+    # (Optional: Nếu muốn cho học thử thì bỏ check này, nhưng LMS thường bắt buộc)
+    if not Enrollment.objects.filter(user=user, course_id=course_uuid).exists():
+        raise PermissionError("User chưa ghi danh khóa học này.")
+
+    # 2. Tìm vết học gần nhất
+    last_progress = UserBlockProgress.objects.filter(
+        user=user,
+        enrollment__course_id=course_uuid
+    ).select_related('block').order_by('-last_accessed').first()
+
+    if last_progress:
+        return UserBlockProgressDomain.from_model(last_progress, last_progress.block)
+
+    # 3. Nếu chưa học -> Tìm bài đầu tiên (First Block)
+    # Sort theo Module Position -> Lesson Position -> Block Position
+    first_block = ContentBlock.objects.filter(
+        lesson__module__course_id=course_uuid
+    ).select_related('lesson__module__course').order_by(
+        'lesson__module__position', 
+        'lesson__position', 
+        'position'
+    ).first()
+
+    if not first_block:
+        raise ValueError("Khóa học chưa có nội dung nào để học.")
+
+    # Trả về object tạm (chưa lưu DB) để FE biết bài nào cần play
+    return UserBlockProgressDomain.create_transient(user, first_block)
+
+
+# ==========================================
+# SERVICE: RESET PROGRESS
+# ==========================================
+
+def reset_course_progress(user, enrollment_id: str) -> ResetProgressResultDomain:
+    """
+    Logic: Hard Delete toàn bộ tracking data để user học lại từ đầu.
+    """
+    try:
+        enroll_uuid = uuid.UUID(str(enrollment_id))
+    except ValueError:
+        raise ValueError("enrollment_id không hợp lệ.")
+
+    # 1. Lấy Enrollment (Check quyền sở hữu của user luôn)
+    try:
+        enrollment = Enrollment.objects.get(id=enroll_uuid, user=user)
+    except Enrollment.DoesNotExist:
+        raise PermissionError("Không tìm thấy ghi danh hoặc bạn không có quyền.")
+
+    # 2. Thực hiện Reset (Atomic)
+    with transaction.atomic():
+        # A. Xóa Tracking chi tiết (Nhóm 1)
+        UserBlockProgress.objects.filter(enrollment=enrollment).delete()
+        
+        # B. Xóa Checkpoint (Nhóm 2)
+        # Giả sử bạn đã import model LessonCompletion, ModuleCompletion
+        LessonCompletion.objects.filter(enrollment=enrollment).delete()
+        ModuleCompletion.objects.filter(enrollment=enrollment).delete()
+        
+        # C. Xóa/Reset Quiz (Nhóm 3)
+        # Tùy policy: Xóa hết hay giữ lại lịch sử điểm? 
+        # Ở đây làm theo yêu cầu: Xóa hết để học lại.
+        QuizAttempt.objects.filter(enrollment=enrollment).delete()
+
+        # D. Reset Enrollment về 0
+        enrollment.percent_completed = 0.0
+        enrollment.is_completed = False
+        enrollment.completed_at = None
+        enrollment.save()
+
+    return ResetProgressResultDomain(
+        enrollment_id=enroll_uuid,
+        status="success",
+        reset_at=timezone.now(),
+        message="Đã đặt lại tiến độ học tập thành công."
+    )
+
+
 ################################################################################
 ################################################################################
 ################################################################################
 
-def validate_completion_policy(block: ContentBlock, progress: UserBlockProgress):
-    """
-    Unified Validator: Kiểm tra xem user đã đủ điều kiện để 'Tick xanh' chưa.
-    Logic dựa trên block.type và cấu hình trong block.payload.
-    """
-    # Lấy cấu hình từ payload (JSON), có default value an toàn
-    payload = block.payload or {}
-    criteria = payload.get('completion_criteria', {}) 
+# def validate_completion_policy(block: ContentBlock, progress: UserBlockProgress):
+#     """
+#     Unified Validator: Kiểm tra xem user đã đủ điều kiện để 'Tick xanh' chưa.
+#     Logic dựa trên block.type và cấu hình trong block.payload.
+#     """
+#     # Lấy cấu hình từ payload (JSON), có default value an toàn
+#     payload = block.payload or {}
+#     criteria = payload.get('completion_criteria', {}) 
     
-    # --- CASE 1: VIDEO / AUDIO ---
-    if block.type in ['video', 'audio']:
-        # 1. Lấy duration từ payload (System define)
-        duration = payload.get('duration', 0)
+#     # --- CASE 1: VIDEO / AUDIO ---
+#     if block.type in ['video', 'audio']:
+#         # 1. Lấy duration từ payload (System define)
+#         duration = payload.get('duration', 0)
         
-        # Nếu data lỗi không có duration -> Fallback: Bắt buộc xem tối thiểu 30s
-        if not duration:
-            if progress.time_spent_seconds < 30:
-                raise ValueError("Dữ liệu video chưa đầy đủ, vui lòng xem tối thiểu 30s.")
-            return
+#         # Nếu data lỗi không có duration -> Fallback: Bắt buộc xem tối thiểu 30s
+#         if not duration:
+#             if progress.time_spent_seconds < 30:
+#                 raise ValueError("Dữ liệu video chưa đầy đủ, vui lòng xem tối thiểu 30s.")
+#             return
 
-        # 2. Lấy ngưỡng % yêu cầu (Default Moodle thường là xem hết, ta cho 90% là mượt)
-        required_percent = criteria.get('min_percent', 90)
-        required_seconds = duration * (required_percent / 100)
+#         # 2. Lấy ngưỡng % yêu cầu (Default Moodle thường là xem hết, ta cho 90% là mượt)
+#         required_percent = criteria.get('min_percent', 90)
+#         required_seconds = duration * (required_percent / 100)
         
-        # 3. Validation
-        if progress.time_spent_seconds < required_seconds:
-            missing = int(required_seconds - progress.time_spent_seconds)
-            raise ValueError(
-                f"Bạn mới xem {int(progress.time_spent_seconds)}s. "
-                f"Cần xem {required_percent}% thời lượng (còn thiếu {missing}s)."
-            )
+#         # 3. Validation
+#         if progress.time_spent_seconds < required_seconds:
+#             missing = int(required_seconds - progress.time_spent_seconds)
+#             raise ValueError(
+#                 f"Bạn mới xem {int(progress.time_spent_seconds)}s. "
+#                 f"Cần xem {required_percent}% thời lượng (còn thiếu {missing}s)."
+#             )
 
-    # --- CASE 2: READING (PDF / DOC / TEXT) ---
-    elif block.type in ['pdf', 'docx', 'text', 'image']:
-        # Rule: Phải ở lại trang tối thiểu X giây (Moodle gọi là "View time")
-        min_seconds = criteria.get('min_view_time', 5) # Default 5s để tránh click nhầm
+#     # --- CASE 2: READING (PDF / DOC / TEXT) ---
+#     elif block.type in ['pdf', 'docx', 'text', 'image']:
+#         # Rule: Phải ở lại trang tối thiểu X giây (Moodle gọi là "View time")
+#         min_seconds = criteria.get('min_view_time', 5) # Default 5s để tránh click nhầm
         
-        if progress.time_spent_seconds < min_seconds:
-             raise ValueError(f"Vui lòng đọc tài liệu tối thiểu {min_seconds} giây.")
+#         if progress.time_spent_seconds < min_seconds:
+#              raise ValueError(f"Vui lòng đọc tài liệu tối thiểu {min_seconds} giây.")
 
-    # --- CASE 3: QUIZ (Bài tập) ---
-    elif block.type == 'quiz':
-        # Quiz thường hoàn thành khi có điểm PASS
-        # Logic này thường check score chứ không check time
-        passing_score = criteria.get('passing_score', 5.0)
-        current_score = progress.score or 0.0
+#     # --- CASE 3: QUIZ (Bài tập) ---
+#     elif block.type == 'quiz':
+#         # Quiz thường hoàn thành khi có điểm PASS
+#         # Logic này thường check score chứ không check time
+#         passing_score = criteria.get('passing_score', 5.0)
+#         current_score = progress.score or 0.0
         
-        if current_score < passing_score:
-            raise ValueError(f"Điểm số chưa đạt. Cần {passing_score}, hiện tại {current_score}.")
+#         if current_score < passing_score:
+#             raise ValueError(f"Điểm số chưa đạt. Cần {passing_score}, hiện tại {current_score}.")
 
-    # --- CASE DEFAULT ---
-    else:
-        # Với các type lạ, chỉ cần có record heartbeat là cho qua
-        pass
+#     # --- CASE DEFAULT ---
+#     else:
+#         # Với các type lạ, chỉ cần có record heartbeat là cho qua
+#         pass
 
 
 # def mark_block_as_complete(user, data: dict) -> UserBlockProgressDomain:

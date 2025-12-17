@@ -10,9 +10,9 @@ import logging
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from core.api.permissions import CanViewCourseContent
 from progress.services import tracking_service
-from progress.api.dtos.heart_beat_dto import BlockHeartbeatInput, BlockProgressPublicOutput, BlockProgressAdminOutput, BlockCompletionInput, CourseResumeAdminOutput, CourseResumePublicOutput
+from progress.api.dtos.heart_beat_dto import BlockHeartbeatInput, BlockProgressPublicOutput, BlockProgressAdminOutput, ResetProgressOutput, CourseProgressPublicOutput
 from progress.serializers import BlockHeartbeatSerializer, BlockCompletionInputSerializer
-from content.models import ContentBlock
+from content.models import ContentBlock, Course, Enrollment
 
 
 
@@ -108,90 +108,218 @@ class BlockInteractionHeartbeatView(RoleBasedOutputMixin, AutoPermissionCheckMix
             # Lỗi hệ thống
             logger.error(f"Lỗi trong BlockInteractionHeartbeatView (POST): {e}", exc_info=True)
             return Response({"detail": f"Lỗi máy chủ khi đồng bộ tiến độ - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
 
-class BlockCompletionView(RoleBasedOutputMixin, APIView):
-    """
-    POST /tracking/complete/
-    Đánh dấu một block là hoàn thành (Tick xanh).
-    Logic kiểm tra điều kiện (Video > 90%, Time scroll) sẽ nằm ở Service Layer.
-    """
-    permission_classes = [IsAuthenticated]
 
-    # Dùng lại Output DTO của bạn để trả về trạng thái mới nhất
-    output_dto_public = BlockProgressPublicOutput
+# ==========================================
+# RESUME COURSE
+# ==========================================
+class CourseResumeView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /courses/<course_id>/resume/
+    Tìm bài học để user tiếp tục học.
+    """
+    permission_classes = [IsAuthenticated, CanViewCourseContent]
+    
+    # AutoPermissionCheckMixin sẽ dùng cái này để check quyền truy cập Course
+    permission_lookup = {'course_id': Course} 
+
+    # Reuse Serializer của Heartbeat vì cấu trúc output giống hệt nhau
+    output_dto_public = BlockProgressPublicOutput 
     output_dto_admin = BlockProgressAdminOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = tracking_service  # Inject Service
+        self.interaction_service = tracking_service # Inject service module
 
-    def post(self, request, *args, **kwargs):
-        serializer = BlockCompletionInputSerializer(data=request.data)
+    def get(self, request, course_id, *args, **kwargs):
         try:
-            serializer.is_valid(raise_exception=True)
-
-        except Exception as e:
-            return Response({"detail": f"Dữ liệu không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            input_dto = BlockCompletionInput(**serializer.validated_data)
-
-            # Gọi Service để xử lý logic nghiệp vụ phức tạp
-            # Service sẽ trả về instance UserBlockProgress đã update
-            updated_progress = self.interaction_service.mark_block_as_complete(
+            # Gọi Service trả về Domain
+            resume_domain = tracking_service.get_resume_state(
                 user=request.user,
-                data=input_dto.model_dump()
+                course_id=course_id
             )
+            return Response({"instance": resume_domain}, status=status.HTTP_200_OK)
 
-            return Response(
-                {"detail": "Đã đánh dấu hoàn thành.", "instance": updated_progress},
-                status=status.HTTP_200_OK
-            )
-
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+            
         except ValueError as e:
-            # Lỗi nghiệp vụ (ví dụ: chưa đủ điều kiện hoàn thành)
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            # Case: Khóa học rỗng, không có bài nào
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
             
         except Exception as e:
-            logger.error(f"Lỗi trong BlockCompletionView: {e}", exc_info=True)
-            return Response({"detail": "Lỗi máy chủ."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            logger.error(f"Lỗi Resume Course: {e}", exc_info=True)
+            return Response({"detail": f"Lỗi máy chủ - {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class CourseResumeView(RoleBasedOutputMixin, APIView):
+
+# ==========================================
+# API 2: RESET PROGRESS
+# ==========================================
+class EnrollmentResetView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    GET /tracking/resume/<course_id>/
-    Trả về ResumePositionDomain để Frontend redirect user.
+    POST /enrollments/<enrollment_id>/reset/
+    Học lại từ đầu (Xóa toàn bộ tiến độ).
     """
     permission_classes = [IsAuthenticated]
     
-    # Bạn cần định nghĩa Output Serializer cho Domain này
-    output_dto_public = CourseResumePublicOutput
-    output_dto_admin = CourseResumeAdminOutput
+    # Check quyền trên Enrollment
+    permission_lookup = {'enrollment_id': Enrollment}
+    
+    output_dto_public = ResetProgressOutput
+    output_dto_admin = ResetProgressOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.interaction_service = tracking_service
 
-    def get(self, request, course_id, *args, **kwargs):
+    def post(self, request, enrollment_id, *args, **kwargs):
         try:
-            # Gọi Service -> Nhận Domain Object
-            resume_domain = self.interaction_service.get_course_resume_position(
+            # Gọi Service trả về Domain Result
+            result_domain = tracking_service.reset_course_progress(
                 user=request.user,
-                course_id=course_id
+                enrollment_id=enrollment_id
             )
-
-            if not resume_domain:
-                return Response(
-                    {"detail": "Khóa học chưa có nội dung."}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
             
-            return Response({"instance": resume_domain}, status=status.HTTP_200_OK)
+            # Trả về format chuẩn
+            return Response({"instance": result_domain}, status=status.HTTP_200_OK)
 
+        except PermissionError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+            
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
-            logger.error(f"Lỗi Resume Course {course_id}: {e}", exc_info=True)
-            return Response({"detail": "Lỗi server."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Lỗi Reset Progress: {e}", exc_info=True)
+            return Response({"detail": "Lỗi máy chủ khi reset khóa học."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CourseProgressView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /courses/<course_id>/progress/
+    Output: CourseProgressPublicOutput (Chỉ thông tin khóa học)
+    """
+    permission_classes = [IsAuthenticated, CanViewCourseContent]
+    permission_lookup = {'course_id': Course}
+
+    # Dùng DTO riêng của Course
+    output_dto_public = CourseProgressPublicOutput
+    output_dto_admin = CourseProgressPublicOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.interaction_service = tracking_service 
+
+    def get(self, request, course_id, *args, **kwargs):
+        try:
+            # Service trả về CourseProgressDomain
+            progress_domain = self.interaction_service.get_course_progress(
+                user=request.user,
+                course_id=course_id
+            )
+            return Response({"instance": progress_domain}, status=status.HTTP_200_OK)
+
+        except PermissionError as e:
+            # Service raise PermissionError khi user chưa enroll
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+        except ValueError as e:
+            # Service raise ValueError khi course_id sai format
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            # Lỗi không mong muốn (DB sập, code bug...)
+            logger.error(f"Lỗi lấy Course Progress: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi máy chủ khi lấy tiến độ khóa học - {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+
+    
+
+# class BlockCompletionView(RoleBasedOutputMixin, APIView):
+#     """
+#     POST /tracking/complete/
+#     Đánh dấu một block là hoàn thành (Tick xanh).
+#     Logic kiểm tra điều kiện (Video > 90%, Time scroll) sẽ nằm ở Service Layer.
+#     """
+#     permission_classes = [IsAuthenticated]
+
+#     # Dùng lại Output DTO của bạn để trả về trạng thái mới nhất
+#     output_dto_public = BlockProgressPublicOutput
+#     output_dto_admin = BlockProgressAdminOutput
+
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.interaction_service = tracking_service  # Inject Service
+
+#     def post(self, request, *args, **kwargs):
+#         serializer = BlockCompletionInputSerializer(data=request.data)
+#         try:
+#             serializer.is_valid(raise_exception=True)
+
+#         except Exception as e:
+#             return Response({"detail": f"Dữ liệu không hợp lệ: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             input_dto = BlockCompletionInput(**serializer.validated_data)
+
+#             # Gọi Service để xử lý logic nghiệp vụ phức tạp
+#             # Service sẽ trả về instance UserBlockProgress đã update
+#             updated_progress = self.interaction_service.mark_block_as_complete(
+#                 user=request.user,
+#                 data=input_dto.model_dump()
+#             )
+
+#             return Response(
+#                 {"detail": "Đã đánh dấu hoàn thành.", "instance": updated_progress},
+#                 status=status.HTTP_200_OK
+#             )
+
+#         except ValueError as e:
+#             # Lỗi nghiệp vụ (ví dụ: chưa đủ điều kiện hoàn thành)
+#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+#         except Exception as e:
+#             logger.error(f"Lỗi trong BlockCompletionView: {e}", exc_info=True)
+#             return Response({"detail": "Lỗi máy chủ."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+# class CourseResumeView(RoleBasedOutputMixin, APIView):
+#     """
+#     GET /tracking/resume/<course_id>/
+#     Trả về ResumePositionDomain để Frontend redirect user.
+#     """
+#     permission_classes = [IsAuthenticated]
+    
+#     # Bạn cần định nghĩa Output Serializer cho Domain này
+#     output_dto_public = CourseResumePublicOutput
+#     output_dto_admin = CourseResumeAdminOutput
+
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.interaction_service = tracking_service
+
+#     def get(self, request, course_id, *args, **kwargs):
+#         try:
+#             # Gọi Service -> Nhận Domain Object
+#             resume_domain = self.interaction_service.get_course_resume_position(
+#                 user=request.user,
+#                 course_id=course_id
+#             )
+
+#             if not resume_domain:
+#                 return Response(
+#                     {"detail": "Khóa học chưa có nội dung."}, 
+#                     status=status.HTTP_404_NOT_FOUND
+#                 )
+            
+#             return Response({"instance": resume_domain}, status=status.HTTP_200_OK)
+
+#         except ValueError as e:
+#             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+#         except Exception as e:
+#             logger.error(f"Lỗi Resume Course {course_id}: {e}", exc_info=True)
+#             return Response({"detail": "Lỗi server."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

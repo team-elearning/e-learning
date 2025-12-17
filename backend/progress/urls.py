@@ -1,6 +1,6 @@
 from django.urls import path
 
-from progress.api.views.heart_beat_view import BlockInteractionHeartbeatView, BlockCompletionView, CourseResumeView
+from progress.api.views.heart_beat_view import BlockInteractionHeartbeatView, CourseResumeView, EnrollmentResetView, CourseProgressView
 from progress.api.views.quiz_attempt_view import QuizAttemptInitView, QuizAttemptFinishView
 from progress.api.views.question_attempt_view import AttemptQuestionDetailView, AttemptQuestionSaveDraftView, AttemptQuestionSubmitView
 
@@ -9,9 +9,12 @@ from progress.api.views.question_attempt_view import AttemptQuestionDetailView, 
 urlpatterns = [
     # Tracking
     path('tracking/heartbeat/blocks/<uuid:block_id>/', BlockInteractionHeartbeatView.as_view(), name='block-heartbeat'),
-    path('tracking/complete/', BlockCompletionView.as_view(), name='tracking-completion'),
+    path('courses/<uuid:course_id>/resume/', CourseResumeView.as_view(), name='course-resume'),
+    path('enrollments/<uuid:enrollment_id>/reset/', EnrollmentResetView.as_view(), name='enrollment-reset'),
+    path('courses/<course_id>/progress/', CourseProgressView.as_view(), name='course-progress'),
+    # path('tracking/complete/', BlockCompletionView.as_view(), name='tracking-completion'),
 
-    path('tracking/resume/<uuid:course_id>/', CourseResumeView.as_view(), name='tracking-resume'),
+    # path('tracking/resume/<uuid:course_id>/', CourseResumeView.as_view(), name='tracking-resume'),
     
     # Attempt 
     # Quiz

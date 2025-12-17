@@ -15,6 +15,8 @@ class CourseFetchStrategy(str, Enum):
     # 1. Màn hình danh sách (User/Guest) - Nhẹ nhất
     CATALOG_LIST = auto()
     
+    MY_ENROLLED = auto()
+    
     # 2. Cấu trúc khóa học (User/Guest) - Xem trước nội dung
     STRUCTURE = auto()
 
