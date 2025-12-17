@@ -94,25 +94,6 @@ def get_quiz_details(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
     return QuizDomain.from_model(quiz)
 
 
-# def get_quiz_content(quiz_id: uuid.UUID, user: UserModel) -> QuizDomain:
-#     """
-#     Lấy nội dung Quiz + Questions (Read-only).
-#     Không xử lý trạng thái làm bài.
-#     """
-#     try:
-#         # 1. Fetch Quiz & Prefetch Questions để tối ưu query
-#         # Order by position để câu hỏi luôn ra đúng thứ tự soạn thảo
-#         quiz = Quiz.objects.prefetch_related(
-#             Prefetch('questions', queryset=Question.objects.order_by('position'))
-#         ).get(id=quiz_id)
-
-#     except Quiz.DoesNotExist:
-#         raise DomainError("Bài học không tồn tại.")
-
-#     # 3. Convert to Domain
-#     return QuizDomain.from_model(quiz)
-
-
 def list_all_quizzes() -> List[QuizDomain]:
     """
     Lấy list TOÀN BỘ quiz (dành cho Admin).

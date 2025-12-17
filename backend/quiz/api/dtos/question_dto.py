@@ -38,6 +38,10 @@ class QuestionPublicOutput(BaseModel):
     prompt: Dict[str, Any] # Học viên chỉ cần đề bài và các options (A,B,C,D)
     position: int
     # score: float -> Có thể hiện hoặc ẩn tùy logic
+    
+    # Bạn không cần 'from_model' ở đây, 
+    # Pydantic sẽ tự động map các trường từ model Question
+
 
 
 class QuestionInstructorOutput(QuestionPublicOutput):
@@ -57,8 +61,6 @@ class QuestionAdminOutput(QuestionPublicOutput):
     Hiện đầy đủ đáp án và gợi ý.
     """
     model_config = ConfigDict(from_attributes=True)
-    
-    owner_id: Optional[uuid.UUID]
-    owner_name: Optional[str]
+
     answer_payload: Dict[str, Any] # Giáo viên cần xem đáp án cấu hình
     hint: Dict[str, Any]

@@ -24,41 +24,6 @@ class QuestionDomain:
     answer_payload: Dict[str, Any]
     hint: Dict[str, Any]
 
-    # @staticmethod
-    # def _recursive_sign_urls(data: Any) -> Any:
-    #     """
-    #     Duyệt JSON output (từ DB):
-    #     - Tìm các dict có 'storage_type': 's3_private'.
-    #     - Generate Presigned URL và inject vào field 'url'.
-    #     """
-    #     if isinstance(data, dict):
-    #         # Check nếu dict này là một File Object (do mình quy ước cấu trúc khi lưu)
-    #         if data.get('storage_type') == 's3_private' and 'file_path' in data:
-    #             # Tạo bản sao để không mutate dữ liệu gốc nếu cần dùng lại
-    #             new_file_data = data.copy()
-                
-    #             # Generate URL Cloud
-    #             # generate_presigned_url là hàm gọi boto3 generate_presigned_url
-    #             path = f"private/{data['file_path']}"
-                
-    #             # UPDATE: Xử lý lỗi nếu gen URL thất bại để không crash API
-    #             try:
-    #                 signed_url = generate_cloudfront_signed_url(path, expiration=3600)
-    #                 new_file_data['url'] = signed_url
-    #             except Exception:
-    #                 new_file_data['url'] = None # Hoặc fallback URL
-                
-    #             new_file_data['url'] = signed_url
-    #             return new_file_data
-
-    #         # Nếu không phải file object, duyệt tiếp các key con
-    #         return {k: QuestionDomain._recursive_sign_urls(v) for k, v in data.items()}
-
-    #     elif isinstance(data, list):
-    #         return [QuestionDomain._recursive_sign_urls(item) for item in data]
-
-    #     return data
-
     @staticmethod
     def _recursive_inject_cdn_url(data: Any) -> Any:
         """

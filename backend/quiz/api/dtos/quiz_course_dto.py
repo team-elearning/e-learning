@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pydantic import ConfigDict, field_serializer
 
 from content.api.dtos.question_dto import QuestionCreateInput, QuestionUpdateInput
+from quiz.api.dtos.question_dto import QuestionPublicOutput, QuestionInstructorOutput, QuestionAdminOutput
 
 
 
@@ -46,23 +47,6 @@ class QuizUpdateInput(BaseModel):
 # ------------------------
 # OUTPUT DTOs
 # ------------------------
-class QuestionPublicOutput(BaseModel):
-    """
-    DTO Output cho một Câu hỏi (Question)
-    Dùng để lồng vào QuizPublicOutput.
-    """
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    position: int
-    type: str
-    prompt: Dict[str, Any]
-    hint: Optional[Dict[str, Any]] = None
-    
-    # Bạn không cần 'from_model' ở đây, 
-    # Pydantic sẽ tự động map các trường từ model Question
-
-
 class QuizPublicOutput(BaseModel):
     """
     DTO Output chi tiết cho Quiz (dành cho Student).
@@ -73,53 +57,24 @@ class QuizPublicOutput(BaseModel):
     title: str
     # Tự động lồng DTO Question con
     questions: List[QuestionPublicOutput] = []
-    
 
-class QuestionInstructorOutput(BaseModel):
+
+class QuizInstructorOutput(BaseModel):
     """
-    DTO Output cho một Câu hỏi (Question)
-    Dùng để lồng vào QuizPublicOutput.
+    DTO Output chi tiết cho Quiz (dành cho Admin).
+    Hiện tại giống hệt Public, nhưng nên tách riêng
+    để có thể mở rộng sau này (ví dụ: thêm thông tin owner).
     """
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    position: int
-    type: str
-    prompt: Dict[str, Any]
-    answer_payload: Dict[str, Any]
-    hint: Dict[str, Any]
+    title: str
+    # Tự động lồng DTO Question con
+    questions: List[QuestionInstructorOutput] = []
+    owner_id: Optional[uuid.UUID]
+    owner_name: Optional[str]
+
     
-    # Bạn không cần 'from_model' ở đây, 
-    # Pydantic sẽ tự động map các trường từ model Question
-
-
-# class QuizPublicOutput(BaseModel):
-#     """
-#     DTO Output chi tiết cho Quiz (dành cho Instructor/Public).
-#     """
-#     model_config = ConfigDict(from_attributes=True)
-
-#     id: uuid.UUID
-#     title: str
-#     time_limit: Optional[timedelta]
-#     time_open: Optional[datetime]
-#     time_close: Optional[datetime]
-    
-#     # Tự động lồng DTO Question con
-#     questions: List[QuestionInstructorOutput] = []
-
-#     @field_serializer('time_limit')
-#     def serialize_time_limit(self, td: Optional[timedelta]) -> Optional[int]:
-#         """
-#         Chuyển đổi timedelta thành TỔNG SỐ GIÂY (dạng integer).
-#         Ví dụ: 30 phút -> 1800
-#         """
-#         if td is None:
-#             return None
-#         # Lấy tổng số giây (float) và ép kiểu về int
-#         return int(td.total_seconds())
-
-
 class QuizAdminOutput(QuizPublicOutput):
     """
     DTO Output chi tiết cho Quiz (dành cho Admin).
@@ -128,6 +83,10 @@ class QuizAdminOutput(QuizPublicOutput):
     """
     model_config = ConfigDict(from_attributes=True)
 
+    id: uuid.UUID
+    title: str
+    # Tự động lồng DTO Question con
+    questions: List[QuestionAdminOutput] = []
     owner_id: Optional[uuid.UUID]
     owner_name: Optional[str]
 

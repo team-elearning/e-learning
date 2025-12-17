@@ -10,7 +10,7 @@ from core.exceptions import DomainError
 from core.api.permissions import IsInstructor, IsQuizOwner, CanViewCourseContent, IsAttemptOwner
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from quiz.serializers import QuizUpdateMetadataSerializer
-from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizAdminOutput, QuizPublicOutput
+from quiz.api.dtos.quiz_course_dto import QuizUpdateInput, QuizAdminOutput, QuizInstructorOutput, QuizPublicOutput
 from quiz.services import quiz_course_service
 from quiz.models import Quiz
 from progress.models import QuizAttempt
@@ -183,6 +183,7 @@ class IntructorQuizCourseDetailView(RoleBasedOutputMixin, AutoPermissionCheckMix
 
     # (Giả sử) DTO cho Output
     output_dto_admin = QuizAdminOutput
+    output_dto_instructor = QuizInstructorOutput
     output_dto_public = QuizPublicOutput
 
     def __init__(self, *args, **kwargs):
