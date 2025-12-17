@@ -378,6 +378,11 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Làm bài luyện tập' },
       },
 
+      {
+        path: '/student/quiz',
+        name: 'student-quiz',
+        component: () => import('@/pages/student/courses/quiz/QuizAttemptPage.vue'),
+      },
       // Official Tests (Thi chính thức)
       {
         path: 'tests',

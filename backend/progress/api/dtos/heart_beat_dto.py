@@ -8,9 +8,9 @@ from uuid import UUID
 
 
 class BlockHeartbeatInput(BaseModel):
-    block_id: UUID
+    # block_id: Optional[UUID]
     # Dữ liệu resume (JSON tuỳ ý)
-    resume_data: Dict[str, Any] = Field(default_factory=dict)
+    interaction_data: Dict[str, Any] = Field(default_factory=dict)
     # Dữ liệu quản lý (Optional - Frontend tính toán rồi gửi lên)
     is_completed: bool = False
     time_spent_add: int = 0 # Cộng dồn thời gian học (giây)
