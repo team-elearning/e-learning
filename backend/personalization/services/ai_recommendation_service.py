@@ -29,7 +29,6 @@ def get_embedding(text):
         return []
 
 
-@classmethod
 def sync_course_embeddings(force_update=False) -> SyncResultDomain:
     """
     Quét toàn bộ khóa học, cái nào chưa có vector thì tạo.
@@ -67,7 +66,6 @@ def sync_course_embeddings(force_update=False) -> SyncResultDomain:
         )
 
 
-@classmethod
 def suggest_courses(user_interest_text, top_n=5):
     """
     Input: Text sở thích của user
