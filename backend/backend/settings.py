@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'events',
     'payments',
     'quiz',
+    'personalization',
 
     # Allauth                                                                                                            
     'allauth',                                                                                                                  

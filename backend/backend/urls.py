@@ -35,7 +35,7 @@ urlpatterns = [
     path('api/payments/', include('payments.api.urls')),
     path('api/progress/', include('progress.urls')),
     path('api/quiz/', include('quiz.urls')),
-    # path('api/', include('content.urls')),
+    path('api/personalization', include('personalization.urls')),
     path("", home),
 
     path("api/auth/", include("dj_rest_auth.urls")),
