@@ -919,16 +919,16 @@
               <span v-else />
 
               <div class="flex items-center gap-2">
-                <button
+                <!-- <button
                   v-if="quizModal.data && !quizEditMode"
                   type="button"
                   class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   @click="enterQuizEditMode"
                 >
                   Sửa bài kiểm tra
-                </button>
+                </button> -->
 
-                <button
+                <!-- <button
                   v-if="quizEditMode"
                   type="button"
                   class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -936,7 +936,7 @@
                   :disabled="quizSaving"
                 >
                   Hủy
-                </button>
+                </button> -->
 
                 <button
                   v-if="quizEditMode"
@@ -956,14 +956,14 @@
                 >
                   Đóng
                 </button>
-                <button
+                <!-- <button
                   v-if="quizModal.data && !quizEditMode"
                   type="button"
                   class="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
                   @click="deleteQuiz"
                 >
                   Xoá bài kiểm tra
-                </button>
+                </button> -->
               </div>
             </div>
           </div>

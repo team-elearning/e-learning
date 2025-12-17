@@ -11,106 +11,56 @@
       <div class="content">
         <!-- LEFT: VIDEO & CONTENT -->
         <div class="left">
-          <!-- Tabs -->
-          <div class="tabs">
-            <button
-              :class="['tab', { active: activeTab === 'video' }]"
-              @click="activeTab = 'video'"
-            >
-              📹 Video
-            </button>
-            <button
-              :class="['tab', { active: activeTab === 'materials' }]"
-              @click="activeTab = 'materials'"
-              v-if="currentContentBlocks.some((b) => b.type !== 'video')"
-            >
-              📄 Nội dung
-            </button>
+          <div v-if="!activeBlock" class="empty-state">
+            <!-- <p>👈 Chọn một nội dung để bắt đầu học</p> -->
           </div>
 
-          <!-- Tab Content -->
-          <div class="tab-content">
-            <!-- VIDEO TAB -->
-            <div v-show="activeTab === 'video'" class="video-shell">
-              <video
-                v-if="currentSrc"
-                ref="videoRef"
-                class="video"
-                :src="currentSrc"
-                controls
-                playsinline
-                @ended="markDone(currentLesson?.id)"
-              />
-              <div v-else class="video-empty">
-                <p>Chưa có video cho bài học này.</p>
-              </div>
+          <!-- VIDEO -->
+          <video
+            v-else-if="activeBlock.type === 'video'"
+            class="video"
+            controls
+            :src="blockCache.get(String(activeBlock.id))?.payload?.video_url"
+          />
 
-              <div class="video-title">
-                <h2>{{ course.title }}</h2>
-                <p class="subtitle">{{ currentLesson?.title }}</p>
-              </div>
-            </div>
-
-            <!-- MATERIALS TAB -->
-            <!-- MATERIALS TAB -->
-            <div v-show="activeTab === 'materials'" class="materials-shell">
-              <div class="materials-header">
-                <h2>{{ currentLesson?.title }}</h2>
-                <p class="subtitle">Nội dung bài học</p>
-              </div>
-
-              <div class="content-blocks">
-                <div
-                  v-for="(block, idx) in currentContentBlocks.filter((b) => b.type !== 'video')"
-                  :key="block.id || idx"
-                  class="content-block"
-                >
-                  <!-- PDF / DOCX -->
-                  <div v-if="block.type === 'pdf' || block.type === 'docx'" class="block-file">
-                    <div class="file-icon">📄</div>
-                    <div class="file-info">
-                      <p class="file-name">{{ block.title || 'Tài liệu' }}</p>
-                      <a
-                        v-if="block.payload?.file_url || block.payload?.url"
-                        :href="block.payload?.file_url || block.payload?.url"
-                        target="_blank"
-                        class="file-link"
-                      >
-                        Tải xuống
-                      </a>
-                    </div>
-                  </div>
-
-                  <!-- QUIZ -->
-                  <div v-else-if="block.type === 'quiz'" class="block-quiz">
-                    <div class="quiz-header">
-                      <h3>📝 Bài kiểm tra</h3>
-                      <p>{{ block.title || 'Kiểm tra kiến thức' }}</p>
-                    </div>
-                    <button class="btn-quiz" @click="startQuiz(block)">Bắt đầu làm bài</button>
-                  </div>
-
-                  <!-- FALLBACK -->
-                  <div v-else class="block-unknown">
-                    <p class="muted">Nội dung: {{ block.type }}</p>
-                  </div>
-                </div>
-
-                <div
-                  v-if="!currentContentBlocks || currentContentBlocks.length <= 1"
-                  class="empty-state"
-                >
-                  <p>Không có tài liệu bổ sung</p>
-                </div>
-              </div>
-            </div>
+          <!-- QUIZ -->
+          <div v-else-if="activeBlock.type === 'quiz'" class="quiz-shell">
+            <h2>{{ activeBlock.title }}</h2>
+            <button class="btn" @click="startQuiz(activeBlock)">Bắt đầu làm bài</button>
           </div>
 
-          <!-- BOTTOM NAV -->
-          <div class="bottom-nav">
-            <button class="btn bw" :disabled="!prevLesson" @click="goPrev">‹ BÀI TRƯỚC</button>
-            <div class="actions"></div>
-            <button class="btn bw" :disabled="!nextLesson" @click="goNext">BÀI TIẾP THEO ›</button>
+          <!-- FILE -->
+          <!-- <div v-else class="file-shell">
+            <h2>{{ activeBlock.title }}</h2>
+            <a
+              :href="blockCache.get(String(activeBlock.id))?.payload?.file_url"
+              target="_blank"
+              class="btn"
+            >
+              Tải tài liệu
+            </a>
+          </div> -->
+
+          <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
+            <iframe
+              :src="blockCache.get(String(activeBlock.id))?.payload?.file_url"
+              frameborder="0"
+            />
+          </div>
+          <div v-else-if="activeBlock.type === 'docx'" class="file-shell">
+            <div class="file-card">
+              <div class="file-icon">📄</div>
+
+              <h2 class="file-title">
+                {{ activeBlock.title || 'Tài liệu Word' }}
+              </h2>
+
+              <p class="file-desc">Tải về để xem trên máy tính hoặc điện thoại</p>
+
+              <button class="btn" @click="downloadFile(activeBlock)">
+                ⬇️ Tải file Word (.docx)
+              </button>
+            </div>
           </div>
         </div>
 
@@ -149,25 +99,34 @@
 
                 <transition name="acc">
                   <ul v-show="openIndex === si">
-                    <li
-                      v-for="(it, li) in sec.items"
-                      :key="it.id"
-                      :class="[
-                        'row',
-                        { active: String(it.id) === String(currentLesson?.id), done: it.done },
-                      ]"
-                      @click="goToLesson(si, li)"
-                    >
-                      <div class="leftcell">
-                        <span class="idx">{{ li + 1 }}</span>
-                        <span class="title">{{ it.title }}</span>
+                    <li v-for="(it, li) in sec.items" :key="it.id" class="lesson-wrap">
+                      <!-- LESSON -->
+                      <div class="row lesson-row">
+                        <div class="leftcell">
+                          <!-- <span class="idx">{{ li + 1 }}</span>   -->
+                          <div class="lesson-title" :data-index="li + 1">
+                            {{ it.title }}
+                          </div>
+                        </div>
                       </div>
-                      <div class="rightcell">
-                        <span class="time">{{ formatDuration(it.durationMinutes) }}</span>
-                        <span class="state">
-                          <svg v-if="it.done" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>
-                        </span>
-                      </div>
+
+                      <!-- 👉 TẦNG 3 -->
+                      <ul class="blocks">
+                        <li
+                          v-for="block in it.contentBlocks"
+                          :key="block.id"
+                          class="block-row"
+                          :class="{ active: activeBlock?.id === block.id }"
+                          @click="selectBlock(block)"
+                        >
+                          <span class="icon">
+                            <span v-if="block.type === 'video'">📹</span>
+                            <span v-else-if="block.type === 'quiz'">📝</span>
+                            <span v-else>📄</span>
+                          </span>
+                          <span class="title">{{ block.title }}</span>
+                        </li>
+                      </ul>
                     </li>
                   </ul>
                 </transition>
@@ -208,7 +167,8 @@ const courseError = ref('')
 
 const openIndex = ref<number>(0)
 const cur = ref<{ si: number; li: number }>({ si: 0, li: 0 })
-const activeTab = ref<'video' | 'materials'>('video')
+// const activeTab = ref<'video' | 'materials'>('video')
+const activeBlock = ref<any | null>(null)
 
 const doneSet = reactive(new Set<string>())
 
@@ -216,6 +176,23 @@ const doneSet = reactive(new Set<string>())
 const blockCache = reactive(new Map<string, any>())
 const blockLoading = ref(false)
 const blockError = ref('')
+const docSrc = computed(() => {
+  const url = blockCache.get(String(activeBlock.id))?.payload?.file_url
+  if (activeBlock.type === 'pdf') return url
+  return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+})
+const docxViewerOk = ref(true)
+
+function officeViewerUrl(block: any) {
+  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+    block.payload.file_url,
+  )}`
+}
+function downloadFile(block: any) {
+  const url = block?.payload?.file_url
+  if (!url) return
+  window.open(url, '_blank', 'noopener')
+}
 
 /* ======================
    API HELPERS (fallback endpoint)
@@ -284,56 +261,10 @@ const progressPct = computed(() =>
 )
 const dash = computed(() => progressPct.value)
 
-const currentLesson = computed<UiLesson | null>(() => {
-  const sec = uiSections.value[cur.value.si]
-  return sec?.items?.[cur.value.li] || null
-})
-
-const currentFlatIndex = computed<number>(() => {
-  const id = currentLesson.value?.id
-  if (id == null) return -1
-  return flat.value.findIndex((l) => String(l.id) === String(id))
-})
-
-const prevLesson = computed<UiLesson | null>(() => {
-  const idx = currentFlatIndex.value
-  return idx > 0 ? flat.value[idx - 1] : null
-})
-
-const nextLesson = computed<UiLesson | null>(() => {
-  const idx = currentFlatIndex.value
-  return idx >= 0 && idx < flat.value.length - 1 ? flat.value[idx + 1] : null
-})
-
-/* Lite blocks từ structure */
-const currentBlocksLite = computed<any[]>(() => currentLesson.value?.contentBlocks || [])
-
-/* Merge: nếu block detail đã có -> dùng payload thật */
-const currentContentBlocks = computed<any[]>(() => {
-  return currentBlocksLite.value.map((b: any) => {
-    const cached = blockCache.get(String(b.id))
-    // cached có dạng: { id, type, payload, title, ... }
-    if (!cached) return b
-    return {
-      ...b,
-      ...cached,
-      // đảm bảo payload ưu tiên detail
-      payload: cached.payload ?? b.payload ?? {},
-      title: cached.title ?? b.title,
-    }
-  })
-})
-
-/* Tab Nội dung chỉ hiện nếu có block non-video */
-const hasMaterials = computed(() => currentBlocksLite.value.some((b: any) => b.type !== 'video'))
-
-/* Current video src: luôn lấy từ block detail */
-const currentSrc = computed<string | null>(() => {
-  const videoLite = currentBlocksLite.value.find((b: any) => b.type === 'video')
-  if (!videoLite) return null
-  const cached = blockCache.get(String(videoLite.id))
-  return cached?.payload?.video_url || cached?.payload?.url || null
-})
+async function selectBlock(block: any) {
+  activeBlock.value = block
+  await getBlockDetail(block.id)
+}
 
 /* ======================
    UTILS (template cần)
@@ -372,18 +303,6 @@ function goToLesson(si: number, li: number) {
   // tab mặc định sẽ được set trong watcher currentLesson
 }
 
-function goPrev() {
-  if (!prevLesson.value) return
-  const found = findById(prevLesson.value.id)
-  if (found) goToLesson(found.si, found.li)
-}
-
-function goNext() {
-  if (!nextLesson.value) return
-  const found = findById(nextLesson.value.id)
-  if (found) goToLesson(found.si, found.li)
-}
-
 function markDone(id?: string | number | null) {
   if (!id) return
   doneSet.add(String(id))
@@ -416,49 +335,6 @@ function startQuiz(block: any) {
 /* ======================
    LAZY LOAD: blocks detail
 ====================== */
-async function ensureVideoDetailLoaded() {
-  const lesson = currentLesson.value
-  if (!lesson) return
-
-  const videoBlock = (lesson.contentBlocks || []).find((b: any) => b.type === 'video')
-  if (!videoBlock) return
-
-  const key = String(videoBlock.id)
-  if (blockCache.has(key)) return
-
-  blockLoading.value = true
-  blockError.value = ''
-  try {
-    await getBlockDetail(videoBlock.id)
-  } catch (e: any) {
-    blockError.value = e?.message || 'Không tải được video.'
-  } finally {
-    blockLoading.value = false
-  }
-}
-
-async function ensureMaterialsLoaded() {
-  const lesson = currentLesson.value
-  if (!lesson) return
-
-  const blocks = (lesson.contentBlocks || []).filter((b: any) => b.type !== 'video')
-  if (!blocks.length) return
-
-  blockLoading.value = true
-  blockError.value = ''
-  try {
-    // load tuần tự cho chắc (nhanh thì đổi Promise.all)
-    for (const b of blocks) {
-      const key = String(b.id)
-      if (blockCache.has(key)) continue
-      await getBlockDetail(b.id)
-    }
-  } catch (e: any) {
-    blockError.value = e?.message || 'Không tải được tài liệu.'
-  } finally {
-    blockLoading.value = false
-  }
-}
 
 /* ======================
    LOAD COURSE
@@ -490,7 +366,6 @@ async function loadCourse() {
     }
 
     // load video detail cho bài đầu
-    await ensureVideoDetailLoaded()
   } catch (e: any) {
     const status = e?.response?.status
     if (status === 403) {
@@ -504,41 +379,13 @@ async function loadCourse() {
   }
 }
 
-/* ======================
-   WATCHERS
-====================== */
 watch(
-  () => currentLesson.value?.id,
-  async () => {
-    if (!currentLesson.value) return
-
-    const found = findById(currentLesson.value?.id)
-    if (found) openIndex.value = found.si
-
-    // chọn tab hợp lý
-    activeTab.value = 'video'
-    if (!currentBlocksLite.value.some((b: any) => b.type === 'video') && hasMaterials.value) {
-      activeTab.value = 'materials'
-    }
-
-    // luôn load video detail khi đổi bài
-    await ensureVideoDetailLoaded()
-
-    // nếu đang ở materials -> load luôn materials
-    if (activeTab.value === 'materials') {
-      await ensureMaterialsLoaded()
-    }
+  () => activeBlock.value?.id,
+  async (id) => {
+    if (!id) return
+    await getBlockDetail(id)
   },
 )
-
-watch(
-  () => activeTab.value,
-  async (tab) => {
-    if (tab === 'materials') await ensureMaterialsLoaded()
-    if (tab === 'video') await ensureVideoDetailLoaded()
-  },
-)
-
 /* ======================
    MOUNT
 ====================== */
@@ -1071,5 +918,164 @@ onMounted(loadCourse)
   .outline {
     max-height: none;
   }
+}
+/* CỐ ĐỊNH LEFT */
+.left {
+  position: sticky;
+  top: 12px;
+  height: calc(80vh - 24px);
+  overflow: auto;
+}
+.sec {
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.sec-head {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.sec-head .name {
+  font-size: 15px;
+}
+
+.sec-head .len {
+  font-size: 12px;
+  font-weight: 700;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.lesson-wrap {
+  padding: 8px 0 4px 0;
+}
+
+.lesson-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.lesson-title::before {
+  content: attr(data-index);
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+}
+.blocks {
+  margin-left: 36px;
+  margin-top: 4px;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #334155;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.block-row:hover {
+  background: #f1f5f9;
+}
+
+.block-row.active {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 700;
+}
+
+.block-row .icon {
+  width: 18px;
+  text-align: center;
+}
+.outline {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding: 10px;
+}
+.quiz-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  color: #e5e7eb;
+}
+.doc-viewer {
+  height: 100%;
+}
+
+.file-shell {
+  height: calc(100vh - 120px);
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+
+.file-card {
+  max-width: 420px;
+  width: 100%;
+  padding: 32px;
+  border-radius: 16px;
+  background: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  color: #e5e7eb;
+}
+
+.file-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.file-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.file-desc {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+}
+.doc-viewer {
+  height: 100%;
+}
+
+.doc-viewer iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 </style>
