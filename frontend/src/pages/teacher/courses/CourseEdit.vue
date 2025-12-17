@@ -1563,6 +1563,58 @@ async function onBlockTypeChange(
   }
 }
 
+async function changeBlockType(block: ContentBlock, newType: string) {
+  if (!block.id) {
+    block.type = newType
+    block.payload = makeDefaultPayloadForType(newType)
+    block.title = getDefaultBlockTitle(newType)
+    return
+  }
+
+  try {
+    const { data } = await axios.patch(
+      `/api/content/instructor/blocks/${block.id}/`,
+      {
+        type: newType,
+        payload: makeDefaultPayloadForType(newType), // hoặc {} tuỳ BE
+      },
+      { headers: getAuthHeaders() },
+    )
+
+    // ✅ lấy theo server trả về để khỏi lệch
+    block.type = data.type
+    block.title = data.title ?? getDefaultBlockTitle(data.type)
+    block.quiz_id = data.quiz_id
+    block.payload = {
+      ...makeDefaultPayloadForType(data.type),
+      ...(data.payload || {}),
+    }
+    block._hydrated = true
+  } catch (e) {
+    console.error(e)
+    showNotification('error', 'Lỗi', 'Không đổi được loại nội dung.')
+  }
+}
+async function saveBlock(block: any) {
+  if (!block.id) return
+
+  try {
+    await axios.patch(
+      `/api/content/instructor/blocks/${block.id}/`,
+      {
+        type: block.type,
+        title: block.title, // nếu BE không nhận title thì bỏ dòng này
+        payload: cleanBlockPayload(block.payload),
+        position: block.position,
+      },
+      { headers: getAuthHeaders() },
+    )
+  } catch (e) {
+    console.error('❌ saveBlock failed:', e)
+    showNotification('error', 'Lỗi', 'Không lưu được nội dung block')
+  }
+}
+
 async function removeModule(mIndex: number) {
   const mod = f.modules[mIndex]
   if (!mod?.id) {
@@ -1658,17 +1710,39 @@ async function removeLesson(mIndex: number, lIndex: number) {
     showNotification('error', 'Lỗi', 'Không xoá được bài học.')
   }
 }
+function getDefaultBlockTitle(type: string) {
+  switch (type) {
+    case 'video':
+      return 'Video bài giảng'
+    case 'pdf':
+      return 'Tài liệu PDF'
+    case 'docx':
+      return 'Tài liệu Word'
+    case 'file':
+      return 'Tệp đính kèm'
+    case 'audio':
+      return 'Âm thanh'
+    case 'quiz':
+      return 'Bài kiểm tra'
+    case 'rich_text':
+    default:
+      return 'Nội dung'
+  }
+}
 
 // ================== CONTENT BLOCKS ==================
 async function addContentBlock(mIndex: number, lIndex: number) {
   const lesson = f.modules[mIndex].lessons[lIndex]
   const type = lesson.newBlockType || 'rich_text'
 
-  const body: any = { type }
+  const body: any = {
+    type,
+    title: getDefaultBlockTitle(type),
+  }
 
+  // quiz là case đặc biệt
   if (type === 'quiz') {
-    body.title = 'Bài kiểm tra mới' // 👈 BẮT BUỘC
-    body.payload = {} // 👈 payload để trống OK
+    body.payload = {}
   }
 
   const { data } = await axios.post(`/api/content/instructor/lessons/${lesson.id}/blocks/`, body, {
@@ -1679,7 +1753,7 @@ async function addContentBlock(mIndex: number, lIndex: number) {
     id: data.id,
     type: data.type,
     title: data.title,
-    quiz_id: data.quiz_id, // 👈 CỰC KỲ QUAN TRỌNG
+    quiz_id: data.quiz_id,
     position: data.position,
     payload: data.payload || {},
     _hydrated: true,
@@ -1808,11 +1882,13 @@ async function handleFileUpload(
     }
 
     if (kind === 'video') {
+      block.payload.video_file = file
       block.payload.video_id = result.id
       block.payload.video_url = result.url
     }
 
     if (kind === 'file') {
+      block.payload.file = file // 👈 để UI hiện tên
       block.payload.file_id = result.id
       block.payload.file_url = result.url
     }
