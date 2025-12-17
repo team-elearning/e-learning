@@ -88,7 +88,6 @@ class Question(models.Model):
     # Cấu trúc: { "correct_ids": ["A"], "explanation": "..." }
     answer_payload = models.JSONField(default=dict, blank=True, help_text="Cấu hình đáp án, tùy thuộc vào 'type'")
     hint = models.JSONField(default=dict, blank=True, help_text="Gợi ý hoặc giải thích đáp án")
-    files = GenericRelation('media.UploadedFile')
 
     class Meta:
         verbose_name = "Câu hỏi"
