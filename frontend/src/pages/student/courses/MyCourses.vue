@@ -450,16 +450,17 @@ const PLACEHOLDER =
   )
 
 /* ====== LOAD COURSES FROM SERVICE ====== */
-type Item = CourseSummary & {
-  progress: number
-  done: boolean
-  scoreEarned: number
-  scoreTotal: number
-  tag?: string
-  isPurchased?: boolean
+export interface CourseSummary {
+  id: ID
+  title: string
+  thumbnail?: string | null
+  grade: number
+  subject?: string
+  subjectName?: string
+  my_progress?: MyProgress
 }
 
-const all = ref<Item[]>([])
+const all = ref<CourseSummary[]>([])
 const detailsMap = ref(new Map<string, CourseDetail>())
 const animatedProgressMap = reactive<Record<string, number>>({})
 const progressFrameMap = new Map<string, number>()
@@ -469,6 +470,14 @@ const trophyTarget = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyAnimated = reactive<Record<string, number>>({ base: 0, mid: 0 })
 const trophyFrameMap = new Map<string, number>()
 const suppCourses = ref<CourseSummary[]>([])
+
+export interface MyProgress {
+  enrollment_id: string
+  percent_completed: number
+  is_completed: boolean
+  status_label: 'not_started' | 'in_progress' | 'completed'
+  last_accessed_at?: string
+}
 
 function markThumbLoaded(id: ID) {
   thumbLoaded.value = { ...thumbLoaded.value, [String(id)]: true }
@@ -605,33 +614,20 @@ function calcProgressFromDetail(d: CourseDetail, id: number | string) {
 }
 
 async function hydrateCourses(items: CourseSummary[]) {
-  const missingDetails =
-    PREFETCH_DETAIL_LIMIT > 0
-      ? items.filter((i) => !detailsMap.value.has(String(i.id))).slice(0, PREFETCH_DETAIL_LIMIT)
-      : []
-
-  if (missingDetails.length) {
-    const details = await Promise.all(missingDetails.map((i) => courseService.detail(i.id)))
-    details.forEach((d) => detailsMap.value.set(String(d.id), d))
-  }
-
   all.value = (items || []).map((i) => {
-    const d = detailsMap.value.get(String(i.id))
-    const progress = d ? calcProgressFromDetail(d, i.id) : Math.max(0, Math.min(100, Number((i as any).progress ?? 0)))
-    const scoreInfo = calcScore(progress)
+    const pct = i.my_progress?.percent_completed ?? 0
 
-    const isPurchased = i.grade <= 2
+    const scoreInfo = calcScore(pct)
 
     return {
       ...i,
-      progress,
-      done: progress >= 100,
+      progress: Math.round(pct), // ✅ SOURCE OF TRUTH
+      done: Boolean(i.my_progress?.is_completed),
       scoreEarned: scoreInfo.earned,
       scoreTotal: scoreInfo.total,
-      tag: i.subject?.toUpperCase?.(),
-      isPurchased,
     }
   })
+
   await Promise.all(all.value.map((i) => ensureThumb(i.id, i.thumbnail)))
 }
 

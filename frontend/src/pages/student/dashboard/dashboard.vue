@@ -72,28 +72,6 @@
         </div>
         <div v-else class="muted">Chưa có khóa học nào.</div>
       </section>
-
-      <!-- Practice Exams -->
-      <section class="card">
-        <div class="section-head">
-          <h2>Practice Exams</h2>
-          <button class="ghost" aria-label="view more" @click="openExamsList">›</button>
-        </div>
-
-        <ul class="exams" v-if="previewExams.length">
-          <li class="exam-row" v-for="e in previewExams" :key="String(e.id)">
-            <label class="checkbox"><input type="checkbox" disabled /><span></span></label>
-            <div class="exam-main">
-              <div class="exam-title">{{ e.title }}</div>
-              <div class="muted small">
-                Khối {{ e.grade }} · {{ toMin(e.duration) }} phút · Đạt ≥ {{ e.pass }} câu
-              </div>
-            </div>
-            <button class="btn-outline" @click="openExamDetail(e.id)">Làm bài</button>
-          </li>
-        </ul>
-        <div v-else class="muted small" style="padding: 6px 2px">Hiện chưa có đề phù hợp.</div>
-      </section>
     </div>
   </div>
 </template>
@@ -101,8 +79,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { courseService, type CourseSummary, type ID, resolveMediaUrl } from '@/services/course.service'
-import { useExamStore } from '@/store/exam.store'
+import {
+  courseService,
+  type CourseSummary,
+  type ID,
+  resolveMediaUrl,
+} from '@/services/course.service'
 // ✅ CÁCH IMPORT ĐÚNG
 import * as echarts from 'echarts/core'
 
@@ -157,22 +139,6 @@ async function fetchCourses() {
   } catch (e: any) {
     errMsg.value = `courseService.list lỗi: ${e?.message || String(e)}`
   }
-}
-
-// ===== Exams =====
-const examStore = useExamStore()
-const previewExams = computed(() => {
-  const list: any[] = (examStore.exams as any[]) || []
-  if (!list.length) return []
-  const grade = resumeCourse.value?.grade
-  const prioritized = grade
-    ? [...list.filter((e) => e.grade === grade), ...list.filter((e) => e.grade !== grade)]
-    : list.slice()
-  return prioritized.slice(0, 2)
-})
-
-function toMin(s: number) {
-  return Math.round((Number(s) || 0) / 60)
 }
 
 // ===== Navigation helpers with fallback =====
@@ -246,11 +212,6 @@ function thumbSource(id: ID, fallback?: string | null) {
 
 onMounted(async () => {
   await fetchCourses()
-  try {
-    await examStore.fetchExams()
-  } catch (e: any) {
-    errMsg.value = `examStore.fetchExams lỗi: ${e?.message || String(e)}`
-  }
 })
 </script>
 

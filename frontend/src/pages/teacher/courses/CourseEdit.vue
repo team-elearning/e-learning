@@ -773,7 +773,7 @@
       >
         <div
           v-if="notification.open"
-          class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4"
+          class="fixed inset-0 z-[100] grid place-items-center bg-slate-900/50 p-4"
           role="dialog"
           aria-modal="true"
           @click.self="notification.open = false"
@@ -814,154 +814,218 @@
           </div>
         </div>
       </transition>
-      <transition>
+      <transition
+        enter-active-class="transition-opacity duration-200"
+        leave-active-class="transition-opacity duration-150"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
         <div
           v-if="quizEditor.open"
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           @click.self="quizEditor.open = false"
         >
-          <div class="w-full max-w-3xl bg-white p-5 max-h-[90vh] overflow-y-auto">
-            <!-- Header -->
-            <div class="mb-4 flex items-center justify-between">
-              <h2 class="text-lg font-semibold">✏️ Chỉnh sửa bài kiểm tra</h2>
-              <button @click="quizEditor.open = false">✕</button>
+          <!-- MODAL -->
+          <div
+            class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
+          >
+            <!-- ================= HEADER ================= -->
+            <div
+              class="sticky top-0 z-20 flex items-center justify-between border-b bg-white px-6 py-4"
+            >
+              <div>
+                <h2 class="text-lg font-bold text-slate-800">✏️ Chỉnh sửa bài kiểm tra</h2>
+                <p class="text-xs text-slate-500">Quản lý câu hỏi & đáp án</p>
+              </div>
+              <span v-if="hasDirtyQuestions" class="text-xs text-amber-600">
+                ● Có thay đổi chưa lưu
+              </span>
+
+              <button
+                class="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100"
+                @click="quizEditor.open = false"
+              >
+                ✕
+              </button>
             </div>
 
-            <!-- Loading -->
-            <p v-if="quizEditor.loading" class="text-sm text-slate-500">Đang tải câu hỏi…</p>
+            <!-- ================= BODY (SCROLL) ================= -->
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              <!-- Loading -->
+              <p v-if="quizEditor.loading" class="text-sm text-slate-500">Đang tải câu hỏi…</p>
 
-            <!-- Error -->
-            <p v-else-if="quizEditor.error" class="text-sm text-rose-600">
-              {{ quizEditor.error }}
-            </p>
+              <!-- Error -->
+              <p v-else-if="quizEditor.error" class="text-sm text-rose-600">
+                {{ quizEditor.error }}
+              </p>
 
-            <!-- Questions -->
-            <div v-else class="space-y-4">
-              <div
-                v-for="(q, index) in quizEditor.questions"
-                :key="q.id"
-                class="rounded-lg border p-4"
-              >
-                <!-- Question header -->
-                <div class="mb-2 flex items-center justify-between">
-                  <p class="text-sm font-medium">
-                    Câu {{ index + 1 }}
-                    <span class="ml-2 text-xs text-slate-500">({{ q.type }})</span>
-                  </p>
-                  <button class="text-xs text-rose-600" @click="deleteQuestion(q.id, index)">
-                    Xoá
-                  </button>
-                </div>
-
-                <!-- Question text -->
-                <textarea
-                  v-model="q.prompt.text"
-                  class="input-field"
-                  rows="2"
-                  placeholder="Nội dung câu hỏi"
-                  @blur="saveQuestion(q)"
-                />
-
-                <!-- ===== MULTIPLE CHOICE SINGLE ===== -->
-                <div v-if="q.type === 'multiple_choice_single'" class="mt-3 space-y-2">
+              <!-- ================= QUESTIONS ================= -->
+              <div v-else class="space-y-6">
+                <div
+                  v-for="(q, index) in quizEditor.questions"
+                  :key="q.id"
+                  class="rounded-xl border-2 border-slate-300 bg-white"
+                >
+                  <!-- ===== QUESTION HEADER ===== -->
                   <div
-                    v-for="(choice, i) in q.answer_payload.choices"
-                    :key="i"
-                    class="flex items-center gap-2"
+                    class="flex items-center justify-between border-b bg-slate-800 px-4 py-3 text-white"
                   >
-                    <input
-                      type="radio"
-                      :name="`correct-${q.id}`"
-                      :checked="choice.is_correct"
-                      @change="setCorrectChoice(q, i)"
-                    />
-                    <input
-                      v-model="choice.text"
-                      class="input-field flex-1"
-                      placeholder="Nhập đáp án"
-                      @blur="saveQuestion(q)"
-                    />
-                    <button class="text-xs text-rose-600" @click="removeChoice(q, i)">✕</button>
-                  </div>
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800"
+                      >
+                        {{ index + 1 }}
+                      </span>
 
-                  <button class="btn-secondary text-xs" @click="addChoice(q)">+ Thêm đáp án</button>
-                </div>
+                      <span
+                        class="rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-semibold uppercase"
+                      >
+                        {{ q.type }}
+                      </span>
+                    </div>
 
-                <!-- ===== MULTIPLE CHOICE MULTI ===== -->
-                <div v-else-if="q.type === 'multiple_choice_multi'" class="mt-3 space-y-2">
-                  <div
-                    v-for="(choice, i) in q.answer_payload.choices"
-                    :key="i"
-                    class="flex items-center gap-2"
-                  >
-                    <input type="checkbox" v-model="choice.is_correct" @change="saveQuestion(q)" />
-                    <input
-                      v-model="choice.text"
-                      class="input-field flex-1"
-                      placeholder="Nhập đáp án"
-                      @blur="saveQuestion(q)"
-                    />
-                    <button class="text-xs text-rose-600" @click="removeChoice(q, i)">✕</button>
-                  </div>
-
-                  <button class="btn-secondary text-xs" @click="addChoice(q)">+ Thêm đáp án</button>
-                </div>
-
-                <!-- ===== TRUE / FALSE ===== -->
-                <div v-else-if="q.type === 'true_false'" class="mt-3 flex gap-6">
-                  <input
-                    type="radio"
-                    :checked="q.answer_payload.answer === true"
-                    @change="setTrueFalse(q, true)"
-                  />
-
-                  <input
-                    type="radio"
-                    :checked="q.answer_payload.answer === false"
-                    @change="setTrueFalse(q, false)"
-                  />
-                </div>
-
-                <!-- ===== SHORT ANSWER ===== -->
-                <div v-else-if="q.type === 'short_answer'" class="mt-3 space-y-2">
-                  <div
-                    v-for="(ans, i) in q.answer_payload.valid_answers"
-                    :key="i"
-                    class="flex items-center gap-2"
-                  >
-                    <input
-                      v-model="ans.answer"
-                      class="input-field flex-1"
-                      placeholder="Đáp án hợp lệ"
-                      @blur="saveQuestion(q)"
-                    />
-                    <label class="flex items-center gap-1 text-xs">
-                      <input type="checkbox" v-model="ans.case_sensitive" />
-                      Phân biệt hoa/thường
-                    </label>
-                    <button class="text-xs text-rose-600" @click="removeShortAnswer(q, i)">
-                      ✕
+                    <button
+                      class="text-xs font-semibold text-rose-300 hover:text-rose-200"
+                      @click="deleteQuestion(q.id, index)"
+                    >
+                      Xoá
                     </button>
                   </div>
 
-                  <button class="btn-secondary text-xs" @click="addShortAnswer(q)">
-                    + Thêm đáp án
-                  </button>
+                  <!-- ===== QUESTION CONTENT ===== -->
+                  <div class="bg-slate-50 px-4 py-4">
+                    <p class="mb-2 text-xs font-semibold uppercase text-slate-500">
+                      Nội dung câu hỏi
+                    </p>
+
+                    <textarea
+                      v-model="q.prompt.text"
+                      rows="3"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                      placeholder="Nhập nội dung câu hỏi..."
+                      @input="onQuestionInput(q)"
+                    />
+                  </div>
+
+                  <!-- ===== ANSWERS ===== -->
+                  <div class="border-t px-4 py-4 space-y-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Đáp án
+                    </p>
+
+                    <!-- TRẮC NGHIỆM 1 ĐÁP ÁN -->
+                    <div v-if="q.type === 'multiple_choice_single'" class="space-y-2">
+                      <div
+                        v-for="(choice, i) in q.answer_payload.choices"
+                        :key="i"
+                        class="flex items-center gap-3 rounded-lg border bg-white px-3 py-2"
+                      >
+                        <input
+                          type="radio"
+                          :checked="choice.is_correct"
+                          @change="setCorrectChoice(q, i)"
+                        />
+
+                        <input
+                          v-model="choice.text"
+                          class="flex-1 border-none bg-transparent text-sm outline-none"
+                          placeholder="Nhập đáp án"
+                          @input="onChoiceInput(q)"
+                        />
+
+                        <button class="text-xs text-rose-500" @click="removeChoice(q, i)">✕</button>
+                      </div>
+
+                      <button
+                        class="text-xs font-semibold text-sky-600 hover:underline"
+                        @click="addChoice(q)"
+                      >
+                        + Thêm đáp án
+                      </button>
+                    </div>
+
+                    <!-- TRUE / FALSE -->
+                    <div v-else-if="q.type === 'true_false'" class="flex gap-6">
+                      <label class="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          :checked="q.answer_payload.answer === true"
+                          @change="setTrueFalse(q, true)"
+                        />
+                        Đúng
+                      </label>
+
+                      <label class="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          :checked="q.answer_payload.answer === false"
+                          @change="setTrueFalse(q, false)"
+                        />
+                        Sai
+                      </label>
+                    </div>
+
+                    <!-- SHORT ANSWER -->
+                    <div v-else-if="q.type === 'short_answer'" class="space-y-2">
+                      <div
+                        v-for="(ans, i) in q.answer_payload.valid_answers"
+                        :key="i"
+                        class="flex items-center gap-3 rounded-lg border bg-white px-3 py-2"
+                      >
+                        <input
+                          v-model="ans.answer"
+                          class="flex-1 border-none bg-transparent text-sm outline-none"
+                          placeholder="Đáp án hợp lệ"
+                          @blur="saveQuestion(q)"
+                        />
+
+                        <label class="flex items-center gap-1 text-xs">
+                          <input type="checkbox" v-model="ans.case_sensitive" />
+                          Hoa/thường
+                        </label>
+
+                        <button class="text-xs text-rose-500" @click="removeShortAnswer(q, i)">
+                          ✕
+                        </button>
+                      </div>
+
+                      <button
+                        class="text-xs font-semibold text-sky-600 hover:underline"
+                        @click="addShortAnswer(q)"
+                      >
+                        + Thêm đáp án
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <!-- Add question -->
-
-              <div class="flex items-center gap-3 mt-4">
-                <select v-model="newQuestionType" class="input-field w-64 text-sm">
+            <!-- ================= FOOTER (FIX CỨNG) ================= -->
+            <div class="sticky bottom-0 z-20 border-t bg-white px-6 py-4">
+              <div class="flex items-center justify-between">
+                <select
+                  v-model="newQuestionType"
+                  class="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
                   <option value="multiple_choice_single">Trắc nghiệm – 1 đáp án đúng</option>
                   <option value="multiple_choice_multi">Trắc nghiệm – nhiều đáp án đúng</option>
                   <option value="true_false">Đúng / Sai</option>
                   <option value="short_answer">Tự luận ngắn</option>
                 </select>
 
-                <button type="button" class="btn-secondary text-sm" @click="addQuestionToQuiz">
+                <button
+                  type="button"
+                  class="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                  @click="addQuestionToQuiz"
+                >
                   + Thêm câu hỏi
+                </button>
+                <button
+                  class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  @click="saveAllQuestions"
+                >
+                  💾 Lưu tất cả
                 </button>
               </div>
             </div>
@@ -973,7 +1037,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -1094,6 +1158,7 @@ const newQuestionType = ref<
 // lưu blob url để revoke
 const blobUrls = new Set<string>()
 const newBlockType = ref('rich_text')
+const hasDirtyQuestions = computed(() => quizEditor.questions.some((q) => q._dirty))
 
 // refs cho input file của content_blocks
 const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({})
@@ -1120,22 +1185,39 @@ const quizEditor = reactive({
   questions: [] as any[],
   error: '',
 })
+
+import debounce from 'lodash/debounce'
+
+const autoSaveDirtyQuestions = debounce(async () => {
+  const dirty = quizEditor.questions.filter((q) => q._dirty)
+
+  for (const q of dirty) {
+    await saveQuestion(q)
+    q._dirty = false
+  }
+}, 3000)
+function onChoiceInput(q: any) {
+  q._dirty = true
+  autoSaveDirtyQuestions()
+}
+
 async function openQuizEditor(block: any) {
-  // nếu chưa hydrate → hydrate trước
   if (!block._hydrated) {
     await hydrateBlock(block)
   }
 
   const quizId = block.quiz_id || block.payload?.quiz_id
+  if (!quizId) return
 
-  if (!quizId) {
-    showNotification('error', 'Lỗi', 'Quiz chưa được khởi tạo')
-    return
+  // ❗ CHỈ LOAD KHI CHƯA CÓ DATA
+  if (quizEditor.quizId !== quizId || !quizEditor.questions.length) {
+    quizEditor.loading = true
+    quizEditor.quizId = quizId
+    await loadQuizQuestions(quizId)
+    quizEditor.loading = false
   }
 
   quizEditor.open = true
-  quizEditor.quizId = quizId
-  loadQuizQuestions(quizId)
 }
 
 async function loadQuizQuestions(quizId: string) {
@@ -1146,11 +1228,14 @@ async function loadQuizQuestions(quizId: string) {
     const { data } = await axios.get(`/api/quiz/instructor/quizzes/${quizId}/questions/`, {
       headers: getAuthHeaders(),
     })
-    quizEditor.questions = data
+
+    quizEditor.questions = data.map((q: any) => ({
+      ...q,
+      prompt: q.prompt ?? { text: '' },
+      _dirty: false,
+    }))
   } catch (e: any) {
     quizEditor.error = 'Không tải được danh sách câu hỏi'
-  } finally {
-    quizEditor.loading = false
   }
 }
 // async function addQuestionToQuiz(type = 'multiple_choice') {
@@ -1177,8 +1262,34 @@ async function addQuestionToQuiz() {
   quizEditor.questions.push(data)
 }
 
+function setCorrectChoice(q: any, i: number) {
+  q.answer_payload.choices.forEach((c, idx) => {
+    c.is_correct = idx === i
+  })
+  q._dirty = true
+}
+async function saveAllQuestions() {
+  console.log('SAVE CLICKED')
+
+  const dirty = quizEditor.questions.filter((q) => q._dirty)
+
+  console.log('DIRTY QUESTIONS:', dirty.length)
+
+  if (!dirty.length) {
+    showNotification('success', 'Đã lưu', 'Không có thay đổi nào')
+    return
+  }
+
+  for (const q of dirty) {
+    await saveQuestion(q)
+    q._dirty = false
+  }
+
+  showNotification('success', 'Thành công', 'Đã lưu tất cả thay đổi')
+}
+
 async function saveQuestion(question: any) {
-  await axios.patch(
+  const { data } = await axios.patch(
     `/api/quiz/instructor/questions/${question.id}/`,
     {
       type: question.type,
@@ -1188,7 +1299,14 @@ async function saveQuestion(question: any) {
     },
     { headers: getAuthHeaders() },
   )
+
+  // 🔥 CHÌA KHOÁ: sync lại object đang render
+  Object.assign(question, {
+    ...data,
+    _dirty: false,
+  })
 }
+
 async function deleteQuestion(questionId: string, index: number) {
   if (!confirm('Xoá câu hỏi này?')) return
 
@@ -1215,7 +1333,8 @@ async function fetchBlobUrl(path: string): Promise<string | null> {
 }
 function setTrueFalse(q: any, value: boolean) {
   q.answer_payload.answer = value
-  saveQuestion(q)
+  q._dirty = true
+  autoSaveDirtyQuestions()
 }
 
 // upload ảnh/file/video chung
@@ -1688,6 +1807,12 @@ async function addLesson(mIndex: number) {
 //   )
 // }
 
+function onQuestionInput(q: any) {
+  if (q._saving) return
+  q._dirty = true
+  autoSaveDirtyQuestions()
+}
+
 async function removeLesson(mIndex: number, lIndex: number) {
   const lesson = f.modules[mIndex].lessons[lIndex]
   if (!lesson?.id) {
@@ -1936,12 +2061,6 @@ function renumberChoices(question: any) {
   if (!question.answer_payload?.choices) return
   question.answer_payload.choices.forEach((c: any, idx: number) => {
     c.id = String.fromCharCode(65 + idx)
-  })
-}
-
-function setCorrectChoice(question: any, choiceIndex: number) {
-  question.answer_payload.choices.forEach((c: any, idx: number) => {
-    c.is_correct = idx === choiceIndex
   })
 }
 

@@ -223,24 +223,24 @@ async function getBlockDetail(blockId: string) {
 
 async function startOrResumeAttempt(quiz_id: string, course_id?: string) {
   const qs = course_id ? `?course_id=${encodeURIComponent(course_id)}` : ''
-  const { data } = await api.get(`/progress/quizzes/${quiz_id}/attempt/${qs}`)
+  const { data } = await api.get(`/progress/quizzes/${quiz_id}/attempt/`)
   return data
 }
 
 async function getQuestion(attempt_id: string, question_id: string) {
   const cacheKey = `${attempt_id}:${question_id}`
   if (qCache.has(cacheKey)) return qCache.get(cacheKey)
-  const { data } = await api.get(`/attempts/${attempt_id}/questions/${question_id}/`)
+  const { data } = await api.get(`/progress/attempts/${attempt_id}/questions/${question_id}/`)
   qCache.set(cacheKey, data)
   return data
 }
 
 async function draftAnswer(attempt_id: string, question_id: string, answer_data: any) {
-  await api.put(`/attempts/${attempt_id}/questions/${question_id}/draft/`, { answer_data })
+  await api.put(`/progress/attempts/${attempt_id}/questions/${question_id}/draft/`, { answer_data })
 }
 
 async function finishAttempt(attempt_id: string) {
-  const { data } = await api.post(`/attempts/${attempt_id}/finish/`, {})
+  const { data } = await api.post(`/progress/attempts/${attempt_id}/finish/`, {})
   return data
 }
 
