@@ -8,7 +8,7 @@ from progress.api.views.question_attempt_view import AttemptQuestionDetailView, 
 
 urlpatterns = [
     # Tracking
-    path('tracking/heartbeat/', BlockInteractionHeartbeatView.as_view(), name='tracking-heartbeat'),
+    path('tracking/heartbeat/blocks/<uuid:block_id>/', BlockInteractionHeartbeatView.as_view(), name='block-heartbeat'),
     path('tracking/complete/', BlockCompletionView.as_view(), name='tracking-completion'),
 
     path('tracking/resume/<uuid:course_id>/', CourseResumeView.as_view(), name='tracking-resume'),

@@ -1,9 +1,10 @@
 import uuid
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from django.db import transaction
+from django.db.models import F
 from typing import Optional
-from django.conf import settings
+
 
 from content.models import ContentBlock, Lesson, Module, Enrollment
 from progress.models import UserBlockProgress
@@ -47,7 +48,7 @@ def get_interaction_status(user, block_id: str) -> UserBlockProgressDomain:
 # PUBLIC INTERFACE (TRACK)
 # ==========================================
 
-def sync_heartbeat(self, user, block_id: str, data: dict):
+def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
     """
     Hàm này xử lý ghi nhận tiến độ từ API Heartbeat.
     """
@@ -64,50 +65,54 @@ def sync_heartbeat(self, user, block_id: str, data: dict):
     except Enrollment.DoesNotExist:
         raise PermissionError("User chưa ghi danh khóa học này.")
 
-    # 3. Upsert Progress (Có khóa dòng để tránh race condition)
-    # Sử dụng atomic để đảm bảo tính nhất quán dữ liệu
-    with transaction.atomic():
-        progress, created = UserBlockProgress.objects.select_for_update().get_or_create(
-            user=user, # Denormalized field
-            block=block,
-            enrollment=enrollment, # Quan trọng: Link vào enrollment
-            defaults={
-                'is_completed': False,
-                'time_spent_seconds': 0,
-                'interaction_data': {}
-            }
-        )
+    progress, created = UserBlockProgress.objects.get_or_create(
+        user=user,
+        block=block,
+        enrollment=enrollment,
+        defaults={'is_completed': False, 'time_spent_seconds': 0}
+    )
 
-        # 4. Cập nhật dữ liệu tương tác (Heartbeat data)
-        # Merge dữ liệu cũ và mới (ví dụ giữ lại timestamp cao nhất)
-        incoming_interaction = data.get('interaction_data', {})
-        if not progress.interaction_data:
-            progress.interaction_data = {}
-        progress.interaction_data.update(incoming_interaction)
-        
+    # 3. Xử lý Logic cộng dồn (Dùng F expression để tránh Race Condition mà không cần Lock)
+    time_add = data.get('time_spent_add', 0)
+    incoming_interaction = data.get('interaction_data', {})
+
+    if time_add > 0 or incoming_interaction:
+        current_data = progress.interaction_data or {}
+        current_data.update(incoming_interaction)
+        progress.interaction_data = current_data
+    
         progress.last_accessed = timezone.now()
-        
-        # Cộng dồn thời gian học (Client gửi time_spent_add: 5s)
-        time_add = data.get('time_spent_add', 0)
-        if 0 < time_add <= 60: # Sanity check: ko cho cộng quá 60s/lần gọi
-            progress.time_spent_seconds += time_add
+    
+    # Cộng dồn thời gian học 
+    if 0 < time_add <= 300: # Cho phép tối đa 5 phút (nếu FE gửi 60s/lần)
+        progress.time_spent_seconds += F('time_spent_seconds') + time_add
 
-        # 5. Kiểm tra hoàn thành (Chỉ check nếu chưa xong)
-        if not progress.is_completed:
-            is_done = evaluate(
-                block=block, 
-                interaction_data=incoming_interaction,
-                current_progress_seconds=progress.time_spent_seconds
-            )
-            
-            if is_done:
-                progress.is_completed = True
-                progress.completed_at = timezone.now()
-                # Lưu ý: Không gọi tính toán % khóa học ở đây để tránh chậm API
+    progress.save()
+    
+    # Refresh lại từ DB để lấy giá trị số nguyên sau khi cộng F()
+    progress.refresh_from_db()
+
+    # 5. Kiểm tra hoàn thành (Chỉ check nếu chưa xong)
+    if not progress.is_completed:
+        is_done = evaluate(
+            block=block, 
+            interaction_data=incoming_interaction,
+            current_progress_seconds=progress.time_spent_seconds
+        )
         
-        progress.save()
-        
-        return UserBlockProgressDomain.from_model(progress, block)
+        if is_done:
+            with transaction.atomic():
+            # Select lại để chắc chắn chưa ai update
+                locked_progress = UserBlockProgress.objects.select_for_update().get(id=progress.id)
+                if not locked_progress.is_completed:
+                    locked_progress.is_completed = True
+                    locked_progress.completed_at = timezone.now()
+                    locked_progress.save()
+                    # Assign lại để trả về domain đúng
+                    progress = locked_progress
+            # Lưu ý: Không gọi tính toán % khóa học ở đây để tránh chậm API
+    
+    return UserBlockProgressDomain.from_model(progress, block)
 
 
 ################################################################################

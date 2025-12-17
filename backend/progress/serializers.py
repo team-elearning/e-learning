@@ -3,12 +3,9 @@ from rest_framework import serializers
 
 
 
-class BlockHeartbeatSerializer(serializers.Serializer):
-    # Validate format UUID
-    block_id = serializers.UUIDField(required=True)
-    
+class BlockHeartbeatSerializer(serializers.Serializer):    
     # Validate dict, cho phép rỗng
-    resume_data = serializers.DictField(required=False, default=dict)
+    interaction_data = serializers.DictField(required=False, default=dict)
     
     # Validate boolean
     is_completed = serializers.BooleanField(required=False, default=False)

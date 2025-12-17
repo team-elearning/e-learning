@@ -10,7 +10,7 @@ class UserBlockProgressDomain:
     id: Optional[UUID]  # None nếu chưa lưu DB
     user_id: UUID   
     block_id: UUID
-    enrollment_id: UUID
+    enrollment_id: Optional[UUID]
     
     # --- Trạng thái học tập ---
     status: str  # Thay vì bool is_completed, dùng Enum: 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'
@@ -38,8 +38,7 @@ class UserBlockProgressDomain:
             status = 'NOT_STARTED'
 
         # 2. Lấy Metadata từ Block (Payload thường lưu duration video)
-        payload = content_block.payload or {}
-        duration = payload.get('duration', 0) # Mặc định 0 nếu không có
+        duration = content_block.duration
         
         # 3. Tính % tiến độ (Chỉ tính cho Video/Audio, Text thì là 0 hoặc 100)
         percent = 0.0
@@ -62,7 +61,6 @@ class UserBlockProgressDomain:
             interaction_data=progress_model.interaction_data or {},
             last_accessed=progress_model.last_accessed,
             
-            # Metadata
             block_type=content_block.type,
             total_duration=duration,
             progress_percentage=round(percent, 2)
@@ -70,17 +68,24 @@ class UserBlockProgressDomain:
     
     @classmethod
     def create_transient(cls, user, block) -> 'UserBlockProgressDomain':
-        """Tạo object rỗng cho người chưa học bao giờ"""
+        """
+        Tạo object rỗng cho người chưa học bao giờ (chưa có record trong DB).
+        """
         return cls(
             id=None,
             user_id=user.id,
             block_id=block.id,
+            enrollment_id=None, # Chưa có record nên chưa cần link enrollment ngay
+            
             status='NOT_STARTED',
+            is_completed=False,     # SỬA 3: Bổ sung field thiếu
+            completed_at=None,      # SỬA 3: Bổ sung field thiếu
+            
             time_spent_seconds=0,
-            resume_data={},
+            interaction_data={},
             last_accessed=None,
-            score=None,
-            block_total_duration=block.duration_seconds,
-            block_passing_score=block.passing_score,
+            
+            block_type=block.type,  # SỬA 3: Bổ sung field thiếu
+            total_duration=block.duration, # Lấy từ model ContentBlock
             progress_percentage=0.0
         )

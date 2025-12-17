@@ -8,8 +8,14 @@ def evaluate(block: ContentBlock, interaction_data: dict, current_progress_secon
 
     # --- LOGIC 1: VIDEO (Xong khi xem > 90%) ---
     if block_type == 'video':
-        duration = payload.get('duration', 0) # Lấy tổng thời gian từ metadata video
-        if duration == 0: return True # Video lỗi duration coi như xong luôn cho đỡ kẹt
+        duration = block.duration
+
+        if duration == 0:
+            payload = block.payload or {}
+            duration = payload.get('duration', 0)
+
+        if duration == 0: 
+            return True # Safe-guard: Video lỗi duration thì cho qua
         
         # Cách 1: Dựa vào timestamp hiện tại (Client gửi lên)
         current_time = interaction_data.get('video_timestamp', 0)

@@ -290,6 +290,19 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
         updated_payload = current_payload.copy()
         updated_payload.update(incoming_payload)
 
+        # Frontend gửi lên: { "payload": { ..., "duration": 120 } }
+        if 'duration' in incoming_payload:
+            try:
+                new_duration = int(incoming_payload['duration'])
+                
+                # 1. Lưu vào Model Field (để query/sort nhanh)
+                block.duration = new_duration
+                
+                # 2. Lưu vào Payload (để đồng bộ với logic cũ)
+                updated_payload['duration'] = new_duration
+            except (ValueError, TypeError):
+                pass # Bỏ qua nếu dữ liệu rác
+
         block_type = block.type
 
         # ====================================================
