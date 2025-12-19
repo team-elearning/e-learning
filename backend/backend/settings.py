@@ -57,10 +57,7 @@ INSTALLED_APPS = [
 
     # Project apps
     'custom_account',
-    'school',
     'content',
-    'activities',
-    'assignments',
     'progress',
     'media',
     'gamification',
@@ -69,6 +66,7 @@ INSTALLED_APPS = [
     'payments',
     'quiz',
     'personalization',
+    'analytics',
 
     # Allauth                                                                                                            
     'allauth',                                                                                                                  

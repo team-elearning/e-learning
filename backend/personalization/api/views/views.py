@@ -8,7 +8,7 @@ import logging
 
 # Import Mixins của bạn
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin # Giả định path
-from personalization.services import ai_recommendation_service 
+from personalization.services import ai_recommendation_service, sync_service
 from personalization.api.dtos.ai_sync_dto import AISyncResultOutput, AISyncInput
 from personalization.api.dtos.ai_recommendation_dto import AIRecommendationInput
 from personalization.serializers import AISyncSerializer, AIRecommendationQuerySerializer
@@ -31,7 +31,7 @@ class AISyncView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ai_service = ai_recommendation_service
+        self.ai_service = sync_service
 
     def post(self, request, *args, **kwargs):
         """
@@ -53,7 +53,7 @@ class AISyncView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
 
         # 3. Gọi Service & Trả về Domain Object
         try:
-            sync_result_domain = self.ai_service.sync_course_embeddings(
+            sync_result_domain = self.ai_service.trigger_bulk_sync(
                 force_update=dto_input.force_update
             )
             

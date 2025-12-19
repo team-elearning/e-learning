@@ -9,7 +9,7 @@ import logging
 
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from core.api.permissions import CanViewCourseContent
-from progress.services import tracking_service
+from progress.services import course_tracking_service
 from progress.api.dtos.heart_beat_dto import BlockHeartbeatInput, BlockProgressPublicOutput, BlockProgressAdminOutput, ResetProgressOutput, CourseProgressPublicOutput
 from progress.serializers import BlockHeartbeatSerializer, BlockCompletionInputSerializer
 from content.models import ContentBlock, Course, Enrollment
@@ -36,7 +36,7 @@ class BlockInteractionHeartbeatView(RoleBasedOutputMixin, AutoPermissionCheckMix
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Khởi tạo service (hoặc inject dependency nếu dùng container)
-        self.interaction_service = tracking_service
+        self.interaction_service = course_tracking_service
 
     def get(self, request, block_id, *args, **kwargs):
         """
@@ -129,12 +129,12 @@ class CourseResumeView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = tracking_service # Inject service module
+        self.interaction_service = course_tracking_service # Inject service module
 
     def get(self, request, course_id, *args, **kwargs):
         try:
             # Gọi Service trả về Domain
-            resume_domain = tracking_service.get_resume_state(
+            resume_domain = course_tracking_service.get_resume_state(
                 user=request.user,
                 course_id=course_id
             )
@@ -170,12 +170,12 @@ class EnrollmentResetView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIVie
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = tracking_service
+        self.interaction_service = course_tracking_service
 
     def post(self, request, enrollment_id, *args, **kwargs):
         try:
             # Gọi Service trả về Domain Result
-            result_domain = tracking_service.reset_course_progress(
+            result_domain = course_tracking_service.reset_course_progress(
                 user=request.user,
                 enrollment_id=enrollment_id
             )
@@ -208,7 +208,7 @@ class CourseProgressView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.interaction_service = tracking_service 
+        self.interaction_service = course_tracking_service 
 
     def get(self, request, course_id, *args, **kwargs):
         try:
