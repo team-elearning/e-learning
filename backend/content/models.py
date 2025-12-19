@@ -160,6 +160,15 @@ class Enrollment(models.Model):
     enrolled_at = models.DateTimeField(auto_now_add=True)
     last_accessed_at = models.DateTimeField(auto_now=True)
 
+    # [NEW] Lưu bài học đang học dở. Update mỗi khi user touch vào bài học.
+    # Giúp Dashboard query 1 phát ra luôn, khỏi cần scan bảng log.
+    current_block = models.ForeignKey(
+        'ContentBlock', 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name='current_enrollments'
+    )
+
     class Meta:
         unique_together = ('user', 'course')
         indexes = [

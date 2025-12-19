@@ -163,51 +163,18 @@ class QuestionAnswer(models.Model):
         unique_together = ('attempt', 'question')
 
 
-class UserCertificate(models.Model):
-    """
-    Lưu trữ chứng chỉ đã cấp cho user.
-    Chỉ tạo ra khi CourseProgress.percent_completed = 100% HOẶC Pass Final Exam.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+# Chưa chọn được app mới
+# class CourseReview(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+#     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='reviews')
     
-    # Quan hệ
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='certificates')
-    course = models.ForeignKey("content.Course", on_delete=models.CASCADE, related_name='certificates')
-    enrollment = models.ForeignKey("content.Enrollment", on_delete=models.CASCADE) # Link để truy xuất ngày bắt đầu/kết thúc
-
-    # Định danh chứng chỉ (Để nhà tuyển dụng verify)
-    # Ví dụ: CERT-2025-ABCD-1234
-    certificate_code = models.CharField(max_length=50, unique=True, db_index=True)
+#     rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)]) # 1-5 sao
+#     content = models.TextField(blank=True, null=True)
     
-    # File PDF (Lưu đường dẫn file đã generate)
-    file = models.FileField(upload_to='certificates/%Y/%m/', null=True, blank=True)
-    
-    # Snapshot dữ liệu tại thời điểm cấp (đề phòng user đổi tên sau này)
-    issued_to_name = models.CharField(max_length=255, help_text="Tên hiển thị trên bằng")
-    issued_at = models.DateTimeField(auto_now_add=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+#     is_visible = models.BooleanField(default=True) # Để ẩn review spam
 
-    # Trạng thái (Phòng trường hợp thu hồi bằng)
-    is_valid = models.BooleanField(default=True)
-
-    class Meta:
-        unique_together = ('user', 'course') # Mỗi khóa chỉ cấp 1 bằng
-        ordering = ['-issued_at']
-
-    def __str__(self):
-        return f"Certificate {self.certificate_code} - {self.user.username}"
-    
-
-class CourseReview(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='reviews')
-    
-    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)]) # 1-5 sao
-    content = models.TextField(blank=True, null=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    is_visible = models.BooleanField(default=True) # Để ẩn review spam
-
-    class Meta:
-        unique_together = ('user', 'course')
+#     class Meta:
+#         unique_together = ('user', 'course')

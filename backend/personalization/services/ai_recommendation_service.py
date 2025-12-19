@@ -68,101 +68,86 @@ def get_embedding(text: str):
     except Exception as e:
         print(f"🔴 Lỗi AWS Bedrock: {e}")
         return []
-
-
-def sync_course_embeddings(force_update=False) -> SyncResultDomain:
-    """
-    Quét toàn bộ khóa học, cái nào chưa có vector thì tạo.
-    Hàm này có thể chạy định kỳ hoặc chạy tay.
-    """
-    courses = Course.objects.all()
-    count = 0
-    for course in courses:
-        # Nếu đã có embedding thì bỏ qua (hoặc check updated_at nếu muốn kỹ hơn)
-        if hasattr(course, 'embedding') and course.embedding.vector and not force_update:
-            continue
-
-        # Tạo nội dung để embed
-        # Gộp Title + Description + Tags + Category
-        tags_str = ", ".join([t.name for t in course.tags.all()])
-        cat_str = ", ".join([c.name for c in course.categories.all()])
-        
-        content_text = f"Title: {course.title}. Category: {cat_str}. Tags: {tags_str}. Description: {course.description}"
-        
-        # Gọi API lấy vector
-        vector = get_embedding(content_text)
-        
-        if vector:
-            # Lưu vào DB Postgres
-            CourseEmbedding.objects.update_or_create(
-                course=course,
-                defaults={'vector': vector}
-            )
-            count += 1
     
-    return SyncResultDomain(
-            status="success", 
-            message="Đã đồng bộ vector hoàn tất.", 
-            count=count
-        )
-
-
-def suggest_courses(user_interest_text, top_n=5, exclude_ids: list = None):
+ 
+def suggest_courses(user_interest_text, top_n=5, exclude_ids: list = None, min_score: float = 0.5):
     """
     Input: Text sở thích của user
     Output: QuerySet các khóa học phù hợp nhất
     """
-    # 1. Biến input của user thành Vector
+    # 1. Biến input của user thành Vector, Lấy vector query từ Bedrock
     query_vector = get_embedding(user_interest_text)
     if not query_vector:
         return []
+    
+    # Chuẩn bị Query Vector (Normalize luôn để tính Cosine cho nhanh)
+    # Cosine(A, B) = (A . B) / (|A| * |B|)
+    # Nếu A và B đều đã chuẩn hóa (độ dài = 1), thì Cosine(A, B) = A . B
+    query_vec_np = np.array(query_vector)
+    query_norm = np.linalg.norm(query_vec_np)
+    if query_norm == 0: 
+        return []
+    query_vec_normalized = query_vec_np / query_norm
 
-    # 2. Lấy tất cả vector từ DB ra
-    # (Với < 1000 khóa học, load hết vào RAM tính cho lẹ, ko cần query phức tạp)
-    embeddings = CourseEmbedding.objects.select_related('course').filter(vector__isnull=False)
+    # 2. Lấy dữ liệu từ DB
+    # Chỉ lấy trường id và vector để tiết kiệm RAM (đừng lấy hết các trường title, desc...)
+    queryset = CourseEmbedding.objects.filter(vector__isnull=False).values('course_id', 'vector')
     
     if exclude_ids:
-        embeddings = embeddings.exclude(course_id__in=exclude_ids)
+        queryset = queryset.exclude(course_id__in=exclude_ids)
+
+    candidates = list(queryset)
+    if not candidates:
+        return []
+    
+    # 3. TÍNH TOÁN MA TRẬN (VECTORIZATION) - Thay thế vòng lặp for
+    # Tạo ma trận các vector khóa học (N rows, 1536 cols)
+    # Lưu ý: 'item' ở đây là dict, phải truy cập bằng ['vector']
+    course_vectors = np.array([item['vector'] for item in candidates])
+    course_ids = np.array([item['course_id'] for item in candidates])
+
+    # Tính norm cho toàn bộ ma trận khóa học (axis=1 là tính theo hàng)
+    course_norms = np.linalg.norm(course_vectors, axis=1)
+
+    # Tránh chia cho 0
+    course_norms[course_norms == 0] = 1e-10 
+    
+    # Chuẩn hóa ma trận khóa học
+    # [:, np.newaxis] giúp biến mảng 1 chiều thành cột để chia broadcasting
+    course_matrix_normalized = course_vectors / course_norms[:, np.newaxis]
+
+    # Tính Dot Product: (N, 1536) dot (1536,) -> (N,)
+    # Kết quả là mảng điểm số của tất cả khóa học
+    scores = np.dot(course_matrix_normalized, query_vec_normalized)
+
+    # 4. Lọc và Sắp xếp
+    # Lấy các index có điểm >= min_score
+    filtered_indices = np.where(scores >= min_score)[0]
 
     results = []
-    query_vec_np = np.array(query_vector)
-
-    for item in embeddings:
-        course_vec_np = np.array(item.vector)
-        
-        # Tính Cosine Similarity thủ công (bằng Numpy)
-        # Công thức: (A . B) / (||A|| * ||B||)
-        dot_product = np.dot(query_vec_np, course_vec_np)
-        norm_a = np.linalg.norm(query_vec_np)
-        norm_b = np.linalg.norm(course_vec_np)
-        
-        similarity = dot_product / (norm_a * norm_b)
-        
+    for idx in filtered_indices:
         results.append({
-            'course_id': item.course.id,
-            'score': similarity
+            'course_id': course_ids[idx], # Truy cập bằng index numpy
+            'score': scores[idx]
         })
 
-    # 3. Sắp xếp điểm từ cao xuống thấp
+    # Sort giảm dần
     results.sort(key=lambda x: x['score'], reverse=True)
     
-    # 4. Lấy top N ID
+    # 5. Lấy Top N & Fetch DB
     top_ids = [r['course_id'] for r in results[:top_n]]
+
+    if not top_ids:
+        return []
     
-    # 5. Trả về QuerySet (để Django View dễ serialize)
-    # Dùng case/when để giữ đúng thứ tự sắp xếp của kết quả
     preserved = models.Case(*[models.When(pk=pk, then=pos) for pos, pk in enumerate(top_ids)])
     
-    # [QUAN TRỌNG]: Phải dùng select_related/prefetch_related
-    # Vì Domain.factory sẽ chọc vào tags, categories, owner -> Tránh lỗi N+1 query
-    queryset = Course.objects.filter(pk__in=top_ids).order_by(preserved)\
+    course_queryset = Course.objects.filter(pk__in=top_ids).order_by(preserved)\
         .select_related('owner', 'subject')\
         .prefetch_related('categories', 'tags')
 
-    # 5. [NEW] Convert Model -> Domain bằng Factory
     domain_list = []
-    for course_model in queryset:
-        # Sử dụng Strategy CATALOG_LIST như bạn mong muốn
+    for course_model in course_queryset:
         domain = CourseDomain.factory(
             model=course_model, 
             strategy=CourseFetchStrategy.CATALOG_LIST
@@ -180,12 +165,13 @@ def recommend_for_user(user, top_n: int = 5) -> list[CourseDomain]:
     # Lấy 3 khóa gần nhất user vừa tương tác để gợi ý cho "tươi mới"
     recent_enrollments = Enrollment.objects.filter(user=user)\
         .select_related('course')\
+        .prefetch_related('course__tags')\
         .order_by('-last_accessed_at')[:3]
 
     if not recent_enrollments.exists():
-        # COLD START: Nếu user mới tinh chưa học gì
-        # -> Trả về danh sách rỗng (để Frontend hiện "Khóa học mới nhất")
-        # Hoặc gọi hàm lấy Trending Course tại đây.
+        # COLD START:
+        # Gợi ý: Nên trả về các khóa học "Trending" hoặc "Free" thay vì rỗng hoàn toàn
+        # return suggest_trending_courses(top_n)
         return []
 
     # 2. Xây dựng "Chân dung sở thích" (User Profile Context)
@@ -199,7 +185,7 @@ def recommend_for_user(user, top_n: int = 5) -> list[CourseDomain]:
         
         # Gom thông tin: "User thích Python Basic. User thích Web Development."
         tags = ", ".join([t.name for t in course.tags.all()])
-        interest_parts.append(f"{course.title} ({tags})")
+        interest_parts.append(f"{course.title}. Topics: {tags}")
 
     # Tạo câu query giả lập
     user_context_text = ". ".join(interest_parts)
