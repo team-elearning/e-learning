@@ -34,6 +34,27 @@
         </div>
       </section>
 
+      <!-- AI Recommendation -->
+      <section class="card">
+        <div class="section-head">
+          <h2>🎯 Gợi ý cho bạn</h2>
+        </div>
+
+        <div v-if="aiLoading" class="muted">🤖 Đang phân tích sở thích…</div>
+
+        <div v-else-if="aiRecommend.length" class="courses">
+          <div class="course-card" v-for="c in aiRecommend" :key="c.id" @click="openDetail(c.id)">
+            <div class="thumb loaded">
+              <img :src="c.thumbnail_url || PLACEHOLDER" :alt="c.title" />
+            </div>
+            <div class="title">{{ c.title }}</div>
+            <div class="status muted">{{ c.subject?.title }} · Lớp {{ c.grade }}</div>
+          </div>
+        </div>
+
+        <div v-else class="muted">Chưa đủ dữ liệu để gợi ý. Hãy học thêm 1 khóa nhé 🙂</div>
+      </section>
+
       <!-- My Courses -->
       <section class="card">
         <div class="section-head">
@@ -210,8 +231,44 @@ function thumbSource(id: ID, fallback?: string | null) {
   return thumbSrc.value[String(id)] || fallback || PLACEHOLDER
 }
 
+// AI gợi ý khóa học
+// ===== AI Recommend For Me =====
+const aiRecommend = ref<any[]>([])
+const aiLoading = ref(false)
+
+async function fetchAIRecommend() {
+  aiLoading.value = true
+  try {
+    const token = localStorage.getItem('accessToken')
+
+    const res = await fetch('/api/personalization/ai/recommend-for-me/', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!res.ok) throw new Error('Unauthorized')
+
+    const data = await res.json()
+    aiRecommend.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    console.warn('[AI recommend] error', e)
+    aiRecommend.value = []
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+function openDetail(id: number | string) {
+  if (router.hasRoute('student-course-detail'))
+    router.push({ name: 'student-course-detail', params: { id } })
+  else router.push(`/student/courses/${id}`)
+}
+
 onMounted(async () => {
   await fetchCourses()
+  await fetchAIRecommend()
 })
 </script>
 

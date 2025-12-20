@@ -908,44 +908,44 @@
                   </div>
 
                   <!-- ===== ANSWERS ===== -->
-                  <div class="border-t px-4 py-4 space-y-3">
+                  <!-- ===== ANSWERS ===== -->
+                  <div class="border-t px-4 py-4 space-y-4">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Đáp án
                     </p>
-
-                    <!-- TRẮC NGHIỆM 1 ĐÁP ÁN -->
+                    <!-- MULTIPLE CHOICE SINGLE -->
                     <div v-if="q.type === 'multiple_choice_single'" class="space-y-2">
                       <div
                         v-for="(choice, i) in q.answer_payload.choices"
-                        :key="i"
-                        class="flex items-center gap-3 rounded-lg border bg-white px-3 py-2"
+                        :key="choice.id"
+                        class="flex items-center gap-3"
                       >
+                        <!-- chọn đáp án đúng -->
                         <input
                           type="radio"
+                          :name="'correct-' + q.id"
                           :checked="choice.is_correct"
                           @change="setCorrectChoice(q, i)"
                         />
 
+                        <!-- nội dung đáp án -->
                         <input
                           v-model="choice.text"
-                          class="flex-1 border-none bg-transparent text-sm outline-none"
+                          class="input-field flex-1"
                           placeholder="Nhập đáp án"
-                          @input="onChoiceInput(q)"
+                          @input="onQuestionInput(q)"
                         />
-
-                        <button class="text-xs text-rose-500" @click="removeChoice(q, i)">✕</button>
                       </div>
 
                       <button
-                        class="text-xs font-semibold text-sky-600 hover:underline"
+                        type="button"
+                        class="text-xs text-sky-600 hover:underline"
                         @click="addChoice(q)"
                       >
                         + Thêm đáp án
                       </button>
                     </div>
-
-                    <!-- TRUE / FALSE -->
-                    <div v-else-if="q.type === 'true_false'" class="flex gap-6">
+                    <div v-if="q.type === 'true_false'" class="flex gap-4">
                       <label class="flex items-center gap-2">
                         <input
                           type="radio"
@@ -964,8 +964,89 @@
                         Sai
                       </label>
                     </div>
+                    <div v-if="q.type === 'multiple_choice_multi'" class="space-y-2">
+                      <div
+                        v-for="(choice, i) in q.answer_payload.choices"
+                        :key="choice.id"
+                        class="flex items-center gap-3"
+                      >
+                        <!-- checkbox chọn đáp án đúng -->
+                        <input
+                          type="checkbox"
+                          v-model="choice.is_correct"
+                          @change="onQuestionInput(q)"
+                        />
 
-                    <!-- SHORT ANSWER -->
+                        <!-- nội dung đáp án -->
+                        <input
+                          v-model="choice.text"
+                          class="input-field flex-1"
+                          placeholder="Nhập đáp án"
+                          @input="onQuestionInput(q)"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        class="text-xs text-sky-600 hover:underline"
+                        @click="addChoice(q)"
+                      >
+                        + Thêm đáp án
+                      </button>
+                    </div>
+
+                    <!-- MATCHING QUESTION -->
+                    <div v-if="q.type === 'matching'" class="space-y-4">
+                      <!-- HEADER -->
+                      <div class="grid grid-cols-3 gap-4 text-xs font-semibold text-slate-600">
+                        <div>Vế trái</div>
+                        <div>Đáp án đúng</div>
+                        <div>Vế phải (tất cả lựa chọn)</div>
+                      </div>
+
+                      <!-- ROWS -->
+                      <div
+                        v-for="p in q.prompt.pairs"
+                        :key="p.id"
+                        class="grid grid-cols-3 gap-4 items-center"
+                      >
+                        <!-- VẾ TRÁI -->
+                        <input
+                          v-model="p.left"
+                          class="input-field"
+                          placeholder="Vế trái"
+                          @input="onQuestionInput(q)"
+                        />
+
+                        <!-- ✅ ĐÁP ÁN (CHỖ THIẾU) -->
+                        <select
+                          class="input-field"
+                          :value="q.answer_payload.matches[p.id] || ''"
+                          @change="setMatchingAnswer(q, p.id, $event.target.value)"
+                        >
+                          <option value="">— Chọn đáp án —</option>
+                          <option v-for="opt in q.prompt.options" :key="opt.id" :value="opt.id">
+                            {{ opt.text }}
+                          </option>
+                        </select>
+
+                        <!-- VẾ PHẢI (EDIT TEXT) -->
+                        <div class="space-y-1">
+                          <div
+                            v-for="opt in q.prompt.options"
+                            :key="opt.id"
+                            class="flex items-center gap-2"
+                          >
+                            <input
+                              v-model="opt.text"
+                              class="input-field"
+                              placeholder="Giá trị ghép"
+                              @input="onQuestionInput(q)"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div v-else-if="q.type === 'short_answer'" class="space-y-2">
                       <div
                         v-for="(ans, i) in q.answer_payload.valid_answers"
@@ -1220,6 +1301,55 @@ async function openQuizEditor(block: any) {
   quizEditor.open = true
 }
 
+function normalizeQuestion(q: any) {
+  q.prompt = q.prompt || {}
+  q.answer_payload = q.answer_payload || {}
+
+  /* ========== MULTIPLE CHOICE (SINGLE + MULTI) ========== */
+  if (q.type === 'multiple_choice_single' || q.type === 'multiple_choice_multi') {
+    q.prompt.text = q.prompt.text || ''
+    q.prompt.options = Array.isArray(q.prompt.options) ? q.prompt.options : []
+
+    const correctMap = new Map(
+      (q.answer_payload.choices || []).map((c: any) => [c.id, !!c.is_correct]),
+    )
+
+    // UI dùng answer_payload.choices = {id, text, is_correct}
+    q.answer_payload.choices = q.prompt.options.map((opt: any) => ({
+      id: opt.id,
+      text: opt.text || '',
+      is_correct: correctMap.get(opt.id) || false,
+    }))
+  }
+
+  /* ========== TRUE / FALSE ========== */
+  if (q.type === 'true_false') {
+    q.prompt.text = q.prompt.text || ''
+    if (typeof q.answer_payload.answer !== 'boolean') {
+      q.answer_payload.answer = true
+    }
+  }
+
+  /* ========== SHORT ANSWER ========== */
+  if (q.type === 'short_answer') {
+    q.prompt.text = q.prompt.text || ''
+    q.answer_payload.valid_answers = Array.isArray(q.answer_payload.valid_answers)
+      ? q.answer_payload.valid_answers
+      : []
+  }
+
+  /* ========== MATCHING ========== */
+  if (q.type === 'matching') {
+    q.prompt.pairs = Array.isArray(q.prompt.pairs) ? q.prompt.pairs : []
+    q.prompt.options = Array.isArray(q.prompt.options) ? q.prompt.options : []
+    q.answer_payload.matches = q.answer_payload.matches || {}
+    q.answer_payload.explanation = q.answer_payload.explanation || ''
+  }
+
+  q._dirty = false
+  return q
+}
+
 async function loadQuizQuestions(quizId: string) {
   quizEditor.loading = true
   quizEditor.error = ''
@@ -1229,15 +1359,14 @@ async function loadQuizQuestions(quizId: string) {
       headers: getAuthHeaders(),
     })
 
-    quizEditor.questions = data.map((q: any) => ({
-      ...q,
-      prompt: q.prompt ?? { text: '' },
-      _dirty: false,
-    }))
+    quizEditor.questions = data.map((q: any) => normalizeQuestion(q))
   } catch (e: any) {
     quizEditor.error = 'Không tải được danh sách câu hỏi'
+  } finally {
+    quizEditor.loading = false
   }
 }
+
 // async function addQuestionToQuiz(type = 'multiple_choice') {
 //   if (!quizEditor.quizId) return
 
@@ -1288,23 +1417,86 @@ async function saveAllQuestions() {
   showNotification('success', 'Thành công', 'Đã lưu tất cả thay đổi')
 }
 
-async function saveQuestion(question: any) {
-  const { data } = await axios.patch(
-    `/api/quiz/instructor/questions/${question.id}/`,
-    {
-      type: question.type,
-      prompt: question.prompt,
-      answer_payload: question.answer_payload,
-      hint: question.hint,
-    },
-    { headers: getAuthHeaders() },
-  )
+function buildPrompt(question: any) {
+  /* MULTIPLE CHOICE */
+  if (question.type === 'multiple_choice_single' || question.type === 'multiple_choice_multi') {
+    return {
+      text: question.prompt?.text || '',
+      options: (question.answer_payload?.choices || []).map((c: any) => ({
+        id: c.id,
+        text: c.text || '',
+      })),
+    }
+  }
 
-  // 🔥 CHÌA KHOÁ: sync lại object đang render
-  Object.assign(question, {
-    ...data,
-    _dirty: false,
+  /* MATCHING */
+  if (question.type === 'matching') {
+    return {
+      text: question.prompt?.text || '',
+      pairs: question.prompt?.pairs || [],
+      options: question.prompt?.options || [],
+    }
+  }
+
+  /* TRUE/FALSE + SHORT ANSWER */
+  return {
+    text: question.prompt?.text || '',
+  }
+}
+
+function buildAnswerPayload(question: any) {
+  /* MULTIPLE CHOICE */
+  if (question.type === 'multiple_choice_single' || question.type === 'multiple_choice_multi') {
+    return {
+      choices: (question.answer_payload?.choices || []).map((c: any) => ({
+        id: c.id,
+        is_correct: !!c.is_correct,
+      })),
+    }
+  }
+
+  /* TRUE / FALSE */
+  if (question.type === 'true_false') {
+    return {
+      answer: !!question.answer_payload?.answer,
+    }
+  }
+
+  /* SHORT ANSWER */
+  if (question.type === 'short_answer') {
+    return {
+      valid_answers: (question.answer_payload?.valid_answers || []).map((a: any) => ({
+        answer: a.answer || '',
+        case_sensitive: !!a.case_sensitive,
+      })),
+    }
+  }
+
+  /* MATCHING */
+  if (question.type === 'matching') {
+    return {
+      matches: question.answer_payload?.matches || {},
+      explanation: question.answer_payload?.explanation || '',
+    }
+  }
+
+  return {}
+}
+
+async function saveQuestion(question: any) {
+  const payload = {
+    type: question.type,
+    prompt: buildPrompt(question),
+    answer_payload: buildAnswerPayload(question),
+    hint: question.hint,
+  }
+
+  const { data } = await axios.patch(`/api/quiz/instructor/questions/${question.id}/`, payload, {
+    headers: getAuthHeaders(),
   })
+
+  Object.assign(question, normalizeQuestion({ ...question, ...data }))
+  question._dirty = false
 }
 
 async function deleteQuestion(questionId: string, index: number) {
@@ -1336,7 +1528,36 @@ function setTrueFalse(q: any, value: boolean) {
   q._dirty = true
   autoSaveDirtyQuestions()
 }
+// check sửa câu hỏi
 
+function setMatchingAnswer(q: any, pairId: string, optionId: string) {
+  if (!q.answer_payload.matches) {
+    q.answer_payload.matches = {}
+  }
+
+  if (!optionId) {
+    delete q.answer_payload.matches[pairId]
+  } else {
+    q.answer_payload.matches[pairId] = optionId
+  }
+
+  q._dirty = true
+  autoSaveDirtyQuestions()
+}
+function validateMatching(q: any): boolean {
+  const pairIds = q.prompt.pairs.map((p: any) => p.id)
+  const optionIds = q.prompt.options.map((o: any) => o.id)
+
+  for (const pid of pairIds) {
+    const oid = q.answer_payload.matches?.[pid]
+    if (!oid || !optionIds.includes(oid)) {
+      return false
+    }
+  }
+  return true
+}
+
+// check sửa câu hỏi
 // upload ảnh/file/video chung
 type MediaComponent = 'lesson_material' | 'course_thumbnail'
 
@@ -2051,6 +2272,16 @@ function resetQuestionPayload(question: any) {
       break
     case 'short_answer':
       question.answer_payload = { valid_answers: [] }
+      break
+    case 'matching':
+      question.prompt = question.prompt || {
+        pairs: [],
+        options: [],
+      }
+      question.answer_payload = question.answer_payload || {
+        matches: {},
+        explanation: '',
+      }
       break
     default:
       question.answer_payload = {}
