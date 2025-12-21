@@ -316,7 +316,7 @@ def save_question_draft(
     """
     # 1. Validate Attempt (Giống hệt submit)
     try:
-        attempt = QuizAttempt.objects.get(id=attempt_id, user=user)
+        attempt = QuizAttempt.objects.select_for_update().get(id=attempt_id, user=user)
     except QuizAttempt.DoesNotExist:
         raise DomainError("Không tìm thấy bài làm.")
 
