@@ -84,7 +84,7 @@ class QuizItemResultDomain:
             user_answer=ans.answer_data,
             user_answer_text=user_text,
 
-            correct_answer_data=ans.answer_data,
+            correct_answer_data=correct_data,
             correct_answer_text=correct_text,
 
             score=ans.score,
