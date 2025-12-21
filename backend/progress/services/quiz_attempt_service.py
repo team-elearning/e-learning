@@ -186,8 +186,12 @@ def start_or_resume_attempt(quiz_id: uuid.UUID, user, course_id: Optional[uuid.U
 @transaction.atomic
 def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     # 1. Validate Attempt
+    # 1. ACQUIRE ROW LOCK (Khóa dòng)
+    # Câu lệnh SQL thực tế nó chạy: 
+    # SELECT * FROM progress_quizattempt WHERE id = '...' AND user_id = '...' FOR UPDATE;
+    # => Chỉ khóa đúng 1 dòng này. Các user khác không ảnh hưởng.
     try:
-        attempt = QuizAttempt.objects.select_related('quiz').get(id=attempt_id, user=user)
+        attempt = QuizAttempt.objects.select_for_update().select_related('quiz').get(id=attempt_id, user=user)
     except QuizAttempt.DoesNotExist:
         raise DomainError("Không tìm thấy bài làm.")
 
