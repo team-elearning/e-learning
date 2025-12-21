@@ -30,32 +30,36 @@ class QuizItemResultDomain:
 
 
     @staticmethod
-    def _get_display_text(q_type: str, data: dict, option_map: dict) -> str:
-        """Helper chuyển raw data thành text hiển thị"""
+    def _format_text(q_type: str, data: dict, lookup: dict) -> str:
+        """Helper map ID -> Text siêu gọn"""
         if not data: return "Chưa trả lời"
 
         if q_type == 'multiple_choice_single':
             # Data format: {'selected_id': 'A'} hoặc Correct: {'correct_id': 'A'}
             key = data.get('selected_id') or data.get('correct_id')
-            return option_map.get(key, str(key))
+            return lookup.get(key, str(key))
             
         elif q_type == 'multiple_choice_multi':
             # Data: {'selected_ids': ['A', 'B']}
-            keys = data.get('selected_ids') or data.get('correct_ids') or []
-            texts = [option_map.get(k, str(k)) for k in keys]
-            return ", ".join(texts)
+            vals = data.get('selected_ids') or data.get('correct_ids') or []
+            return ", ".join([lookup.get(str(v), str(v)) for v in vals])
             
         elif q_type == 'true_false':
             val = data.get('selected_value')
             if val is None: val = data.get('correct_value')
             return "Đúng" if val is True else "Sai" if val is False else ""
 
-        # Các loại khác (Short answer, essay...) thì data thường là text sẵn
-        return str(data)
+        elif q_type == 'matching':
+            matches = data.get('matches', {})
+            # Format: A->1, B->2. (Cần map cả 2 vế nếu prompt phức tạp, ở đây map vế phải)
+            pairs = [f"{k} -> {lookup.get(str(v), v)}" for k, v in matches.items()]
+            return "; ".join(pairs)
+
+        return str(data.get('text') or data) # Short Answer / Essay
 
 
     @classmethod
-    def from_model(cls, ans: "QuestionAnswer", question_obj: "Question" = None, show_correct_answer: bool = False) -> "QuizItemResultDomain":
+    def from_model(cls, ans: "QuestionAnswer", lookup_map: dict = None) -> "QuizItemResultDomain":
         """
         Map từ Model QuestionAnswer sang Domain.
         :param ans: Object QuestionAnswer (kèm question đã select_related nếu có)
@@ -64,31 +68,36 @@ class QuizItemResultDomain:
         from progress.services.question_attempt_service import get_correct_answer_for_display
 
         # Phòng hờ trường hợp question bị xóa hoặc chưa fetch
-        q = question_obj or ans.question
+        question = ans.question
+        prompt = question.prompt or {}
 
-        prompt_data = getattr(q, 'prompt', {}) or {}
-        options = prompt_data.get('options', [])
-        option_map = {opt['id']: opt['text'] for opt in options if 'id' in opt and 'text' in opt}
+        # Fallback nếu service quên truyền map (Safety)
+        if lookup_map is None:
+            opts = question.prompt.get('options', [])
+            lookup_map = {o['id']: o['text'] for o in opts}
 
-        user_text = cls._get_display_text(q.type, ans.answer_data, option_map)
+        user_text = cls._format_text(question.type, ans.answer_data, lookup_map)
 
-        correct_data = getattr(q, 'answer_payload', {})
-        correct_text = cls._get_display_text(q.type, correct_data, option_map)
+        # 2. Format Correct Answer (Lấy từ payload)
+        # Lưu ý: Ẩn hiện correct answer đã được xử lý ở View/Serializer rồi,
+        # Domain cứ map hết, việc ẩn là việc của tầng Presentation.
+        correct_payload = question.answer_payload or {}
+        correct_text = cls._format_text(question.type, correct_payload, lookup_map)
 
         return cls(
             question_id=ans.question_id,
-            question_text=q.prompt.get('text', ''),
-            question_type=q.type,
-            options=options,
+            question_text=prompt.get('content') or prompt.get('text', ''),
+            question_type=question.type,
+            options=prompt.get('options', []),
 
             user_answer_data=ans.answer_data,
             user_answer_text=user_text,
 
-            correct_answer_data=correct_data,
+            correct_answer_data=correct_payload,
             correct_answer_text=correct_text,
 
             score=ans.score,
-            max_score=getattr(q, 'score', 1.0),
+            max_score=getattr(question, 'score', 1.0),
             is_correct=ans.is_correct,
             feedback=ans.feedback,
         )

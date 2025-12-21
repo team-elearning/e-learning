@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from quiz.models import Quiz, Question, QUESTION_TYPES
+from quiz.validators import validate_answer_payload, validate_prompt_structure
 from progress.models import QuizAttempt
 
 
@@ -32,7 +33,7 @@ class QuizUpdateMetadataSerializer(serializers.Serializer):
     time_open = serializers.DateTimeField(required=False, allow_null=True)
     time_close = serializers.DateTimeField(required=False, allow_null=True)
 
-
+         
 class QuestionInputSerializer(serializers.Serializer):
     """
     Serializer cho từng câu hỏi bên trong mảng 'questions'
@@ -41,36 +42,50 @@ class QuestionInputSerializer(serializers.Serializer):
     
     # Validate loại câu hỏi theo choices trong Model
     type = serializers.ChoiceField(choices=QUESTION_TYPES, required=False)
-    
+    score = serializers.FloatField(required=False, min_value=0)
+
     # JSON Fields: DRF dùng DictField để hứng JSON object
     prompt = serializers.DictField(
         required=False, 
+        validators=[validate_prompt_structure], # <--- Quan trọng
         help_text="Nội dung câu hỏi: {text, image_url, options...}"
     )
+
     answer_payload = serializers.DictField(
         required=False, 
         help_text="Đáp án đúng: {correct_ids: [...]}"
     )
     hint = serializers.DictField(required=False, allow_null=True, default=dict)
 
-    # def validate(self, data):
-    #     """
-    #     Validate logic nội bộ câu hỏi (Optional).
-    #     Ví dụ: Nếu là trắc nghiệm thì trong prompt phải có 'options'.
-    #     """
-    #     q_type = data.get('type')
-    #     prompt = data.get('prompt')
+    def validate(self, data):
+        """
+        Cross-field validation: Kiểm tra logic giữa Type, Prompt và Answer.
+        """
+        q_type = data.get('type')
+        payload = data.get('answer_payload')
+        prompt = data.get('prompt')
 
-    #     # Logic check sơ bộ (Moodle style strict checking)
-    #     if 'multiple_choice' in q_type:
-    #         if 'options' not in prompt or not isinstance(prompt['options'], list):
-    #             raise serializers.ValidationError({
-    #                 "prompt": "Loại câu hỏi trắc nghiệm bắt buộc phải có danh sách 'options' trong prompt."
-    #             })
+        # Trường hợp Partial Update (chỉ gửi payload mà không gửi prompt hoặc type)
+        # Chúng ta cần lấy data cũ từ instance (nếu có) để validate đầy đủ.
+        # Tuy nhiên Serializer này đang dùng dạng input thuần (không bind instance).
+        # Nên ta giả định FE phải gửi đủ bộ (Prompt + Payload) hoặc BE chấp nhận validate lỏng lẻo khi thiếu context.
         
-    #     return data
-    
+        # Tốt nhất: Nếu gửi answer_payload, NÊN gửi kèm type (hoặc prompt nếu cần check options).
+        
+        if q_type and payload:
+            # Lấy options từ prompt (nếu có gửi kèm)
+            options = prompt.get('options', []) if prompt else []
+            
+            # Gọi hàm validate logic
+            try:
+                validate_answer_payload(q_type, payload, options)
+            except serializers.ValidationError as e:
+                # Map lỗi vào field answer_payload để FE dễ hiển thị
+                raise serializers.ValidationError({"answer_payload": e.detail})
+            
+        return data
 
+    
 class ExamInputSerializer(serializers.Serializer):
     """
     Big JSON Serializer để Tạo/Cập nhật Bài thi (Exam).

@@ -61,9 +61,10 @@ def _promote_single_file(staging_id: str, question: Question) -> dict | None:
         # 4. Trả về data mới để update vào JSON
         meta = {
             "file_path": relative_path,
+            "storage_type": "s3_private",
             "file_name": uploaded_file.original_filename,
             "file_size": uploaded_file.file_size,
-            "storage_type": "s3_private"
+            "mime_type": uploaded_file.mime_type,
         }
         
         # 5. Dọn dẹp DB
@@ -89,25 +90,26 @@ def _recursive_process_json(data: Any, question: Question) -> Any:
     if isinstance(data, dict):
         new_data = {}
         for key, value in data.items():
-            # QUY ƯỚC: Frontend gửi key dạng 'image_staging_id', 'audio_staging_id'
-            if isinstance(key, str) and key.endswith('_staging_id') and value:
-                base_key = key.replace('_staging_id', '_url')
+            # Nếu dict này có 'file_id' (UUID staging) nhưng chưa có 'file_path' (đã promote)
+            if 'file_id' in data and not data.get('file_path'):
+                staging_id = data['file_id']
 
-                # 1. Tìm thấy "mồi ngon" -> Xử lý ngay
-                file_info = _promote_single_file(value, question)
+                file_info = _promote_single_file(staging_id, question)
                 
                 if file_info:
-                    # 2. Xóa key cũ (_staging_id)
-                    # 3. Thêm key mới (bỏ chữ _staging_id đi, hoặc dùng key cố định)
-                    # Ví dụ: 'image_staging_id' -> 'image_data'
-                    new_data[base_key] = file_info
+                    data.update(file_info)
+
+                    # Xóa file_id (staging) đi cho sạch, hoặc giữ lại tùy ý
+                    # del data['file_id']
                 else:
-                    # THẤT BẠI (ID sai, file không tồn tại, UUID rác):
-                    # Gán NULL để Frontend biết đường xử lý (ẩn ảnh hoặc hiện placeholder)
-                    new_data[base_key] = None
-            else:
-                # Nếu không phải key file, tiếp tục đệ quy sâu hơn
-                new_data[key] = _recursive_process_json(value, question)
+                    # Lỗi (File ko tồn tại): Đánh dấu lỗi hoặc để nguyên
+                    data['error'] = "File not found"
+            
+            # Đệ quy tiếp cho các key con (đề phòng nested sâu hơn)
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                data[key] = _recursive_process_json(value, question)
+
         return new_data
 
     elif isinstance(data, list):

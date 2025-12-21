@@ -36,15 +36,14 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
     feedback = ""
 
     # --- CASE 1: Single Choice / True False ---
-    if question.type in ['multiple_choice_single', 'true_false']:
-        # User gửi: {'selected_ids': ['uuid-A']} hoặc {'selected_id': 'uuid-A'}
-        # Chuẩn hóa input list về string
-        u_sel = user_answer_data.get('selected_ids', [])
-        user_val = u_sel[0] if isinstance(u_sel, list) and u_sel else user_answer_data.get('selected_id')
-        
-        correct_val = payload.get('correct_ids')
+    if question.type in ['multiple_choice_single']:
+        # User send: { "selected_id": "A" } -> Validator đảm bảo có key này
+        user_val = str(user_answer_data.get('selected_id', ''))
+    
+        # Payload: { "correct_id": "A" } -> Validator đảm bảo có key này
+        correct_val = str(payload.get('correct_id', ''))
 
-        if str(user_val) == str(correct_val):
+        if user_val == correct_val:
             score = max_score
             is_correct = True
             feedback = "Chính xác!"
@@ -53,7 +52,10 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
 
     # --- CASE 2: Multi Choice (Có điểm thành phần) ---
     elif question.type == 'multiple_choice_multi':
+        # User send: { "selected_ids": ["A", "B"] }
         user_ids = set(str(x) for x in user_answer_data.get('selected_ids', []))
+        
+        # Payload: { "correct_ids": ["A", "B"] }
         correct_ids = set(str(x) for x in payload.get('correct_ids', []))
         
         if user_ids == correct_ids:
@@ -78,13 +80,31 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
             else:
                 feedback = "Chưa chính xác."
 
-    # --- CASE 3: Fill in blank / Short Answer ---
+    # --- CASE 3: True/False ---
+    elif question.type == 'true_false':
+        # User send: { "selected_value": true } (Ưu tiên) hoặc "selected_id"
+        u_val = user_answer_data.get('selected_value')
+        if u_val is None: u_val = user_answer_data.get('selected_id') # Fallback
+
+        # Payload: { "correct_value": true }
+        c_val = payload.get('correct_value')
+
+        # Convert to string to compare safely ('True' vs True)
+        if str(u_val).lower() == str(c_val).lower():
+            score = max_score
+            is_correct = True
+            feedback = "Chính xác!"
+        else:
+            feedback = "Sai rồi."
+
+    # --- CASE 4: Fill in blank / Short Answer ---
     elif question.type in ['short_answer', 'fill_in_the_blank']:
         user_text = str(user_answer_data.get('text', '')).strip()
         accepted_texts = payload.get('accepted_texts', [])
         
         # Moodle logic: Case sensitivity settings
-        if not payload.get('case_sensitive', False):
+        case_sensitive = payload.get('case_sensitive', False)
+        if not case_sensitive:
             user_text = user_text.lower()
             accepted_texts = [t.lower() for t in accepted_texts]
             
@@ -95,11 +115,13 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         else:
             feedback = "Sai rồi."
 
-    # --- CASE 4: Matching / Ordering ---
+    # --- CASE 5: Matching / Ordering ---
     elif question.type == 'matching':
         # Matching thì nên tính partial credit
-        correct_map = payload.get('matches', {}) # {"A": "1", "B": "2"}
-        user_map = user_answer_data.get('matches', {}) # {"A": "1", "B": "3"}
+        # Payload: { "matches": {"A": "1", "B": "2"} }
+        correct_map = payload.get('matches', {})
+        # User: { "matches": {"A": "1", "B": "3"} }
+        user_map = user_answer_data.get('matches', {}) 
         
         total_pairs = len(correct_map)
         if total_pairs > 0:
@@ -146,7 +168,7 @@ def get_correct_answer_for_display(question: Question) -> Dict[str, Any]:
 
     if q_type in ['multiple_choice_single']:
         raw_display_data = {
-            "correct_id": payload.get('correct_id', [])
+            "correct_id": payload.get('correct_id')
         }
 
     elif q_type == 'multiple_choice_multi':
@@ -303,6 +325,17 @@ def save_question_draft(
 
     if str(question_id) not in attempt.questions_order:
         raise DomainError("Câu hỏi không thuộc bài làm này.")
+    
+    try:
+        question = Question.objects.get(id=question_id)
+    except Question.DoesNotExist:
+        raise DomainError("Question not found.")
+
+    # 3. [QUAN TRỌNG] Security Check: Type Matching
+    # Đảm bảo frontend không gửi type='essay' cho câu hỏi 'multiple_choice' để hack
+    input_type = submission_data.get('question_type')
+    if input_type != question.type:
+        raise DomainError(f"Loại câu hỏi không khớp. DB: {question.type}, Input: {input_type}")
 
     # 2. Check trạng thái câu hỏi hiện tại (Logic mới thêm)
     # Tìm xem câu này đã từng được trả lời chưa
