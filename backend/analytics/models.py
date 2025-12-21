@@ -6,25 +6,57 @@ import uuid
 
 # Các hành động chuẩn (Verbs) để AI dễ phân loại
 ACTION_VERBS = [
-    # Nhóm truy cập
+    # --- NHÓM 1: AUTH & SYSTEM ---
     ('LOGIN', 'Đăng nhập'),
-    ('VIEW_COURSE', 'Xem trang khóa học'),
+    ('LOGOUT', 'Đăng xuất'),
+    ('REGISTER', 'Đăng ký tài khoản'),
+    ('UPDATE_PROFILE', 'Cập nhật hồ sơ'),
+
+    # --- NHÓM 2: COURSE LIFECYCLE (Funnel) ---
+    ('VIEW_COURSE', 'Xem trang giới thiệu khóa học'),
+    # ('ADD_TO_WISHLIST', 'Thêm vào yêu thích'),
+    # ('ADD_TO_CART', 'Thêm vào giỏ hàng'),
+    ('ENROLL', 'Ghi danh khóa học'),
+    ('UNENROLL', 'Hủy ghi danh'),
+    ('COURSE_COMPLETE', 'Hoàn thành khóa học'), # Sự kiện quan trọng để cấp chứng chỉ
+    # ('CERTIFICATE_ISSUE', 'Được cấp chứng chỉ'),
+    # ('DOWNLOAD_CERTIFICATE', 'Tải chứng chỉ'),
+
+    # --- NHÓM 3: LEARNING FLOW (Bài học) ---
     ('VIEW_LESSON', 'Xem bài học'),
+    ('LESSON_COMPLETE', 'Hoàn thành bài học'), # Đánh dấu tick xanh
+    ('DOWNLOAD_RESOURCE', 'Tải tài liệu đính kèm'),
+    # ('NOTE_CREATE', 'Tạo ghi chú'), # Udemy feature
     
     # Nhóm Video (Quan trọng để tính độ tập trung)
     ('VIDEO_PLAY', 'Bắt đầu xem'),
     ('VIDEO_PAUSE', 'Tạm dừng'),
     ('VIDEO_SEEK', 'Tua video'),
     ('VIDEO_COMPLETE', 'Xem hết video'),
+    ('VIDEO_SPEED_CHANGE', 'Đổi tốc độ'), # Payload: {speed: 1.5}
+    ('LEARNING_SESSION', 'Học được bao lâu'), 
     
     # Nhóm Quiz (Quan trọng để phát hiện gian lận hoặc struggle)
     ('QUIZ_START', 'Bắt đầu làm bài'),
+    ('QUIZ_RESUME', 'Làm tiếp bài đang dở'),
+    ('QUESTION_VIEW', 'Xem câu hỏi'), # Để đo thời gian dwell time trên từng câu
+    ('QUESTION_ANSWER_SAVE', 'Lưu nháp câu trả lời'),
     ('QUIZ_SUBMIT', 'Nộp bài'),
-    ('QUIZ_TIMEOUT', 'Hết giờ'),
+    # ('ASSIGNMENT_UPLOAD', 'Nộp bài tập tự luận'),
+    ('QUIZ_REVIEW', 'Xem lại bài đã chấm'),
     
     # Nhóm System
     ('SEARCH', 'Tìm kiếm'),
     ('DOWNLOAD_RESOURCE', 'Tải tài liệu'),
+
+    # --- NHÓM 3: TƯƠNG TÁC (Social - Optional) ---
+    ('DISCUSSION_POST', 'Đăng thảo luận'),
+    ('NOTE_CREATE', 'Tạo ghi chú'),
+    ('RATING_SUBMIT', 'Đánh giá khóa học'),
+
+    # --- NHÓM 4: GAMIFICATION (Để debug/audit) ---
+    ('STREAK_UPDATE', 'Cập nhật chuỗi'),
+    ('ITEM_PURCHASE', 'Mua vật phẩm'),
 ]
 
 class UserActivityLog(models.Model):
@@ -57,6 +89,10 @@ class UserActivityLog(models.Model):
     # Frontend sẽ sinh ra 1 session_id mỗi khi user F5 hoặc login
     session_id = models.CharField(max_length=50, blank=True, null=True)
 
+    # [NEW] Denormalization: Lưu course_id trực tiếp để query Dashboard/Analytics siêu nhanh.
+    # Frontend hoặc API record phải chịu khó gửi kèm ID này lên.
+    course_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+
     class Meta:
         ordering = ['-timestamp']
         indexes = [
@@ -64,6 +100,10 @@ class UserActivityLog(models.Model):
             models.Index(fields=['user', 'action']),
             # Index cho việc dọn dẹp log cũ
             models.Index(fields=['timestamp']),
+
+            # [NEW] Index quan trọng nhất cho Analytics
+            # Giúp lệnh filter(course_id=X, timestamp>Y) chạy trong tíc tắc
+            models.Index(fields=['course_id', 'timestamp']),
         ]
 
     def __str__(self):
@@ -111,7 +151,42 @@ class StudentSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.course} - {self.risk_level}"
+
+
+class CourseAnalyticsLog(models.Model):
+    """
+    Bảng này lưu lịch sử chạy phân tích (Audit Trail).
+    Giúp trả lời: "Tại sao hôm qua không có dữ liệu? À do Job bị lỗi."
+    """
+    id = models.BigAutoField(primary_key=True)
+    course = models.ForeignKey('content.Course', on_delete=models.CASCADE, related_name='analytics_logs')
     
+    # Kết quả thực thi
+    total_students = models.IntegerField(default=0)
+    processed_count = models.IntegerField(default=0)
+    
+    # Trạng thái
+    STATUS_CHOICES = [
+        ('success', 'Thành công'),
+        ('failed', 'Thất bại'),
+        ('partial', 'Một phần (Có lỗi nhỏ)')
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='success')
+    
+    # Thời gian chạy (Performance monitoring)
+    execution_time_seconds = models.FloatField(default=0.0)
+    
+    # Nếu lỗi thì lưu traceback vào đây
+    error_message = models.TextField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['course', '-created_at']) # Để query "Lần chạy gần nhất"
+        ]
+
 
 class QuizStatisticSnapshot(models.Model):
     """
@@ -137,6 +212,7 @@ class QuizStatisticSnapshot(models.Model):
         indexes = [
             models.Index(fields=['quiz', '-calculated_at']),
         ]
+
 
 class QuestionStatisticSnapshot(models.Model):
     """
@@ -167,3 +243,5 @@ class QuestionStatisticSnapshot(models.Model):
         indexes = [
             models.Index(fields=['question', 'quiz_stat']),
         ]
+
+

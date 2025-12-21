@@ -109,7 +109,9 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
 
     # 10. Custom Middleware của bạn (thường để cuối cùng để bắt mọi thứ)
-    'infrastructure.middleware.GlobalExceptionMiddleware',
+    'core.middleware.GlobalExceptionMiddleware',
+
+    'core.middleware.RequestContextMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'

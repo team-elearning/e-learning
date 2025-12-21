@@ -6,7 +6,7 @@ from django.utils import timezone
 from custom_account.models import UserModel, Profile, ParentalConsent
 from custom_account.services import user_service, auth_service
 from custom_account.tests.factories import UserFactory, ProfileFactory, ParentalConsentFactory
-from infrastructure import email_service as email_infra
+from backend.core.services import email_service as email_infra
 
 
 

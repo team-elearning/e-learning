@@ -3,11 +3,12 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from analytics.domains.daily_metric_domain import DailyMetricDomain
+from analytics.domains.risk_distribution_domain import RiskDistributionDomain
 
 
 
 @dataclass
-class CoursePulseDomain:
+class CourseHealthOverviewDomain:
     """
     Đại diện cho sức khỏe tổng quan của khóa học.
     """
@@ -15,13 +16,13 @@ class CoursePulseDomain:
     status: str              # 'pending', 'ready'
     total_students: int
     
-    # Phân phối rủi ro
-    risk_distribution: Dict[str, int] # {'safe': 10, 'warning': 2, 'danger': 1}
-    
     # Các chỉ số trung bình hiện tại
     avg_engagement: float
     avg_performance: float
     avg_inactive_days: int
+
+    # Phân phối rủi ro
+    risk_distribution: RiskDistributionDomain
 
     # 2. Dữ liệu Time Series (7 ngày qua) - Vẽ Line Chart [NEW]
     chart_data: List[DailyMetricDomain]
@@ -31,3 +32,7 @@ class CoursePulseDomain:
     trend_performance: str
     
     insight_text: str
+
+    # Metadata vận hành
+    last_updated_at: Optional[datetime] = None
+    data_status: str = 'up_to_date' # 'up_to_date', 'stale', 'calculating'

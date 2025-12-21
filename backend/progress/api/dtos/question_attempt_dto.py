@@ -47,11 +47,16 @@ class QuizItemResultOutput(BaseModel):
     # === Thông tin câu hỏi ===
     question_id: uuid.UUID
     question_text: str          # <--- Mới thêm: Để FE hiển thị lại đề bài nếu cần
-    
+    question_type: str
+    options: List[Dict[str, Any]] = []
+
     # === Câu trả lời của User ===
     # Quan trọng: FE cần cái này để tô màu những gì user đã chọn
-    user_answer: Dict[str, Any] 
-    correct_answer: Optional[Dict[str, Any]] = None
+    user_answer_data: Dict[str, Any] # Raw JSON (để logic tô màu/check lại nếu cần)
+    user_answer_text: str
+
+    correct_answer_data: Optional[Dict[str, Any]] = None
+    correct_answer_text: Optional[str] = None
 
     # === Kết quả chấm ===
     score: float

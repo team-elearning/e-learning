@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/progress/', include('progress.urls')),
     path('api/quiz/', include('quiz.urls')),
     path('api/personalization/', include('personalization.urls')),
+    path('api/analytics/', include('analytics.urls')),
     path("", home),
 
     path("api/auth/", include("dj_rest_auth.urls")),

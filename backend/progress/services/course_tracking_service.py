@@ -13,7 +13,8 @@ from progress.domains.reset_progress_result_domain import ResetProgressResultDom
 from progress.domains.course_progress_domain import CourseProgressDomain
 from progress.domains.course_card_domain import CourseCardDomain
 from progress.domains.resume_point_domain import ResumePointDomain
-from progress.services.aggregation_service import calculate_aggregation
+from progress.tasks import calculate_aggregation
+from analytics.services.log_service import record_activity
 
 
 
@@ -252,6 +253,7 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
     try:
         block = ContentBlock.objects.select_related('lesson__module__course').get(id=block_id)
         enrollment = Enrollment.objects.get(user=user, course=block.lesson.module.course)
+        course = block.lesson.module.course
 
     except ContentBlock.DoesNotExist:
         raise ValueError("Block không tồn tại.")
@@ -259,18 +261,31 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
     except Enrollment.DoesNotExist:
         raise PermissionError("User chưa ghi danh khóa học này.")
     
-    # --- [NEW] CẬP NHẬT CON TRỎ (POINTER) ---
-    # Logic: Luôn cập nhật bài học này là bài "mới nhất" user đang học.
-    # Để tối ưu, chỉ update nếu nó khác cái cũ.
+    now = timezone.now()
+    
+    # ---------------------------------------------------------
+    # 2. TỐI ƯU POINTER (DEBOUNCE STRATEGY)
+    # ---------------------------------------------------------
+    # Không update timestamp liên tục mỗi 30s. Chỉ update khi:
+    # A. User chuyển sang bài học khác.
+    # B. User ở bài cũ nhưng đã quá 5 phút chưa update (để Dashboard biết user online).
+
+    should_update_pointer = False
+
     if enrollment.current_block_id != block.id:
         enrollment.current_block = block
-        enrollment.last_accessed_at = timezone.now()
-        enrollment.save(update_fields=['current_block', 'last_accessed_at'])
-    else:
-        # Nếu vẫn là bài cũ, chỉ update timestamp để sort dashboard đúng
-        enrollment.last_accessed_at = timezone.now()
-        enrollment.save(update_fields=['last_accessed_at'])
+        should_update_pointer = True
+    elif (now - enrollment.last_accessed_at).total_seconds() > 300:
+        should_update_pointer = True
 
+    if should_update_pointer:
+        enrollment.last_accessed_at = now
+        # Chỉ update field cần thiết
+        enrollment.save(update_fields=['current_block', 'last_accessed_at'] if enrollment.current_block_id != block.id else ['last_accessed_at'])
+
+    # ---------------------------------------------------------
+    # 3. LOGIC CỘNG DỒN TRONG MEMORY (Tránh F expression)
+    # ---------------------------------------------------------
     progress, created = UserBlockProgress.objects.get_or_create(
         user=user,
         block=block,
@@ -281,52 +296,127 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
     # 3. Xử lý Logic cộng dồn (Dùng F expression để tránh Race Condition mà không cần Lock)
     time_add = data.get('time_spent_add', 0)
     incoming_interaction = data.get('interaction_data', {})
+    has_changes = False
 
-    if time_add > 0 or incoming_interaction:
+    # A. Update Data
+    if incoming_interaction:
         current_data = progress.interaction_data or {}
         current_data.update(incoming_interaction)
         progress.interaction_data = current_data
-        should_save = True
-    
-    # Cộng dồn thời gian học 
-    if 0 < time_add <= 300: # Cho phép tối đa 5 phút (nếu FE gửi 60s/lần)
-        progress.time_spent_seconds = F('time_spent_seconds') + time_add
+        has_changes = True
 
-    if should_save:
-        progress.last_accessed = timezone.now()
-        progress.save()
-        # Bắt buộc refresh để F() expression biến thành số thực (int) 
-        # trước khi truyền vào hàm evaluate
-        progress.refresh_from_db()
+    # B. Update Time (Giới hạn max 5 phút để tránh hack/bug FE)
+    if 0 < time_add <= 300:
+        progress.time_spent_seconds += time_add 
+        has_changes = True
+
+    # ---------------------------------------------------------
+    # 4. CHECK COMPLETION (In-Memory)
+    # ---------------------------------------------------------
+    just_completed = False
 
     # 5. Kiểm tra hoàn thành (Chỉ check nếu chưa xong)
     if not progress.is_completed:
         is_done = evaluate(
             block=block, 
-            interaction_data=incoming_interaction,
+            interaction_data=progress.interaction_data,
             current_progress_seconds=progress.time_spent_seconds
         )
         
         if is_done:
-            with transaction.atomic():
-            # Select lại để chắc chắn chưa ai update
-                locked_progress = UserBlockProgress.objects.select_for_update().get(id=progress.id)
-                if not locked_progress.is_completed:
-                    locked_progress.is_completed = True
-                    locked_progress.completed_at = timezone.now()
-                    locked_progress.save()
-                    # Assign lại để trả về domain đúng
-                    progress = locked_progress
-            # Lưu ý: Không gọi tính toán % khóa học ở đây để tránh chậm API
+            progress.is_completed = True
+            progress.completed_at = now
+            progress.score = 100 # Default score
+            just_completed = True
+            has_changes = True
 
-                    enrollment_id_str = str(progress.enrollment_id)
-                    lesson_id_str = str(block.lesson_id)
+    # ---------------------------------------------------------
+    # 5. SMART LOGGING & ASYNC TASKS
+    # ---------------------------------------------------------
+    # A. Trigger khi HOÀN THÀNH (Lesson Complete)
+    if just_completed:
+        # 1. Async Log
+        record_activity(user, {
+            'action': 'LESSON_COMPLETE',
+            'entity_type': 'content_block',
+            'entity_id': str(block.id),
+            'course_id': str(course.id),
+            'is_critical': False # Async
+        })
+        
+        # 2. Async Aggregation (Quan trọng: Đẩy xuống background)
+        transaction.on_commit(
+            lambda: calculate_aggregation.delay(str(enrollment.id), str(block.lesson_id))
+        )
 
-                    transaction.on_commit(
-                        lambda: calculate_aggregation.delay(enrollment_id_str, lesson_id_str)
-                    )
+    # B. Trigger khi HỌC ĐỦ LÂU (Learning Session)
+    # Logic: Log mỗi 5 phút (300s)
+    if progress.time_spent_seconds - progress.last_logged_time_spent >= 300:
+        session_duration = progress.time_spent_seconds - progress.last_logged_time_spent
+        
+        record_activity(user, {
+            'action': 'LEARNING_SESSION',
+            'entity_type': 'course',
+            'entity_id': str(course.id),
+            'course_id': str(course.id),
+            'is_critical': False, # Async
+            'payload': {
+                'block_id': str(block.id),
+                'duration': session_duration
+            }
+        })
+        
+        progress.last_logged_time_spent = progress.time_spent_seconds
+        has_changes = True
+
+    # ---------------------------------------------------------
+    # 6. FINAL SAVE (1 Write Query duy nhất)
+    # ---------------------------------------------------------
+    if has_changes:
+        progress.last_accessed = now
+        progress.save()
 
     return UserBlockProgressDomain.from_model(progress, block)
+
+
+# ==========================================
+# SERVICE: MARK QUIZ
+# ==========================================
+
+def mark_quiz_as_completed(user_id: str, quiz_id: str, enrollment_id: str, score: float) -> bool:
+        """
+        Đánh dấu ContentBlock Quiz là hoàn thành.
+        Trả về True nếu trạng thái thay đổi từ (Chưa xong -> Xong).
+        """
+        # 1. Tìm ContentBlock tương ứng với Quiz (Tối ưu query)
+        # Dùng .only('id', 'lesson_id') để tiết kiệm RAM
+        block = ContentBlock.objects.filter(
+            type='quiz', 
+            payload__quiz_id=str(quiz_id)
+        ).only('id', 'lesson_id').first()
+
+        if not block:
+            return False
+
+        # 2. Update hoặc Create UserBlockProgress
+        # Sử dụng update_or_create để atomic hơn get_or_create + save
+        # Tuy nhiên cần check trạng thái cũ để biết có cần trigger aggregation không
+        
+        progress, created = UserBlockProgress.objects.get_or_create(
+            user_id=user_id,
+            block_id=block.id,
+            defaults={'enrollment_id': enrollment_id}
+        )
+
+        if not progress.is_completed:
+            progress.is_completed = True
+            progress.completed_at = timezone.now()
+            progress.score = score
+            # Chỉ update các field cần thiết
+            progress.save(update_fields=['is_completed', 'completed_at', 'score'])
+            return True # Đánh dấu là MỚI hoàn thành
+
+        return False
 
 
 # ==========================================

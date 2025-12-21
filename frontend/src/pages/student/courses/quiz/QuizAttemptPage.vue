@@ -47,10 +47,13 @@
           <div class="qtype">{{ question.question_type }}</div>
         </div>
 
-        <div class="prompt" v-html="safeHtml(question.prompt || '')"></div>
+        <div
+          class="prompt"
+          v-html="safeHtml(question.prompt || question.prompt_text || question.promptHtml || '')"
+        ></div>
 
-        <!-- SINGLE CHOICE / TRUE_FALSE -->
-        <div v-if="isSingleChoice" class="options">
+        <!-- MULTIPLE CHOICE SINGLE -->
+        <div v-if="qType === 'multiple_choice_single'" class="options">
           <label
             v-for="op in question.options || []"
             :key="op.id"
@@ -63,14 +66,14 @@
               :value="op.id"
               v-model="selectedId"
               :disabled="isLocked"
-              @change="onAnswerChanged()"
+              @change="onAnswerChanged"
             />
-            <span class="txt" v-html="safeHtml(op.text || op.title || '')"></span>
+            <span class="txt" v-html="safeHtml(op.text)"></span>
           </label>
         </div>
 
-        <!-- MULTI CHOICE -->
-        <div v-else-if="isMultiChoice" class="options">
+        <!-- MULTIPLE CHOICE MULTI -->
+        <div v-else-if="qType === 'multiple_choice_multi'" class="options">
           <label
             v-for="op in question.options || []"
             :key="op.id"
@@ -82,25 +85,53 @@
               :value="op.id"
               v-model="selectedIds"
               :disabled="isLocked"
-              @change="onAnswerChanged()"
+              @change="onAnswerChanged"
             />
-            <span class="txt" v-html="safeHtml(op.text || op.title || '')"></span>
+            <span class="txt" v-html="safeHtml(op.text)"></span>
           </label>
         </div>
 
-        <!-- TEXT -->
-        <div v-else-if="isText" class="text">
+        <!-- TRUE / FALSE -->
+        <div v-else-if="qType === 'true_false'" class="options">
+          <label class="opt" :class="{ selected: selectedId === 'true', locked: isLocked }">
+            <input
+              type="radio"
+              :name="'q-' + question.id"
+              value="true"
+              v-model="selectedId"
+              :disabled="isLocked"
+              @change="onAnswerChanged"
+            />
+            Đúng
+          </label>
+
+          <label class="opt" :class="{ selected: selectedId === 'false', locked: isLocked }">
+            <input
+              type="radio"
+              :name="'q-' + question.id"
+              value="false"
+              v-model="selectedId"
+              :disabled="isLocked"
+              @change="onAnswerChanged"
+            />
+            Sai
+          </label>
+        </div>
+
+        <!-- SHORT ANSWER -->
+        <div v-else-if="qType === 'short_answer'" class="text">
           <textarea
             v-model="textAnswer"
             :disabled="isLocked"
             placeholder="Nhập câu trả lời…"
-            @input="onTextInput()"
+            @input="onTextInput"
           />
         </div>
 
         <!-- FALLBACK -->
         <div v-else class="muted">
-          Chưa hỗ trợ UI cho loại câu hỏi: <b>{{ question.question_type }}</b>
+          Chưa hỗ trợ UI cho loại câu hỏi:
+          <b>{{ qType }}</b>
         </div>
 
         <!-- Actions -->
@@ -113,6 +144,52 @@
       </div>
 
       <div v-else class="card">Không tải được câu hỏi.</div>
+    </div>
+    <!-- RESULT POPUP -->
+    <div v-if="showResultPopup" class="result-overlay">
+      <div class="result-modal">
+        <h2>Kết quả bài làm</h2>
+
+        <div class="summary">
+          <div>
+            <b>Điểm:</b>
+            {{ resultData?.score }} / {{ resultData?.max_score }}
+          </div>
+          <div>
+            <b>Tỷ lệ:</b>
+            {{ Math.round(resultData?.percentage || 0) }}%
+          </div>
+          <div>
+            <b>Kết quả:</b>
+            <span :class="resultData?.is_passed ? 'pass' : 'fail'">
+              {{ resultData?.is_passed ? 'Đạt' : 'Chưa đạt' }}
+            </span>
+          </div>
+        </div>
+
+        <hr />
+
+        <div class="details">
+          <div
+            v-for="(item, idx) in resultData?.items || []"
+            :key="item.question_id"
+            class="result-item"
+          >
+            <div class="q-title">Câu {{ idx + 1 }}: {{ item.question_text }}</div>
+
+            <div class="q-score">Điểm: {{ item.score }} / {{ item.max_score }}</div>
+
+            <div class="q-feedback" :class="item.is_correct ? 'correct' : 'incorrect'">
+              {{ item.feedback }}
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" @click="showResultPopup = false">Đóng</button>
+          <button class="btn primary" @click="goBack">Quay lại khóa học</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -178,6 +255,9 @@ const timeLeftDisplay = computed(() => {
   return `${mm}:${ss}`
 })
 
+const showResultPopup = ref(false)
+const resultData = ref<any>(null)
+
 let timerHandle: any = null
 
 function startTimer() {
@@ -240,12 +320,15 @@ async function draftAnswer(attempt_id: string, question_id: string, answer_data:
 }
 
 async function finishAttempt(attempt_id: string) {
-  const { data } = await api.post(`/progress/attempts/${attempt_id}/finish/`, {})
+  const { data } = await api.post(`/progress/quizzes/attempts/${attempt_id}/finish/`, {})
   return data
 }
 
 // ---------- type helpers ----------
-const qType = computed(() => String(question.value?.question_type || ''))
+const qType = computed(() => {
+  const q = question.value || {}
+  return String(q.question_type || q.type || q.questionType || '').trim()
+})
 const isSingleChoice = computed(
   () => qType.value === 'multiple_choice_single' || qType.value === 'true_false',
 )
@@ -260,6 +343,8 @@ async function loadQuestionByIndex(idx: number) {
 
   const data = await getQuestion(attemptId.value, qid)
   question.value = data
+  console.log('QUESTION RAW:', data)
+  console.log('qType:', qType.value, 'question_type:', data?.question_type, 'type:', data?.type)
 
   // hydrate answer from current_answer (resume)
   const curAns = data?.current_answer?.answer_data || data?.current_answer || null
@@ -337,11 +422,13 @@ function goBack() {
 async function finishQuiz() {
   if (!attemptId.value || finishing.value) return
   finishing.value = true
+
   try {
     const res = await finishAttempt(attemptId.value)
-    // TODO: redirect sang trang kết quả (nếu có)
-    // ví dụ: router.replace(`/student/quiz/result/${attemptId.value}`)
-    alert(`Nộp bài xong! Điểm: ${res?.instance?.score ?? '—'}`)
+
+    // lưu dữ liệu kết quả
+    resultData.value = res
+    showResultPopup.value = true
   } catch (e: any) {
     alert('Nộp bài thất bại. Thử lại nhé.')
   } finally {
@@ -590,5 +677,80 @@ watch(currentIndex, async (idx) => {
 }
 .muted {
   color: #64748b;
+}
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.result-modal {
+  background: #ffffff;
+  width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 12px;
+  padding: 24px;
+  color: #1f2937; /* xám đậm */
+}
+
+.result-modal h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.summary div {
+  margin-bottom: 6px;
+  color: #374151; /* xám vừa */
+}
+
+.pass {
+  color: #16a34a; /* xanh dịu */
+  font-weight: 600;
+}
+
+.fail {
+  color: #dc2626; /* đỏ nhưng không gắt */
+  font-weight: 600;
+}
+
+.result-item {
+  margin-bottom: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.q-title {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.q-score {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.q-feedback {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.q-feedback.correct {
+  color: #15803d; /* xanh đậm */
+}
+
+.q-feedback.incorrect {
+  color: #b91c1c; /* đỏ trầm */
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
 }
 </style>

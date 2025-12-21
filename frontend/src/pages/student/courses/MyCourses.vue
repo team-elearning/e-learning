@@ -7,11 +7,11 @@
         <!-- Header -->
         <div class="header">
           <div class="lh">
-            <h1>Khoá học của tôi</h1>
-            <p class="lead">
+            <h1>Khoá học</h1>
+            <!-- <p class="lead">
               Các khóa học bạn đang sở hữu được chia theo từng cấp trình độ, tương ứng với mỗi chặng
               mục tiêu. Hãy chọn trình độ mà bạn muốn bắt đầu nhé.
-            </p>
+            </p> -->
           </div>
 
           <!-- Quick Links -->
@@ -57,6 +57,9 @@
                 <circle cx="11" cy="11" r="7" />
               </svg>
               <input v-model.trim="q" placeholder="Tìm khóa học..." />
+            </div>
+            <div v-if="aiLoading" class="text-xs text-gray-400 mt-1">
+              🤖 Đang tìm khóa học phù hợp…
             </div>
           </div>
         </div>
@@ -416,6 +419,12 @@ const router = useRouter()
 
 /* Tabs */
 const activeTab = ref<'main' | 'supp'>('main')
+/* ====== AI SUGGEST (INLINE) ====== */
+const aiResults = ref<CourseSummary[]>([])
+const aiLoading = ref(false)
+const useAISearch = ref(false)
+
+let aiTimer: number | null = null
 
 /* Tìm kiếm / lọc */
 const q = ref('')
@@ -477,6 +486,30 @@ export interface MyProgress {
   is_completed: boolean
   status_label: 'not_started' | 'in_progress' | 'completed'
   last_accessed_at?: string
+}
+
+async function fetchAISuggest(keyword: string) {
+  if (!keyword || keyword.length < 3) {
+    aiResults.value = []
+    useAISearch.value = false
+    return
+  }
+
+  aiLoading.value = true
+  try {
+    const res = await fetch(`/api/personalization/ai/suggest/?q=${encodeURIComponent(keyword)}&top_n=5`)
+    if (!res.ok) throw new Error('AI suggest failed')
+
+    const data = await res.json()
+    aiResults.value = Array.isArray(data) ? data : []
+    useAISearch.value = true
+  } catch (e) {
+    console.warn('[AI] suggest error', e)
+    aiResults.value = []
+    useAISearch.value = false
+  } finally {
+    aiLoading.value = false
+  }
 }
 
 function markThumbLoaded(id: ID) {
@@ -705,6 +738,13 @@ watch(
   },
   { deep: true },
 )
+watch(q, (val) => {
+  if (aiTimer) window.clearTimeout(aiTimer)
+
+  aiTimer = window.setTimeout(() => {
+    fetchAISuggest(val)
+  }, 600)
+})
 
 /* ====== FILTERING ====== */
 const filteredMain = computed(() => {
@@ -771,17 +811,29 @@ function getAnimatedTrophy(key: 'base' | 'mid') {
 
 /** Supp tab */
 const suppList = computed(() => {
+  // ✅ ƯU TIÊN AI RESULT
+  if (useAISearch.value) {
+    return aiResults.value.map((c: any) => ({
+      ...c,
+      tag: 'AI gợi ý',
+    }))
+  }
+
+  // ⬇️ LOGIC CŨ GIỮ NGUYÊN
   let arr = suppCourses.value.slice().map((c) => ({
     ...c,
     tag: c.subjectName || c.subject?.toString()?.toUpperCase() || 'Bổ trợ',
   }))
+
   if (level.value) arr = arr.filter((s) => toLevelLabel(Number(s.grade)) === level.value)
+
   if (q.value) {
     const key = q.value.toLowerCase()
     arr = arr.filter(
       (s) => s.title.toLowerCase().includes(key) || (s.tag || '').toLowerCase().includes(key),
     )
   }
+
   return arr
 })
 

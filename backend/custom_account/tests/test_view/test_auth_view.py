@@ -6,7 +6,7 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, Bl
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 
 
-from infrastructure import email_service 
+from backend.core.services import email_service 
 from custom_account.models import UserModel
 
 

@@ -2,9 +2,10 @@ from django.db import transaction
 from django.conf import settings
 from typing import Optional, Dict, Any, List
 
+from core.middleware import get_current_request_context
 from analytics.models import UserActivityLog, ACTION_VERBS
 from analytics.domains.activity_log_domain import ActivityLogDomain
-from analytics.tasks import async_log_activity, update_streak_on_activity_logic
+from analytics.tasks import async_log_activity,async_log_batch, update_streak_on_activity_logic
 
 
 
@@ -83,45 +84,47 @@ def _save_to_db(data: Dict[str, Any]) -> Optional[ActivityLogDomain]:
         return None
         
 
-@transaction.atomic
-def _bulk_save_to_db(data_list: List[Dict[str, Any]]) -> List[ActivityLogDomain]:
-    """
-    Ghi nhiều bản ghi 1 lúc (Tối ưu SQL).
-    """
-    logs_to_create = [
-        UserActivityLog(
-            user=item['user'],
-            action=item['action'],
-            entity_type=item['entity_type'],
-            entity_id=item['entity_id'],
-            payload=item['payload'],
-            session_id=item['session_id']
-        ) for item in data_list
-    ]
+# @transaction.atomic
+# def _bulk_save_to_db(data_list: List[Dict[str, Any]]) -> List[ActivityLogDomain]:
+#     """
+#     Ghi nhiều bản ghi 1 lúc (Tối ưu SQL).
+#     """
+#     logs_to_create = [
+#         UserActivityLog(
+#             user=item['user'],
+#             action=item['action'],
+#             entity_type=item['entity_type'],
+#             entity_id=item['entity_id'],
+#             payload=item['payload'],
+#             session_id=item['session_id']
+#         ) for item in data_list
+#     ]
     
-    try:
-        # bulk_create nhanh hơn loop create rất nhiều
-        created_logs = UserActivityLog.objects.bulk_create(logs_to_create)
+#     try:
+#         # bulk_create nhanh hơn loop create rất nhiều
+#         created_logs = UserActivityLog.objects.bulk_create(logs_to_create)
         
-        # Convert sang Domain List
-        return [ActivityLogDomain.from_model(log) for log in created_logs]
-    except Exception as e:
-        print(f"🔴 Bulk Tracking Error: {e}")
-        return []
+#         # Convert sang Domain List
+#         return [ActivityLogDomain.from_model(log) for log in created_logs]
+#     except Exception as e:
+#         print(f"🔴 Bulk Tracking Error: {e}")
+#         return []
 
 
 # ==========================================
 # PUBLIC INTERFACE (RECORD)
 # ==========================================
 
-def record_activity(user, 
-    data: Dict[str, Any], 
-    ip_address: Optional[str] = None, 
-    user_agent: Optional[str] = None) -> Optional[ActivityLogDomain]:
+def record_activity(user, data: Dict[str, Any]) -> Optional[ActivityLogDomain]:
     """
         Ghi nhận 1 hành động đơn lẻ.
         :param data: Dict chứa {action, entity_type, entity_id, payload, session_id...}
     """
+    # 1. Auto-fetch Context
+    ctx = get_current_request_context()
+    ip_address = ctx.get('ip')
+    user_agent = ctx.get('user_agent')
+
     # 1. Validate & Clean Data
     clean_data = _validate_and_normalize(user, data, ip_address, user_agent)
     if not clean_data:
@@ -158,25 +161,41 @@ def record_activity(user,
         return True # Return True để báo hiệu đã đẩy vào queue thành công
     
 
-def record_batch(user, 
-    data_list: List[Dict[str, Any]], 
-    ip_address: Optional[str] = None, 
-    user_agent: Optional[str] = None) -> List[ActivityLogDomain]:
+def record_batch(user, data_list: List[Dict[str, Any]]) -> bool:
     """
     Xử lý hàng loạt (Bulk Insert).
     Dùng cho heartbeat video (30s gửi 1 lần) hoặc scroll tracking.
     Thay vì 10 request DB, ta chỉ làm 1 request.
     """
+    # 1. Auto-fetch Context (Chỉ làm 1 lần cho cả batch)
+    ctx = get_current_request_context()
+    ip_address = ctx.get('ip')
+    user_agent = ctx.get('user_agent')
+    
     clean_entries = []
 
     # 1. Loop & Validate
     for item in data_list:
         clean_item = _validate_and_normalize(user, item, ip_address, user_agent)
         if clean_item:
+            # [QUAN TRỌNG]: Celery task chỉ nhận JSON serializable.
+            # Hàm _validate_and_normalize có thể trả về object phức tạp hoặc Model instance.
+            # Ta cần đảm bảo clean_item là DICT thuần và KHÔNG chứa object (như user model).
+            
+            if 'user' in clean_item:
+                clean_item.pop('user') # Remove User Object (vì ta gửi user_id riêng)
+
             clean_entries.append(clean_item)
     
     if not clean_entries:
-        return []
+        return False
+    
+    # 2. Đẩy vào Queue (Fire and Forget)
+    user_id = user.id
+
+    transaction.on_commit(
+        lambda: async_log_batch.delay(user_id, clean_entries)
+    )
 
     # Bulk Create để tối ưu DB Performance
-    return _bulk_save_to_db(clean_entries)
+    return True

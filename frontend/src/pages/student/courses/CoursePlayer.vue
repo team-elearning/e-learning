@@ -41,13 +41,13 @@
             </a>
           </div> -->
 
-          <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
+          <!-- <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
             <iframe
               :src="blockCache.get(String(activeBlock.id))?.payload?.file_url"
               frameborder="0"
             />
-          </div>
-          <div v-else-if="activeBlock.type === 'docx'" class="file-shell">
+          </div> -->
+          <!-- <div v-else-if="activeBlock.type === 'docx'" class="file-shell">
             <div class="file-card">
               <div class="file-icon">📄</div>
 
@@ -61,6 +61,36 @@
                 ⬇️ Tải file Word (.docx)
               </button>
             </div>
+          </div> -->
+          <!-- <div v-else-if="activeBlock.type === 'docx'" class="doc-viewer">
+            <iframe
+              :src="officeViewerUrl(activeBlock)"
+              frameborder="0"
+              width="100%"
+              height="100%"
+            />
+            <div class="download-btn-wrapper">
+              <button class="btn" @click="downloadFile(activeBlock)">
+                ⬇️ Tải file Word (.docx)
+              </button>
+            </div>
+          </div> -->
+
+          <div
+            v-else-if="activeBlock.type === 'pdf' || activeBlock.type === 'docx'"
+            class="doc-viewer"
+          >
+            <iframe
+              :src="googleViewerUrl(activeBlock)"
+              frameborder="0"
+              width="100%"
+              height="100%"
+            />
+            <!-- <div class="download-btn-wrapper">
+              <button class="btn" @click="downloadFile(activeBlock)">
+                ⬇️ Tải file {{ activeBlock.type.toUpperCase() }}
+              </button>
+            </div> -->
           </div>
         </div>
 
@@ -183,10 +213,25 @@ const docSrc = computed(() => {
 })
 const docxViewerOk = ref(true)
 
-function officeViewerUrl(block: any) {
-  return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
-    block.payload.file_url,
-  )}`
+// function officeViewerUrl(block: any) {
+//   return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+//     block.payload.file_url,
+//   )}`
+// }
+
+// function officeViewerUrl(block: any) {
+//   const directUrl = block?.payload?.file_url
+//   if (!directUrl) return ''
+//   // Encode để tránh lỗi ký tự đặc biệt trong signed URL
+//   return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(directUrl)}`
+// }
+function googleViewerUrl(block: any) {
+  const directUrl = blockCache.get(String(block.id))?.payload?.file_url
+  if (!directUrl) return ''
+
+  // Encode kỹ để tránh lỗi ký tự
+  const encodedUrl = encodeURIComponent(directUrl)
+  return `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`
 }
 function downloadFile(block: any) {
   const url = block?.payload?.file_url

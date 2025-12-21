@@ -61,6 +61,8 @@ class UserBlockProgress(models.Model):
 
     last_accessed = models.DateTimeField(auto_now=True) # Tự động cập nhật mỗi khi heartbeat gọi
 
+    last_logged_time_spent = models.PositiveIntegerField(default=0)
+
     class Meta:
         unique_together = ('enrollment', 'block')
         indexes = [

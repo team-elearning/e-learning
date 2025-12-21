@@ -4,7 +4,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
 
 from custom_account.models import UserModel
-from infrastructure.email_service import get_email_service
+from core.services.email_service import get_email_service
 
 
 
