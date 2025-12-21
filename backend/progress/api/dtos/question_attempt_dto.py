@@ -9,6 +9,7 @@ from dataclasses import dataclass
 class QuestionSubmissionInput(BaseModel):
     """ DTO dùng chung cho việc Save Draft và Submit """
     answer_data: Dict[str, Any]
+    question_type: str
     
     def to_dict(self, exclude_none: bool = True) -> dict:
         return self.model_dump(exclude_none=exclude_none)

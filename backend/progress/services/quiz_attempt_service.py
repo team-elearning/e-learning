@@ -92,18 +92,40 @@ def calculate_grades(attempt, all_questions_map, saved_answers_map):
 def _build_return_domain(attempt) -> QuizAttemptDomain:
     """Helper map Model -> Domain"""
     # Logic lấy cached answers
-    answers = getattr(attempt, '_cached_graded_answers', getattr(attempt, '_cached_answers', None))
-    
+    answers = getattr(attempt, '_cached_graded_answers', None)
     if not answers:
-        # Fallback nếu gọi từ chỗ khác
         answers = list(attempt.answers.select_related('question').all())
-        # Sort lại theo order
-        ans_map = {a.question_id: a for a in answers}
-        answers = [ans_map[uuid.UUID(qid)] for qid in attempt.questions_order if uuid.UUID(qid) in ans_map]
-
-    domain_items = [QuizItemResultDomain.from_model(ans) for ans in answers]
     
-    return QuizAttemptDomain.from_model(attempt, items=domain_items)
+    # 2. [OPTIMIZATION] Pre-calculate Option Map
+    # Tạo Map: { question_id: { 'opt_id': 'opt_text' } }
+    # Giúp Domain tra cứu text đáp án (A -> Hà Nội) cực nhanh O(1)
+    global_lookup = {}
+
+    # Sort answers theo đúng thứ tự đề thi (questions_order)
+    # Tạo map {question_id: answer_obj}
+    ans_map = {str(a.question_id): a for a in answers}
+
+    sorted_items = []
+
+    for q_id_str in attempt.questions_order:
+        ans = ans_map.get(q_id_str)
+        if not ans: continue # Skip nếu lỗi data
+
+        # Build Option Map cho câu hỏi này
+        if q_id_str not in global_lookup:
+            opts = ans.question.prompt.get('options', [])
+            global_lookup[q_id_str] = {
+                str(o['id']): o['text'] for o in opts if 'id' in o and 'text' in o
+            }
+        
+        # Gọi Domain Factory (Truyền map vào)
+        item_domain = QuizItemResultDomain.from_model(
+            ans, 
+            lookup_map=global_lookup[q_id_str]
+        )
+        sorted_items.append(item_domain)
+    
+    return QuizAttemptDomain.from_model(attempt, items=sorted_items)
 
 # ==========================================
 # PUBLIC INTERFACE (START)

@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from core.api.permissions import CanViewCourseContent, IsAttemptOwner
 from core.exceptions import DomainError
-from quiz.models import Quiz
+from quiz.models import Quiz, Question
 from progress.services import quiz_attempt_service, question_attempt_service
 from progress.serializers import StartQuizInputSerializer
 from progress.api.dtos.quiz_attempt_dto import QuizAttemptInfoOutput
@@ -74,6 +74,7 @@ class AttemptQuestionSaveDraftView(RoleBasedOutputMixin, AutoPermissionCheckMixi
     def put(self, request, attempt_id: uuid.UUID, question_id: uuid.UUID, *args, **kwargs):
         # 1. Serializer (Validate Body)
         serializer = QuestionAnswerInputSerializer(data=request.data)
+        validated_data = serializer.validated_data
         try:
             serializer.is_valid(raise_exception=True)
         except ValidationError as e:
@@ -83,7 +84,8 @@ class AttemptQuestionSaveDraftView(RoleBasedOutputMixin, AutoPermissionCheckMixi
         # Ghép answer_data từ Body vào DTO
         try:
             submission_dto = QuestionSubmissionInput(
-                answer_data=serializer.validated_data['answer_data']
+                answer_data=validated_data['answer_data'],
+                question_type=validated_data['question_type'],
             )
         except Exception as e:
              return Response({"detail": f"Dữ liệu không hợp lệ: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
