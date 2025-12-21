@@ -39,7 +39,7 @@ class QuizAttemptDomain:
     items: List[QuizItemResultDomain]
     
     @classmethod
-    def from_model(cls, attempt: "QuizAttempt") -> "QuizAttemptDomain":
+    def from_model(cls, attempt: "QuizAttempt", items: List[QuizItemResultDomain] = None) -> "QuizAttemptDomain":
         # 1. Xử lý Time Limit (Config từ Quiz gốc)
         limit_sec = None
         if attempt.quiz and attempt.quiz.time_limit:
@@ -61,18 +61,29 @@ class QuizAttemptDomain:
         if attempt.max_score > 0:
             calc_percentage = (attempt.score / attempt.max_score) * 100
 
-        domain_items = []
-        # Kiểm tra xem Service có "kẹp" sẵn dữ liệu vào biến tạm _cached_answers không?
-        source_answers = getattr(attempt, '_cached_answers', None)
+        # 4. Xử lý Items (Logic ưu tiên: Tham số truyền vào > Cached property > Query DB)
+        domain_items = items  # Ưu tiên 1: Lấy từ tham số
 
-        if source_answers is None:
-            # Fallback: Nếu không có cache (VD: gọi từ chỗ khác), buộc phải query DB
-            # Dùng select_related để tránh N+1 khi truy cập question.content
-            # Lưu ý: Lúc này thứ tự có thể không đúng theo questions_order nếu không sort lại
-            source_answers = attempt.answers.select_related('question').all()
-
-        for ans in source_answers:
-            domain_items.append(QuizItemResultDomain.from_model(ans))
+        if domain_items is None:
+            # Ưu tiên 2: Lấy từ cache
+            source_answers = getattr(attempt, '_cached_graded_answers', getattr(attempt, '_cached_answers', None))
+            
+            if source_answers:
+                 domain_items = [QuizItemResultDomain.from_model(ans) for ans in source_answers]
+            else:
+                 # Chiến lược Fail-Fast hoặc Lazy Load có kiểm soát
+                 # Ở các hệ thống lớn, họ thường log warning ở đây vì điều này chứng tỏ Service chưa làm tròn trách nhiệm pre-load.
+                 # Tuy nhiên để an toàn cho App hiện tại, ta giữ fallback query nhưng tối ưu nhất có thể.
+               
+                 source_answers = attempt.answers.select_related('question').order_by('question_id') # Query nhẹ nhất có thể
+                 ans_map = {a.question_id: a for a in source_answers}
+                 
+                 # Re-order in Python (CPU bound > IO bound)
+                 domain_items = []
+                 for qid in attempt.questions_order:
+                     ans = ans_map.get(UUID(qid))
+                     if ans:
+                         domain_items.append(QuizItemResultDomain.from_model(ans))
 
         # 4. Map dữ liệu
         return cls(
@@ -96,7 +107,7 @@ class QuizAttemptDomain:
             
             # Virtual fields
             percentage=round(calc_percentage, 2),
-            is_finished=(attempt.status == 'completed'), # Hoặc check trong STATUS_CHOICES
+            is_finished=(attempt.status == 'submitted'), # Hoặc check trong STATUS_CHOICES
         
             items=domain_items
         )

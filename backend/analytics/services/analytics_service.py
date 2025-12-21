@@ -1,176 +1,197 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+import time
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Avg, Max, F, Q
 from django.utils import timezone
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, List, Union
 
 # Import Models
 from content.models import Enrollment, Course, Lesson, Quiz
 from progress.models import QuizAttempt
-from analytics.models import UserActivityLog, StudentSnapshot
-from analytics.domains.student_profile_domain import StudentRiskProfile
+from analytics.models import UserActivityLog, StudentSnapshot, CourseAnalyticsLog
+from analytics.domains.analytics_result_domain import AnalyticsJobResultDomain
+from analytics.domains.course_health_overview_domain import CourseHealthOverviewDomain
+from analytics.domains.risk_distribution_domain import RiskDistributionDomain
+from analytics.domains.paginated_student_list_domain import PaginatedStudentListDomain
+from analytics.domains.student_risk_info_domain import StudentRiskInfoDomain
+from analytics.domains.analytics_log_domain import AnalyticsLogDomain
 
+
+
+# --- CONFIGURATION (Nên đưa vào Settings hoặc DB Config) ---
+RISK_CONFIG = {
+    'INACTIVE_WARN_DAYS': 7,
+    'INACTIVE_CRITICAL_DAYS': 21,
+    'LOW_ENGAGEMENT_THRESHOLD': 3.0,
+    'LOW_PERFORMANCE_THRESHOLD': 5.0,
+    'HIGH_PERFORMANCE_THRESHOLD': 8.0,
+}
+
+# ---------------------------------------------------------
+# PRIVATE HELPER METHODS 
+# ---------------------------------------------------------
+
+def _fetch_enrolled_students(course_id: str) -> pd.DataFrame:
+    """Lấy danh sách học viên và % tiến độ"""
+    enrollments = Enrollment.objects.filter(course_id=course_id).values('user_id', 'percent_completed')
+    df = pd.DataFrame(list(enrollments))
+    if not df.empty:
+        df.set_index('user_id', inplace=True)
+    return df
+
+
+def _calculate_engagement_metrics(course_id: str, student_ids: list) -> pd.DataFrame:
+    """Tính toán chỉ số tương tác từ UserActivityLog"""
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    
+    # Query Aggregate trực tiếp từ DB (Tối ưu RAM)
+    log_stats_qs = UserActivityLog.objects.filter(
+        course_id=course_id,
+        timestamp__gte=thirty_days_ago,
+        user_id__in=student_ids
+    ).values('user_id').annotate(
+        last_access=Max('timestamp'),
+        total_actions=Count('id'),
+        high_value_actions=Count('id', filter=Q(action__in=['QUIZ_SUBMIT', 'VIDEO_COMPLETE']))
+    )
+
+    if not log_stats_qs:
+        # Trả về DataFrame rỗng nhưng có đúng cột để join không bị lỗi
+        return pd.DataFrame(index=student_ids, columns=['days_inactive', 'eng_score']).fillna(0)
+
+    df = pd.DataFrame(list(log_stats_qs))
+    df.set_index('user_id', inplace=True)
+    
+    # Tính toán
+    now = pd.Timestamp.now(tz='utc')
+    if df['last_access'].dt.tz is None:
+            df['last_access'] = df['last_access'].dt.tz_localize('UTC')
+            
+    df['days_inactive'] = (now - df['last_access']).dt.days
+    
+    # Công thức Engagement Score
+    df['eng_score'] = (
+        (df['total_actions'] + df['high_value_actions'] * 4) / 10
+    ).clip(upper=10.0)
+    
+    return df[['days_inactive', 'eng_score']]
+
+
+def _calculate_performance_metrics(course_id: str, student_ids: list) -> pd.DataFrame:
+    """Tính toán điểm số trung bình từ QuizAttempt"""
+    # Logic tính điểm normalized
+    attempts = QuizAttempt.objects.filter(
+        enrollment__course_id=course_id,
+        status='graded',
+        user_id__in=student_ids
+    ).values('user_id', 'score', 'max_score')
+    
+    if not attempts:
+        return pd.DataFrame(index=student_ids, columns=['avg_quiz_score']).fillna(0)
+
+    df = pd.DataFrame(list(attempts))
+    
+    # Vectorized Normalization (Tránh chia cho 0)
+    df['normalized'] = np.where(
+        df['max_score'] > 0, 
+        (df['score'] / df['max_score']) * 10, 
+        0.0
+    )
+    
+    # Group by user để lấy điểm trung bình
+    quiz_avg = df.groupby('user_id')['normalized'].mean()
+    return quiz_avg.to_frame(name='avg_quiz_score')
+
+
+def _assess_risk_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
+    """Áp dụng logic phân loại rủi ro (Risk Matrix)"""
+    # 1. Tính Performance Score tổng hợp
+    df['perf_score'] = (
+        (df['avg_quiz_score'] * 0.6) + 
+        ((df['percent_completed'] / 10) * 0.4)
+    ).round(2)
+
+    # 2. Phạt điểm Engagement nếu nghỉ quá lâu
+    df['eng_score'] = np.where(
+        df['days_inactive'] > RISK_CONFIG['INACTIVE_WARN_DAYS'], 
+        df['eng_score'] * 0.5, 
+        df['eng_score']
+    )
+    # Nếu nghỉ quá 2 tuần -> Engagement về 0
+    df['eng_score'] = np.where(df['days_inactive'] > 14, 0.0, df['eng_score'])
+
+    # 3. Phân loại (Logic if/else ma trận)
+    c_dropout = df['days_inactive'] > RISK_CONFIG['INACTIVE_CRITICAL_DAYS']
+    c_at_risk = (df['days_inactive'] > RISK_CONFIG['INACTIVE_WARN_DAYS']) | (df['eng_score'] < RISK_CONFIG['LOW_ENGAGEMENT_THRESHOLD'])
+    c_struggling = (df['eng_score'] >= 6.0) & (df['perf_score'] < RISK_CONFIG['LOW_PERFORMANCE_THRESHOLD'])
+    c_disengaged = (df['perf_score'] >= RISK_CONFIG['HIGH_PERFORMANCE_THRESHOLD']) & (df['eng_score'] < 5.0)
+
+    df['risk_level'] = np.select(
+        [c_dropout, c_at_risk, c_struggling, c_disengaged], 
+        ['critical', 'high', 'medium', 'medium'], 
+        default='low'
+    )
+
+    df['message'] = np.select(
+        [c_dropout, c_at_risk, c_struggling, c_disengaged], 
+        [
+            f"Vắng mặt > {RISK_CONFIG['INACTIVE_CRITICAL_DAYS']} ngày", 
+            'Tương tác thấp (Cần nhắc nhở)', 
+            'Điểm thấp dù chăm chỉ (Cần hỗ trợ)', 
+            'Học đối phó/Giỏi nhưng lười'
+        ], 
+        default='Kết quả tốt'
+    )
+    return df
 
 
 # ==========================================
 # ANALYZE
 # ==========================================
 
-def analyze_course_health_bulk(course_id: str):
-    """
-    Phân tích rủi ro cho toàn bộ học viên trong khóa học.
-    Nên chạy qua Celery/Cronjob (ví dụ: mỗi đêm hoặc mỗi 6 tiếng).
-    """
-    # 1. PREPARE DATA (Lấy ID tham chiếu)
-    # ---------------------------------------------------------
-    # Lấy danh sách Lesson ID và Quiz ID thuộc khóa học để filter log
-    lesson_ids = list(Lesson.objects.filter(module__course_id=course_id).values_list('id', flat=True))
+@transaction.atomic
+def analyze_course_health_bulk(course_id: str) -> AnalyticsJobResultDomain:
+    start_time = time.time()
     
-    # Lấy Quiz ID thông qua ContentBlock (như bạn mô tả: ContentBlock -> Lesson -> Module -> Course)
-    quiz_ids = list(Quiz.objects.filter(
-        content_blocks__lesson__module__course_id=course_id
-    ).values_list('id', flat=True))
+    # 1. Fetch Students (Base Population)
+    df_students = _fetch_enrolled_students(course_id)
+    if df_students.empty:
+        return AnalyticsJobResultDomain(course_id, 0, 0, 'skipped_empty', 0)
     
-    lesson_ids_str = [str(uid) for uid in lesson_ids]
-    quiz_ids_str = [str(uid) for uid in quiz_ids]
-    course_id_str = str(course_id)
+    student_ids = df_students.index.tolist()
 
-    # 2. FETCH DATA (Chỉ 3 Queries lớn thay vì N+1)
-    # ---------------------------------------------------------
+    # 2. Calculate Engagement (Từ Log)
+    df_engagement = _calculate_engagement_metrics(course_id, student_ids)
     
-    # Q1: Lấy danh sách học viên (Base DataFrame)
-    # Chỉ lấy fields cần thiết để tiết kiệm RAM
-    enrollments = Enrollment.objects.filter(course_id=course_id).values(
-        'user_id', 'percent_completed'
-    )
-    if not enrollments: return # Khóa học vắng tanh
+    # 3. Calculate Performance (Từ Quiz)
+    df_performance = _calculate_performance_metrics(course_id, student_ids)
     
-    df_students = pd.DataFrame(list(enrollments))
-    df_students.set_index('user_id', inplace=True) # Index là User ID
-
-    # Q2: Lấy Logs tương tác (30 ngày qua)
-    thirty_days_ago = timezone.now() - timedelta(days=30)
-    logs = UserActivityLog.objects.filter(
-        timestamp__gte=thirty_days_ago,
-        # Filter Log thuộc về Course/Lesson/Quiz của khóa này
-    ).filter(
-        Q(entity_type='course', entity_id=course_id_str) |
-        Q(entity_type='lesson', entity_id__in=lesson_ids_str) |
-        Q(entity_type='quiz', entity_id__in=quiz_ids_str)
-    ).values('user_id', 'action', 'timestamp')
-
-    df_logs = pd.DataFrame(list(logs))
+    # 4. Merge & Final Risk Assessment
+    # Join các dataframe lại với nhau
+    df_final = df_students.join(df_engagement, how='left')\
+                            .join(df_performance, how='left')
     
-    # Q3: Lấy điểm Quiz (Lấy điểm trung bình của các bài đã chấm)
-    # Filter theo quiz_ids thuộc khóa học
-    attempts = QuizAttempt.objects.filter(
-        quiz_id__in=quiz_ids,
-        status='graded'
-    ).values('user_id', 'score', 'max_score')
-    
-    df_quizzes = pd.DataFrame(list(attempts))
-
-    # 3. MATRIX CALCULATION (Pandas Magic)
-    # ---------------------------------------------------------
-
-    # A. TÍNH ENGAGEMENT (Từ df_logs)
-    if not df_logs.empty:
-        # Convert timestamp
-        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp'])
-        now = pd.Timestamp.now(tz='utc') # Lưu ý timezone
-
-        # Group by User để tính các chỉ số
-        log_stats = df_logs.groupby('user_id').agg(
-            last_access=('timestamp', 'max'),
-            total_actions=('action', 'count'),
-            # Đếm số action quan trọng (Lambda function hơi chậm, nhưng ok với data vừa phải)
-            # Cách nhanh hơn: Tạo cột 'is_high_value' trước rồi sum
-            high_value_actions=('action', lambda x: x.isin(['QUIZ_SUBMIT', 'VIDEO_COMPLETE']).sum())
-        )
-
-        # Tính days_inactive
-        log_stats['days_inactive'] = (now - log_stats['last_access']).dt.days
-
-        # Tính Engagement Score (Vector hóa công thức)
-        # Score = (Total + HighVal * 4) / 10
-        log_stats['eng_score_raw'] = (log_stats['total_actions'] + log_stats['high_value_actions'] * 4) / 10
-        
-        # Clip score về 10
-        log_stats['eng_score'] = log_stats['eng_score_raw'].clip(upper=10.0)
-        
-        # Phạt điểm nếu inactive (Vector hóa logic if/else)
-        # np.where(condition, true_val, false_val)
-        log_stats['eng_score'] = np.where(log_stats['days_inactive'] > 7, log_stats['eng_score'] * 0.5, log_stats['eng_score'])
-        log_stats['eng_score'] = np.where(log_stats['days_inactive'] > 14, 0.0, log_stats['eng_score'])
-        
-        # Merge vào bảng học sinh (Left Join - User nào ko có log thì NaN)
-        df_final = df_students.join(log_stats, how='left')
-    else:
-        # Trường hợp không có log nào
-        df_final = df_students.copy()
-        df_final['eng_score'] = 0.0
-        df_final['days_inactive'] = 30 # Default
-
-    # B. TÍNH PERFORMANCE (Từ df_quizzes & df_students)
-    if not df_quizzes.empty:
-        # Chuẩn hóa điểm quiz về thang 10 (score / max_score * 10)
-        df_quizzes['normalized_score'] = (df_quizzes['score'] / df_quizzes['max_score']) * 10
-        # Tính trung bình điểm quiz mỗi user
-        quiz_avg = df_quizzes.groupby('user_id')['normalized_score'].mean()
-        
-        df_final = df_final.join(quiz_avg.rename('avg_quiz_score'), how='left')
-    else:
-        df_final['avg_quiz_score'] = 0.0
-
-    # Fill NaN bằng 0 (cho user không làm quiz hoặc ko có log)
+    # Điền 0 cho những user không có log/quiz
     df_final.fillna(0, inplace=True)
     
-    # Tính Performance Score tổng hợp
-    # Perf = (AvgQuiz * 0.6) + ((PercentCompleted / 10) * 0.4)
-    df_final['perf_score'] = (df_final['avg_quiz_score'] * 0.6) + ((df_final['percent_completed'] / 10) * 0.4)
-    df_final['perf_score'] = df_final['perf_score'].round(2)
-    
-    # 4. RISK ASSESSMENT (Vectorized Logic)
-    # ---------------------------------------------------------
-    
-    # Tạo cột Risk Level mặc định
-    df_final['risk_level'] = 'low'
-    df_final['message'] = 'Duy trì tốt'
+    # Chạy logic phân loại rủi ro
+    df_result = _assess_risk_matrix(df_final)
 
-    # Apply logic phân loại (Dùng np.select giống như SQL Case When)
-    # Điều kiện
-    cond_dropout = df_final['days_inactive'] > 21
-    cond_at_risk = (df_final['days_inactive'] > 7) | (df_final['eng_score'] < 3.0)
-    cond_struggling = (df_final['eng_score'] >= 6.0) & (df_final['perf_score'] < 5.0)
-    cond_disengaged = (df_final['perf_score'] >= 8.0) & (df_final['eng_score'] < 5.0)
+    # 5. Save to DB
+    save_snapshots(course_id, df_result)
 
-    # Giá trị tương ứng
-    choices_risk = ['critical', 'high', 'medium', 'medium']
-    choices_msg = [
-        'Vắng mặt quá lâu (Dropout?)',
-        'Ít tương tác (At Risk)',
-        'Gặp khó khăn kiến thức (Struggling)',
-        'Học tài tử (Disengaged)'
-    ]
-
-    # Áp dụng
-    df_final['risk_level'] = np.select(
-        [cond_dropout, cond_at_risk, cond_struggling, cond_disengaged], 
-        choices_risk, 
-        default='low'
+    execution_time = round(time.time() - start_time, 2)
+    return AnalyticsJobResultDomain(
+        course_id=str(course_id),
+        total_students=len(df_students),
+        processed_count=len(df_result),
+        status='success',
+        execution_time=execution_time
     )
-    df_final['message'] = np.select(
-        [cond_dropout, cond_at_risk, cond_struggling, cond_disengaged], 
-        choices_msg, 
-        default='Kết quả tốt'
-    )
-
-    # 5. BULK SAVE TO DB
-    # ---------------------------------------------------------
-    save_snapshots(course_id, df_final)
 
 
 # ==========================================
@@ -227,3 +248,9 @@ def save_snapshots(self, course_id, df_result):
     cache.delete(cache_key)
     
     print(f"♻️ Cache invalidated for {cache_key}")
+
+
+# ==========================================
+# GET 
+# ==========================================
+

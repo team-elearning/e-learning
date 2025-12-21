@@ -1,15 +1,19 @@
 from datetime import timedelta
 from django.core.cache import cache
-from django.db.models import Count, Avg, F
+from django.core.paginator import Paginator
+from django.db.models import Count, Avg, F, Q, OuterRef, Subquery, FloatField
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from typing import List
+from typing import List, Union
 
-from content.models import Course
-from analytics.models import StudentSnapshot
-from analytics.domains.course_pulse_domain import CoursePulseDomain
+from content.models import Course, Enrollment
+from analytics.models import StudentSnapshot, CourseAnalyticsLog
+from analytics.domains.course_health_overview_domain import CourseHealthOverviewDomain
 from analytics.domains.student_risk_info_domain import StudentRiskInfoDomain
 from analytics.domains.daily_metric_domain import DailyMetricDomain
+from analytics.domains.risk_distribution_domain import RiskDistributionDomain
+from analytics.domains.course_trend_domain import CourseTrendDomain
+from analytics.domains.paginated_student_list_domain import PaginatedStudentListDomain
 
 
 
@@ -17,36 +21,17 @@ from analytics.domains.daily_metric_domain import DailyMetricDomain
 # PUBLIC INTERFACE (HELPER)
 # ==========================================
 
-def _get_current_status(course_id: str):
-    """
-    Worker 1: Tính toán trạng thái hiện tại (Real-time Snapshot).
-    Sử dụng DISTINCT ON để lấy bản ghi mới nhất của mỗi học viên.
-    """
-    snapshots = StudentSnapshot.objects.filter(course_id=course_id)\
-        .order_by('user', '-created_at')\
-        .distinct('user')
-
-    # Aggregate chỉ số trung bình
-    stats = snapshots.aggregate(
-        avg_eng=Avg('engagement_score'),
-        avg_perf=Avg('performance_score'),
-        avg_inactive=Avg('days_inactive')
-    )
-
-    # Tính phân phối rủi ro (Python loop nhanh hơn SQL phức tạp ở quy mô nhỏ)
-    risk_dist = {'safe': 0, 'warning': 0, 'danger': 0}
-    count = 0
+def _calculate_risk_distribution(queryset) -> RiskDistributionDomain:
+    """Helper tính toán phân bố rủi ro từ QuerySet"""
+    risk_counts = queryset.values('risk_level').annotate(total=Count('id'))
+    count_map = {item['risk_level']: item['total'] for item in risk_counts}
     
-    for snap in snapshots:
-        count += 1
-        if snap.risk_level == 'low':
-            risk_dist['safe'] += 1
-        elif snap.risk_level == 'medium':
-            risk_dist['warning'] += 1
-        else:
-            risk_dist['danger'] += 1
-            
-    return stats, risk_dist, count
+    return RiskDistributionDomain(
+        low=count_map.get('low', 0),
+        medium=count_map.get('medium', 0),
+        high=count_map.get('high', 0),
+        critical=count_map.get('critical', 0)
+    )
 
 
 def _get_weekly_chart_data(course_id: str) -> List[DailyMetricDomain]:
@@ -125,17 +110,18 @@ def _calculate_trend_from_chart(chart_data: List[DailyMetricDomain], metric_name
     return 'stable'
 
 
-def _generate_insight(self, risk_dist, total, trend_eng):
+def _generate_insight(risk_dist, total, trend_eng):
     """Sinh câu nhận xét thông minh"""
     if total == 0: return "Lớp học chưa có dữ liệu."
     
-    danger_percent = (risk_dist['danger'] / total) * 100
+    danger_count = risk_dist.critical + risk_dist.high
+    danger_percent = (danger_count / total) * 100
     
     msg = ""
     if danger_percent > 30:
         msg = f"⚠️ Cảnh báo: {int(danger_percent)}% lớp đang gặp nguy hiểm."
     elif danger_percent > 10:
-        msg = f"⚠️ Có {risk_dist['danger']} bạn cần hỗ trợ."
+        msg = f"⚠️ Có {danger_count} bạn cần hỗ trợ."
     else:
         msg = "✅ Lớp học đang duy trì phong độ tốt."
         
@@ -147,17 +133,17 @@ def _generate_insight(self, risk_dist, total, trend_eng):
     return msg
 
 
-def _empty_pulse(course_id):
+def _empty_overview(course_id, status='pending', last_run=None):
     """Trả về domain rỗng"""
-    return CoursePulseDomain(
+    return CourseHealthOverviewDomain(
         course_id=str(course_id),
-        status="pending",
         total_students=0,
-        risk_distribution={'safe': 0, 'warning': 0, 'danger': 0},
-        avg_engagement=0.0, avg_performance=0.0, avg_inactive_days=0,
-        chart_data=[],
-        trend_engagement='stable', trend_performance='stable',
-        insight_text="Hệ thống đang thu thập dữ liệu (cần ít nhất 24h)."
+        avg_engagement_score=0.0,
+        avg_performance_score=0.0,
+        avg_inactive_days=0,
+        risk_distribution=RiskDistributionDomain(),
+        last_updated_at=last_run,
+        data_status=status
     )
 
 
@@ -165,11 +151,60 @@ def _empty_pulse(course_id):
 # PUBLIC INTERFACE (COURSE OVERVIEW)
 # ==========================================
 
-def get_course_pulse(course_id: str):
+def get_course_health_overview(course_id: str) -> CourseHealthOverviewDomain:
     """
-    Lấy 'Nhịp đập' của khóa học (Overview).
-    Phù hợp để vẽ Pie Chart hoặc Bar Chart.
-    Orchestrator: Điều phối các hàm con để lắp ráp thành Domain hoàn chỉnh.
+    Trả về các thẻ số liệu (Metrics Cards) và Pie Chart.
+    Load cực nhanh (< 50ms).
+    """
+    # 1. Lấy thông tin lần chạy Job gần nhất (Bất kể thành công hay thất bại)
+    latest_job = CourseAnalyticsLog.objects.filter(course_id=course_id).order_by('-created_at').first()
+    
+    # Nếu chưa chạy bao giờ
+    if not latest_job:
+        return _empty_overview(course_id, status="never_run")
+
+    # Nếu job đang chạy hoặc vừa thất bại
+    if latest_job.status == 'failed':
+        return _empty_overview(course_id, status="failed", last_run=latest_job.created_at)
+
+    # 1. Lấy tất cả snapshot mới nhất của khóa học
+    # (Giả định Batch Job đã dọn dẹp các snapshot cũ trong ngày)
+    snapshots_qs = StudentSnapshot.objects.filter(course_id=course_id)
+    total_students = snapshots_qs.count()
+    
+    # Nếu chưa có dữ liệu nào
+    if total_students == 0:
+        return _empty_overview(course_id)
+
+    # 2. Aggregation (Tính trung bình toàn lớp)
+    # SQL: SELECT AVG(engagement_score), AVG(performance_score)...
+    aggs = snapshots_qs.aggregate(
+        avg_eng=Avg('engagement_score'),
+        avg_perf=Avg('performance_score'),
+        avg_inactive=Avg('days_inactive')
+    )
+
+    risk_dist = _calculate_risk_distribution(snapshots_qs)
+    
+    return CourseHealthOverviewDomain(
+        course_id=str(course_id),
+        total_students=total_students,
+        
+        avg_engagement=round(aggs['avg_eng'] or 0, 1),
+        avg_performance=round(aggs['avg_perf'] or 0, 1),
+        avg_inactive_days=int(aggs['avg_inactive'] or 0),
+        
+        risk_distribution=risk_dist,
+        
+        last_updated_at=latest_job.created_at,
+        data_status='up_to_date'
+    )
+
+
+def get_course_trends(course_id: str):
+    """
+    Trả về dữ liệu vẽ biểu đồ (Line Chart) và Insight text.
+        Tách riêng ra để Frontend lazy load.
     """
     # Tạo Key định danh duy nhất
     cache_key = f"course_pulse_{course_id}"
@@ -178,41 +213,27 @@ def get_course_pulse(course_id: str):
     cached_data = cache.get(cache_key)
     if cached_data:
         return cached_data
-    
-    # 1. Lấy trạng thái hiện tại (Snapshot mới nhất của từng user)
-    current_stats, risk_dist, total_students = _get_current_status(course_id)
-
-    # Nếu chưa có dữ liệu analytics nào
-    if total_students == 0:
-        return _empty_pulse(course_id)
-    
-    # 2. Lấy dữ liệu biểu đồ 7 ngày (Aggregation theo ngày)
+        
+    # 1. Lấy dữ liệu biểu đồ 7 ngày (Aggregation theo ngày)
     chart_data = _get_weekly_chart_data(course_id)
 
-    # 3. Tính xu hướng dựa trên dữ liệu biểu đồ
+    # 2. Tính xu hướng dựa trên dữ liệu biểu đồ
     trend_eng = _calculate_trend_from_chart(chart_data, 'avg_engagement')
     trend_perf = _calculate_trend_from_chart(chart_data, 'avg_performance')
 
+    # 3. Generate Insight (Cần risk_dist, ta tính lại nhanh hoặc truyền từ FE lên nếu muốn tối ưu cực đoan)
+    # Ở đây tính lại cho decoupled, query count group by rất nhẹ.
+    snapshots_qs = StudentSnapshot.objects.filter(course_id=course_id)
+    risk_dist = _calculate_risk_distribution(snapshots_qs)
+
     # 4. Sinh Insight
-    insight = _generate_insight(risk_dist, total_students, trend_eng)
+    insight = _generate_insight(risk_dist, snapshots_qs.count(), trend_eng)
     
-    result_domain = CoursePulseDomain(
+    result_domain = CourseTrendDomain(
         course_id=str(course_id),
-        status="ready",
-        total_students=total_students,
-
-        # Current Data
-        risk_distribution=risk_dist,
-        avg_engagement=round(current_stats['avg_eng'] or 0, 1),
-        avg_performance=round(current_stats['avg_perf'] or 0, 1),
-        avg_inactive_days=int(current_stats['avg_inactive'] or 0),
-        
-        # Chart Data
         chart_data=chart_data,
-
         trend_engagement=trend_eng,
         trend_performance=trend_perf,
-        
         insight_text=insight
     )
 
@@ -223,48 +244,24 @@ def get_course_pulse(course_id: str):
     return result_domain
 
 
-def get_at_risk_students(course_id: str, limit=10) -> List[StudentRiskInfoDomain]:
+def get_student_risks_queryset(course_id: str):
     """
-    Lấy danh sách 'Báo động đỏ' (High & Critical).
+    Trả về QuerySet gốc đã được tối ưu hóa:
+    1. Join với bảng User (select_related).
+    2. Join ngầm với bảng Enrollment để lấy % (Subquery).
     """
-    # Chỉ lấy những snapshot mới nhất mà có rủi ro cao
-    queryset = StudentSnapshot.objects.filter(
-        course_id=course_id,
-        risk_level__in=['high', 'critical']
-    ).select_related('user', 'user__profile')\
-    .order_by('user', '-created_at').distinct('user')
-    
-    # Sắp xếp ưu tiên: Critical trước -> High sau -> Days inactive giảm dần
-    # Vì distinct('user') yêu cầu order_by('user') đầu tiên, nên ta phải xử lý list bằng Python
-    # hoặc dùng Subquery phức tạp. Ở đây xử lý Python cho gọn code (với limit nhỏ).
-    
-    candidates = list(queryset)
-    
-    # Sort thủ công: Critical lên đầu, sau đó đến số ngày nghỉ
-    candidates.sort(key=lambda x: (x.risk_level == 'critical', x.days_inactive), reverse=True)
-    
-    results = []
-    for snap in candidates:
-        profile = getattr(snap.user, 'profile', None)
-        name = profile.display_name if profile else snap.user.email
-        avatar = profile.avatar_id if profile else None
+    # A. Subquery lấy % hoàn thành (Chỉ lấy 1 giá trị)
+    enrollment_subquery = Enrollment.objects.filter(
+        user_id=OuterRef('user_id'),
+        course_id=course_id
+    ).values('percent_completed')[:1]
 
-        results.append(StudentRiskInfoDomain(
-            user_id=str(snap.user.id),
-            course_id=str(snap.course_id),
-            engagement_score=snap.engagement_score,
-            performance_score=snap.performance_score,
-            days_inactive=snap.days_inactive,
-            risk_level=snap.risk_level,
-            reason=snap.ai_message,
-            suggested_action=snap.suggested_action,
-            
-            # UI Fields
-            student_name=name,
-            student_avatar=avatar,
-            last_updated=snap.created_at
-        ))
-        
-    return results
+    # B. Main Query
+    # Annotate giúp gắn thêm field 'real_percent_completed' vào mỗi object StudentSnapshot
+    return StudentSnapshot.objects.filter(course_id=course_id)\
+        .select_related('user')\
+        .annotate(
+            real_percent_completed=Subquery(enrollment_subquery, output_field=FloatField())
+        ).order_by('engagement_score', '-days_inactive')
 
 

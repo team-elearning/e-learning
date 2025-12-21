@@ -1,14 +1,13 @@
 import logging
 from pydantic import BaseModel
 from typing import Type, Any, Optional
-from django.http import Http404
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import get_object_or_404
-from django.core.exceptions import PermissionDenied
 from django.db.models.query import QuerySet
-from rest_framework.exceptions import APIException, AuthenticationFailed
+from rest_framework import status
+from rest_framework.exceptions import APIException
+from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from content.models import ContentBlock
 
 
 
@@ -80,31 +79,49 @@ class RoleBasedOutputMixin:
         DRF calls this *after* the view returns a Response.
         We intercept and replace the payload if it contains {"instance": ...}
         """
-        if isinstance(response.data, dict) and "instance" in response.data:
-            instance_data = response.data["instance"]
-            is_list = isinstance(instance_data, (list, QuerySet))
-
-            try:
-                if is_list:
-                    # --- XỬ LÝ LIST ---
-                    # Gọi _to_dto cho TỪNG item
-                    # (Điều này cũng sửa một bug: cho phép 
-                    #  trả về output_dto_self và output_dto_public
-                    #  trong cùng 1 list)
-                    response.data = [
-                        self._to_dto(item, request).model_dump()
-                        for item in instance_data
-                    ]
-                
-                else:
-                    # --- XỬ LÝ OBJECT ĐƠN LẺ ---
-                    # Gọi _to_dto và chuyển thành dict
-                    response.data = self._to_dto(instance_data, request).model_dump()
+        if isinstance(response.data, dict):
             
-            except Exception as e:
-                # (Thêm exc_info=True để debug dễ hơn)
-                logger.error(f"DTO mapping/serialization failed: {e}", exc_info=True) 
-                raise DtoMappingError(f"DTO mapping/serialization failed: {e}")
+            # --- CASE A: PAGINATION RESPONSE ({items, meta}) ---
+            if "items" in response.data and "meta" in response.data:
+                items_data = response.data["items"]
+                meta_data = response.data["meta"]
+
+                try:  
+                    # Tối ưu: Nếu items_data rỗng thì khỏi map
+                    if not items_data:
+                        dtos = []
+                    else:
+                        dtos = [
+                            self._to_dto(item, request).model_dump()
+                            for item in items_data
+                        ]
+                    
+                    # Cập nhật lại response data
+                    response.data = {
+                        "items": dtos,
+                        "meta": meta_data
+                    }
+
+                except Exception as e:
+                    # (Thêm exc_info=True để debug dễ hơn)
+                    logger.error(f"DTO mapping/serialization failed: {e}", exc_info=True) 
+                    raise DtoMappingError(f"DTO mapping/serialization failed: {e}")
+            
+            # --- CASE B: STANDARD RESPONSE ({instance}) ---
+            elif "instance" in response.data:
+                instance_data = response.data["instance"]
+
+                try:
+                    if isinstance(instance_data, (list, QuerySet)):
+                        response.data = [
+                            self._to_dto(item, request).model_dump()
+                            for item in instance_data
+                        ]
+                    else:
+                        response.data = self._to_dto(instance_data, request).model_dump()
+                except Exception as e:
+                    logger.error(f"DTO mapping failed: {e}", exc_info=True)
+                    raise DtoMappingError(f"DTO mapping failed: {e}")    
 
         # Gọi hàm finalize_response gốc của APIView
         return APIView.finalize_response(self, request, response, *args, **kwargs)
@@ -144,169 +161,68 @@ class AutoPermissionCheckMixin:
                 setattr(self, model_name, obj)
 
 
-# class ModulePermissionMixin:
-#     """
-#     Mixin này cung cấp một hàm helper để kiểm tra xem
-#     request.user có phải là admin hoặc owner của module
-#     được chỉ định trong URL (module_id) hay không.
-    
-#     Nó được thiết kế để gọi TỪ BÊN TRONG một phương thức view (như post).
-#     """
-    
-#     def check_module_permission(self, request, module_id):
-#         """
-#         Kiểm tra quyền (Admin hoặc Module Owner) bằng tay.
-#         Raises Http404 nếu không tìm thấy Module.
-#         Raises PermissionDenied nếu không có quyền.
-#         """
-#         try:
-#             # Dùng select_related để tối ưu
-#             module = Module.objects.select_related('course__owner').get(pk=module_id)
-#         except Module.DoesNotExist:
-#             raise Http404("Module không tìm thấy.")
-            
-#         is_admin = request.user.is_staff
-#         is_owner = (hasattr(module, 'course') and 
-#                     hasattr(module.course, 'owner') and 
-#                     module.course.owner == request.user)
-
-#         if not (is_admin or is_owner):
-#             raise PermissionDenied("Bạn không phải là chủ sở hữu của module này.")
-        
-#         # Trả về module để view có thể tái sử dụng
-#         return module
-    
-
-# class CoursePermissionMixin:
-#     """
-#     Mixin này kiểm tra xem user có phải là admin hoặc 
-#     owner của Course được chỉ định (course_id) hay không.
-#     """
-    
-#     def check_course_permission(self, request, course_id):
-#         """
-#         Kiểm tra quyền (Admin hoặc Course Owner) bằng tay.
-#         Raises Http404 nếu không tìm thấy Course.
-#         Raises PermissionDenied nếu không có quyền.
-#         """
-#         try:
-#             course = Course.objects.select_related('owner').get(pk=course_id)
-#         except Course.DoesNotExist:
-#             raise Http404("Course không tìm thấy.")
-            
-#         is_admin = request.user.is_staff
-#         is_owner = (hasattr(course, 'owner') and 
-#                     course.owner == request.user)
-
-#         if not (is_admin or is_owner):
-#             raise PermissionDenied("Bạn không phải là chủ sở hữu của khóa học này.")
-        
-#         # Trả về course để view có thể tái sử dụng
-#         return course
-    
-
-# class LessonPermissionMixin:
-#     """
-#     Mixin này cung cấp hàm helper để kiểm tra xem request.user
-#     có phải là Admin hoặc Owner (Instructor) của Lesson hay không.
-    
-#     Quyền được xác định bằng cách kiểm tra owner của Course chứa Lesson.
-#     """
-    
-#     def check_lesson_permission(self, request, lesson_id):
-#         """
-#         Kiểm tra quyền (Admin hoặc Course Owner) cho một Lesson.
-#         Raises Http404 nếu không tìm thấy Lesson.
-#         Raises PermissionDenied nếu không có quyền.
-#         """
-#         try:
-#             # Tối ưu query bằng cách join thẳng đến course owner
-#             lesson = Lesson.objects.select_related(
-#                 'module__course__owner'
-#             ).get(pk=lesson_id)
-            
-#         except Lesson.DoesNotExist:
-#             raise Http404("Bài học không tìm thấy.")
-            
-#         is_admin = request.user.is_staff
-        
-#         # Kiểm tra chain: lesson -> module -> course -> owner
-#         is_owner = (
-#             hasattr(lesson, 'module') and
-#             hasattr(lesson.module, 'course') and
-#             hasattr(lesson.module.course, 'owner') and
-#             lesson.module.course.owner == request.user
-#         )
-
-#         if not (is_admin or is_owner):
-#             raise PermissionDenied("Bạn không có quyền truy cập tài nguyên bài học này.")
-            
-#         # Trả về lesson để view có thể tái sử dụng nếu cần
-#         return lesson
-    
-
-# class LessonVersionPermissionMixin:
-#     """
-#     Kiểm tra quyền (Admin hoặc Owner) cho một LessonVersion.
-#     Quyền được suy ra từ Lesson -> Module -> Course -> Owner.
-#     """
-#     def check_lesson_version_permission(self, request, lesson_version_id):
-#         if not request.user.is_authenticated:
-#             raise AuthenticationFailed()
-            
-#         try:
-#             # Join sâu để lấy owner chỉ bằng 1 query
-#             version = LessonVersion.objects.select_related(
-#                 'lesson__module__course__owner'
-#             ).get(pk=lesson_version_id)
-#         except LessonVersion.DoesNotExist:
-#             raise Http404("Lesson Version không tìm thấy.")
-
-#         is_admin = request.user.is_staff
-        
-#         # Chain: version -> lesson -> module -> course -> owner
-#         try:
-#             # Dùng .id để tránh lỗi so sánh object (nếu request.user là SimpleLazyObject)
-#             is_owner = (
-#                 version.lesson.module.course.owner.id == request.user.id
-#             )
-#         except AttributeError:
-#             # Handle chain breaks (e.g., lesson.module is None)
-#             is_owner = False
-
-#         if not (is_admin or is_owner):
-#             raise PermissionDenied("Bạn không có quyền truy cập lesson version này.")
-        
-#         return version # Trả về để tái sử dụng
-
-class ContentBlockPermissionMixin:
+class PaginationMixin:
     """
-    Kiểm tra quyền (Admin hoặc Owner) cho một ContentBlock.
-    Quyền được suy ra từ Block -> Version -> Lesson -> ...
+    Mixin hỗ trợ phân trang chuẩn cho API.
+    Tự động lấy `page` và `page_size` từ Query Params.
     """
-    def check_content_block_permission(self, request, pk):
-        if not request.user.is_authenticated:
-            raise AuthenticationFailed()
-            
-        try:
-            block = ContentBlock.objects.select_related(
-                'lesson_version__lesson__module__course__owner'
-            ).get(pk=pk)
-        except ContentBlock.DoesNotExist:
-            raise Http404("Content Block không tìm thấy.")
+    default_page_size = 20
+    max_page_size = 100
 
-        is_admin = request.user.is_staff
-        
-        # Chain: block -> version -> lesson -> module -> course -> owner
+    def paginate_queryset(self, queryset_or_list, request) -> dict:
+        """
+        Hàm core: Nhận vào QuerySet/List -> Trả về Dict cấu trúc chuẩn.
+        """
+        # 1. Lấy tham số từ URL
         try:
-            is_owner = (
-                block.lesson_version.lesson.module.course.owner.id == request.user.id
-            )
-        except AttributeError:
-            is_owner = False
+            page_number = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', self.default_page_size))
+        except (ValueError, TypeError):
+            page_number = 1
+            page_size = self.default_page_size
 
-        if not (is_admin or is_owner):
-            raise PermissionDenied("Bạn không có quyền truy cập content block này.")
-        
-        return block # Trả về để tái sử dụng
-    
+        # Limit max size để tránh user request 1 triệu record
+        if page_size > self.max_page_size:
+            page_size = self.max_page_size
+
+        # 2. Paginator của Django
+        paginator = Paginator(queryset_or_list, page_size)
+
+        try:
+            page_obj = paginator.page(page_number)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            # Nếu page > total_pages -> Trả về trang cuối hoặc list rỗng (tuỳ style)
+            # Ở đây ta trả về list rỗng để FE dễ xử lý
+            return {
+                "items": [],
+                "meta": {
+                    "total_count": paginator.count,
+                    "page": page_number,
+                    "page_size": page_size,
+                    "total_pages": paginator.num_pages,
+                    "has_next": False,
+                    "has_previous": False,
+                }
+            }
+
+        # 3. Trả về cấu trúc chuẩn
+        return {
+            "items": page_obj.object_list, # List các object (Model/Domain)
+            "meta": {
+                "total_count": paginator.count,
+                "page": page_number,
+                "page_size": page_size,
+                "total_pages": paginator.num_pages,
+                "has_next": page_obj.has_next(),
+                "has_previous": page_obj.has_previous(),
+            }
+        }
+
+    def get_paginated_response(self, data: dict) -> Response:
+        """
+        Helper để wrap vào DRF Response (200 OK).
+        Dùng khi View trả về trực tiếp (không qua RoleBasedOutputMixin).
+        """
+        return Response(data, status=status.HTTP_200_OK)
