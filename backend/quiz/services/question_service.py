@@ -88,27 +88,29 @@ def _recursive_process_json(data: Any, question: Question) -> Any:
     - Trả về data mới đã thay thế '_staging_id' bằng '_data' (chứa file_path).
     """
     if isinstance(data, dict):
-        new_data = {}
-        for key, value in data.items():
-            # Nếu dict này có 'file_id' (UUID staging) nhưng chưa có 'file_path' (đã promote)
-            if 'file_id' in data and not data.get('file_path'):
-                staging_id = data['file_id']
+        # 1. Tạo bản sao để xử lý (tránh sửa trực tiếp input và dễ return)
+        new_data = data.copy()
 
-                file_info = _promote_single_file(staging_id, question)
-                
-                if file_info:
-                    data.update(file_info)
-
-                    # Xóa file_id (staging) đi cho sạch, hoặc giữ lại tùy ý
-                    # del data['file_id']
-                else:
-                    # Lỗi (File ko tồn tại): Đánh dấu lỗi hoặc để nguyên
-                    data['error'] = "File not found"
+        # 2. Xử lý Logic File (Promote Staging -> Private)
+        # Check ngay trên level object này xem có phải là File Object không
+        if 'file_id' in new_data and not new_data.get('file_path'):
+            staging_id = new_data['file_id']
             
-            # Đệ quy tiếp cho các key con (đề phòng nested sâu hơn)
-        for key, value in data.items():
+            # Gọi hàm promote
+            file_info = _promote_single_file(staging_id, question)
+            
+            if file_info:
+                new_data.update(file_info)
+                # Tùy chọn: Xóa file_id thừa đi cho sạch
+                # if 'file_id' in new_data: del new_data['file_id']
+            else:
+                new_data['error'] = "File not found or processing failed"
+
+        # 3. Đệ quy tiếp cho các key con (để xử lý nested structures)
+        # Ví dụ: prompt -> media (list) -> item (dict) -> file_id
+        for key, value in new_data.items():
             if isinstance(value, (dict, list)):
-                data[key] = _recursive_process_json(value, question)
+                new_data[key] = _recursive_process_json(value, question)
 
         return new_data
 
@@ -195,6 +197,9 @@ def update_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDom
     # --- Xử lý Hint ---
     if 'hint' in data: 
         q_to_update.hint = _recursive_process_json(data['hint'], q_to_update)
+
+    print("?????????????????????????????????", data['prompt'])
+    print("saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", q_to_update.prompt)
     
     # 3. Save
     q_to_update.save()

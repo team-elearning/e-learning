@@ -241,16 +241,18 @@ def get_question_in_attempt(attempt_id: uuid.UUID, question_id: uuid.UUID, user)
     processed_prompt = recursive_inject_cdn_url(question.prompt)
 
     # Lúc này các item trong list này đã có field 'url' (nếu là ảnh)
-    options_with_urls = processed_prompt.get('options', [])
-
-    # # --- Logic Random Đáp Án (Option Shuffle) ---    
-    # Để đảm bảo user F5 không bị đổi thứ tự đáp án liên tục, 
-    # ta dùng seed = attempt_id + question_id
-    seed_val = str(attempt.id) + str(question.id)
-    random.seed(seed_val) 
-    
-    shuffled_options = options_with_urls.copy()
-    random.shuffle(shuffled_options)
+    options = processed_prompt.get('options', [])
+    if options and isinstance(options, list):
+        # Clone để không ảnh hưởng data gốc
+        shuffled_options = options.copy()
+        
+        # Seed random
+        seed_val = str(attempt.id) + str(question.id)
+        random.seed(seed_val)
+        random.shuffle(shuffled_options)
+        
+        # Gán ngược lại vào prompt để trả về
+        processed_prompt['options'] = shuffled_options
 
     # 2. --- LOGIC MỚI: TÌM CÂU TRẢ LỜI CŨ (RESUME) ---
     # Tìm xem user đã từng trả lời câu này chưa
@@ -260,39 +262,30 @@ def get_question_in_attempt(attempt_id: uuid.UUID, question_id: uuid.UUID, user)
         question=question
     ).first()
 
-    saved_answer_data = {}
-    saved_flag_status = False
+    saved_answer_data = existing_answer.answer_data if existing_answer else {}
+    saved_flag_status = existing_answer.is_flagged if existing_answer else False
     
     # Thêm 2 trường này để Frontend biết câu này đã chấm chưa
     submission_result = None
-
-    if existing_answer:
-        saved_answer_data = existing_answer.answer_data
-        saved_flag_status = existing_answer.is_flagged
-        
-        # Nếu câu này đã được chấm (ví dụ trong mode Practice user đã bấm Submit),
-        # ta cần trả về kết quả luôn để hiển thị lại (chứ user F5 xong mất màu xanh đỏ thì kì)
-        # Lưu ý: Chỉ trả về kết quả nếu score hoặc feedback đã có giá trị (tức là đã submit thật)
-        if existing_answer.feedback or existing_answer.score > 0 or existing_answer.is_correct:
-             
-             # Logic lấy đáp án đúng (chỉ hiện nếu là Practice hoặc Exam cho phép review)
-             correct_display = None
-             if attempt.attempt_mode in ['practice', 'quiz']:
-                 correct_display = get_correct_answer_for_display(question)
-                 
-             submission_result = {
-                 "is_correct": existing_answer.is_correct,
-                 "score": existing_answer.score,
-                 "feedback": existing_answer.feedback,
-                 "correct_answer": correct_display
-             }
+    if existing_answer and (existing_answer.is_graded or existing_answer.feedback):
+        # Logic lấy đáp án đúng (chỉ hiện nếu là Practice hoặc Exam cho phép review)
+        correct_display = None
+        if attempt.attempt_mode in ['practice', 'quiz']:
+            correct_display = get_correct_answer_for_display(question)
+            
+        submission_result = {
+            "is_correct": existing_answer.is_correct,
+            "score": existing_answer.score,
+            "feedback": existing_answer.feedback,
+            "correct_answer": correct_display
+        }
 
     return QuestionContentDomain(
         id=question.id,
         type=question.type,
-        prompt_text=processed_prompt.get('text', ''),
-        prompt_image=processed_prompt.get('image', None),
-        options=shuffled_options,
+
+        prompt=processed_prompt,
+
         current_answer=saved_answer_data, 
         is_flagged=saved_flag_status,
         submission_result=submission_result
