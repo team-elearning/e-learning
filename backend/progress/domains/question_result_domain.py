@@ -81,7 +81,7 @@ class QuizItemResultDomain:
             question_type=q.type,
             options=options,
 
-            user_answer=ans.answer_data,
+            user_answer_data=ans.answer_data,
             user_answer_text=user_text,
 
             correct_answer_data=correct_data,
