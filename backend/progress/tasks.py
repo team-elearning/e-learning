@@ -70,6 +70,20 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
             enrollment.save(update_fields=['percent_completed', 'is_completed', 'completed_at'])
 
 
+def _safe_trigger_async_task(attempt_id, user_id, course_id):
+    """Helper function để gửi task an toàn, không làm sập app nếu Broker chết."""
+    try:
+        async_update_course_progress_and_analytics.delay(
+            attempt_id=attempt_id,
+            user_id=user_id,
+            course_id=course_id
+        )
+    except Exception as e:
+        # Log lỗi nhưng KHÔNG raise exception
+        # Có thể lưu vào bảng FailedTask để retry sau (nếu cần thiết)
+        logger.error(f"⚠️ Failed to trigger async task (Broker down?): {e}")
+
+
 @shared_task
 def async_update_course_progress_and_analytics(attempt_id, user_id, course_id):
     """

@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict, is_dataclass
 from pydantic import BaseModel
 from typing import Type, Any, Optional
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -71,6 +72,7 @@ class RoleBasedOutputMixin:
     def _to_dto(self, instance: Any, request) -> BaseModel:
         """Convert a domain object → selected DTO."""
         dto_cls = self._select_dto_class(instance, request)
+        
         # `from_orm` works with Django models, SQLAlchemy, etc.
         return dto_cls.model_validate(instance) # Pydantic v2
 

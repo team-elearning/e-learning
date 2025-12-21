@@ -13,7 +13,7 @@ from progress.models import QuizAttempt, QuestionAnswer
 from progress.domains.quiz_attempt_domain import QuizAttemptDomain
 from progress.domains.question_result_domain import QuizItemResultDomain
 from progress.services.question_attempt_service import evaluate_answer
-from progress.tasks import async_update_course_progress_and_analytics
+from progress.tasks import _safe_trigger_async_task
 from analytics.services.log_service import record_activity
 
 
@@ -252,7 +252,7 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     # 6. Trigger Background Tasks (Fire & Forget)
     # Đẩy việc tính % khóa học, lưu analytics, gửi mail ra worker
     c_id = str(attempt.enrollment.course_id) if attempt.enrollment else None
-    transaction.on_commit(lambda: async_update_course_progress_and_analytics.delay(
+    transaction.on_commit(lambda: _safe_trigger_async_task(
         attempt_id=str(attempt.id),
         user_id=str(user.id),
         course_id=c_id

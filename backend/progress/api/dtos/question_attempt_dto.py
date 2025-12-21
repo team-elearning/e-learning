@@ -27,13 +27,13 @@ class QuestionContentOutput(BaseModel):
 
     id: uuid.UUID
     type: str
-    prompt_text: str = Field(..., description="Nội dung câu hỏi")
-    prompt_image: Optional[str] = None
     
-    # Options này sẽ được shuffle ở tầng Domain hoặc Service trước khi đẩy vào đây
-    options: List[QuestionOptionOutput] = []
+    # [FIX] Trả về cấu trúc Rich Prompt
+    prompt: Dict[str, Any]
+    
     current_answer: Optional[dict]  # Chứa answer_data (ví dụ: {"selected_ids": [...]})
     is_flagged: bool
+    submission_result: Optional[Dict[str, Any]] = None
 
 
 class QuizItemResultOutput(BaseModel):

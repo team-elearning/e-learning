@@ -44,13 +44,17 @@ class QuestionPublicOutput(BaseModel):
 
 
 
-class QuestionInstructorOutput(QuestionPublicOutput):
+class QuestionInstructorOutput(BaseModel):
     """
     DTO Output dành cho Giáo viên/Admin.
     Hiện đầy đủ đáp án và gợi ý.
     """
     model_config = ConfigDict(from_attributes=True)
 
+    id: uuid.UUID
+    type: str
+    prompt: Dict[str, Any] # Học viên chỉ cần đề bài và các options (A,B,C,D)
+    position: int
     answer_payload: Dict[str, Any] # Giáo viên cần xem đáp án cấu hình
     hint: Dict[str, Any]
 

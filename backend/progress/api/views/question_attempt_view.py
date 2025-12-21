@@ -31,6 +31,7 @@ class AttemptQuestionDetailView(RoleBasedOutputMixin, AutoPermissionCheckMixin, 
     permission_lookup = {'attempt_id': QuizAttempt} 
 
     output_dto_public = QuestionContentOutput
+    output_dto_instructor = QuestionContentOutput
     output_dto_admin = QuestionContentOutput
 
     permission_lookup = {'attempt_id': QuizAttempt}
