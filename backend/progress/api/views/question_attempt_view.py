@@ -74,11 +74,12 @@ class AttemptQuestionSaveDraftView(RoleBasedOutputMixin, AutoPermissionCheckMixi
     def put(self, request, attempt_id: uuid.UUID, question_id: uuid.UUID, *args, **kwargs):
         # 1. Serializer (Validate Body)
         serializer = QuestionAnswerInputSerializer(data=request.data)
-        validated_data = serializer.validated_data
         try:
             serializer.is_valid(raise_exception=True)
         except ValidationError as e:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
 
         # 2. Map to Input DTO
         # Ghép answer_data từ Body vào DTO
