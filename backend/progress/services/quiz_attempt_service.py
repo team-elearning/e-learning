@@ -211,7 +211,7 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     # 5. [FIX] GHI LOG NGAY TẠI ĐÂY (Để lấy được IP/UA chuẩn)
     # ========================================================
     record_activity(user, {
-        'action': 'SUBMIT_QUIZ',
+        'action': 'QUIZ_SUBMIT',
         'entity_type': 'quiz',
         'entity_id': str(attempt.quiz_id),
         'is_critical': True, # Để ghi sync & update streak ngay
@@ -223,10 +223,11 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
 
     # 6. Trigger Background Tasks (Fire & Forget)
     # Đẩy việc tính % khóa học, lưu analytics, gửi mail ra worker
+    c_id = str(attempt.enrollment.course_id) if attempt.enrollment else None
     transaction.on_commit(lambda: async_update_course_progress_and_analytics.delay(
         attempt_id=str(attempt.id),
         user_id=str(user.id),
-        course_id=str(attempt.quiz.course_id) # Giả sử quiz có link tới course
+        course_id=c_id
     ))
 
     # 7. Construct Result Domain
