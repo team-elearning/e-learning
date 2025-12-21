@@ -66,10 +66,11 @@ class QuizItemResultDomain:
         # Phòng hờ trường hợp question bị xóa hoặc chưa fetch
         q = question_obj or ans.question
 
-        options = q.content.get('options', [])
+        prompt_data = getattr(q, 'prompt', {}) or {}
+        options = prompt_data.get('options', [])
         option_map = {opt['id']: opt['text'] for opt in options if 'id' in opt and 'text' in opt}
 
-        user_text = cls._get_display_text(q, ans.answer_data)
+        user_text = cls._get_display_text(q.type, ans.answer_data, option_map)
 
         correct_data = getattr(q, 'answer_payload', {})
         correct_text = cls._get_display_text(q.type, correct_data, option_map)
