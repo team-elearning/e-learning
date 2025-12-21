@@ -191,7 +191,9 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
     # SELECT * FROM progress_quizattempt WHERE id = '...' AND user_id = '...' FOR UPDATE;
     # => Chỉ khóa đúng 1 dòng này. Các user khác không ảnh hưởng.
     try:
-        attempt = QuizAttempt.objects.select_for_update().select_related('quiz').get(id=attempt_id, user=user)
+        attempt = QuizAttempt.objects.select_for_update(of=('self',))\
+            .select_related('quiz')\
+            .get(id=attempt_id, user=user)
     except QuizAttempt.DoesNotExist:
         raise DomainError("Không tìm thấy bài làm.")
 
