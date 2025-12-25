@@ -20,10 +20,12 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/e-learning
+            git reset --hard HEAD
             git pull origin main
             source venv/bin/activate
             pip install -r backend/requirements.txt
             python backend/manage.py migrate --noinput
             python backend/manage.py collectstatic --noinput
             sudo systemctl restart gunicorn
+            sudo systemctl restart celery
             sudo systemctl restart nginx
