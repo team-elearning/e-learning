@@ -29,7 +29,7 @@ RISK_CONFIG = {
     'LOW_ENGAGEMENT_THRESHOLD': 3.0,
     'LOW_PERFORMANCE_THRESHOLD': 5.0,
     'HIGH_PERFORMANCE_THRESHOLD': 8.0,
-}
+} 
 
 # ---------------------------------------------------------
 # PRIVATE HELPER METHODS 

@@ -205,17 +205,15 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     'socket_timeout': 2,
 }
 
-# REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
-# CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"{REDIS_URL}/0")
-# CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"{REDIS_URL}/0")
+# Dùng Redis làm Broker
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 
-# CELERY_ACCEPT_CONTENT = ['json']
-# CELERY_TASK_SERIALIZER = 'json'
-# CELERY_RESULT_SERIALIZER = 'json'
-# CELERY_TIMEZONE = 'UTC'
-# CELERY_TASK_TRACK_STARTED = True
-# CELERY_TASK_TIME_LIMIT = 1800
-# CELERY_TASK_SOFT_TIME_LIMIT = 1200
+# (Tùy chọn) Dùng Redis để lưu kết quả trả về
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+
+# Đảm bảo timezone trùng với Django
+CELERY_TIMEZONE = 'Asia/Ho_Chi_Minh'
+
 
 # # -------------------------------
 # # Cache (Redis)
