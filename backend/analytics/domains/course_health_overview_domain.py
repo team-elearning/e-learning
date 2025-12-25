@@ -13,6 +13,7 @@ class CourseHealthOverviewDomain:
     Đại diện cho sức khỏe tổng quan của khóa học.
     """
     course_id: str
+    title: str 
     status: str              # 'pending', 'ready'
     total_students: int
     
@@ -24,14 +25,14 @@ class CourseHealthOverviewDomain:
     # Phân phối rủi ro
     risk_distribution: RiskDistributionDomain
 
-    # 2. Dữ liệu Time Series (7 ngày qua) - Vẽ Line Chart [NEW]
-    chart_data: List[DailyMetricDomain]
+    # # 2. Dữ liệu Time Series (7 ngày qua) - Vẽ Line Chart [NEW]
+    # chart_data: List[DailyMetricDomain]
     
-    # [NEW] Xu hướng so với 7 ngày trước ('up', 'down', 'stable')
-    trend_engagement: str    
-    trend_performance: str
+    # # [NEW] Xu hướng so với 7 ngày trước ('up', 'down', 'stable')
+    # trend_engagement: str    
+    # trend_performance: str
     
-    insight_text: str
+    # insight_text: str
 
     # Metadata vận hành
     last_updated_at: Optional[datetime] = None

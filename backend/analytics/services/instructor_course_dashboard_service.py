@@ -3,6 +3,7 @@ from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Count, Avg, F, Q, OuterRef, Subquery, FloatField
 from django.db.models.functions import TruncDate
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from typing import List, Union
 
@@ -133,10 +134,12 @@ def _generate_insight(risk_dist, total, trend_eng):
     return msg
 
 
-def _empty_overview(course_id, status='pending', last_run=None):
+def _empty_overview(course_id, course_title, course_published, status='pending', last_run=None):
     """Trả về domain rỗng"""
     return CourseHealthOverviewDomain(
         course_id=str(course_id),
+        title=course_title,                   # [ADDED]
+        status='active' if course_published else 'draft', # [ADDED]
         total_students=0,
         avg_engagement_score=0.0,
         avg_performance_score=0.0,
@@ -156,16 +159,18 @@ def get_course_health_overview(course_id: str) -> CourseHealthOverviewDomain:
     Trả về các thẻ số liệu (Metrics Cards) và Pie Chart.
     Load cực nhanh (< 50ms).
     """
+    course = get_object_or_404(Course.objects.only('title', 'published'), pk=course_id)
+
     # 1. Lấy thông tin lần chạy Job gần nhất (Bất kể thành công hay thất bại)
     latest_job = CourseAnalyticsLog.objects.filter(course_id=course_id).order_by('-created_at').first()
     
     # Nếu chưa chạy bao giờ
     if not latest_job:
-        return _empty_overview(course_id, status="never_run")
+        return _empty_overview(course_id, course.title, course.published, status="never_run")
 
     # Nếu job đang chạy hoặc vừa thất bại
     if latest_job.status == 'failed':
-        return _empty_overview(course_id, status="failed", last_run=latest_job.created_at)
+        return _empty_overview(course_id, course.title, course.published, status="failed", last_run=latest_job.created_at)
 
     # 1. Lấy tất cả snapshot mới nhất của khóa học
     # (Giả định Batch Job đã dọn dẹp các snapshot cũ trong ngày)
@@ -174,7 +179,7 @@ def get_course_health_overview(course_id: str) -> CourseHealthOverviewDomain:
     
     # Nếu chưa có dữ liệu nào
     if total_students == 0:
-        return _empty_overview(course_id)
+        return _empty_overview(course_id, course.title, course.published)
 
     # 2. Aggregation (Tính trung bình toàn lớp)
     # SQL: SELECT AVG(engagement_score), AVG(performance_score)...
@@ -188,6 +193,8 @@ def get_course_health_overview(course_id: str) -> CourseHealthOverviewDomain:
     
     return CourseHealthOverviewDomain(
         course_id=str(course_id),
+        title=course.title,                                  
+        status='active' if course.published else 'draft',
         total_students=total_students,
         
         avg_engagement=round(aggs['avg_eng'] or 0, 1),

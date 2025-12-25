@@ -212,6 +212,8 @@ const docSrc = computed(() => {
   return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
 })
 const docxViewerOk = ref(true)
+const heartbeatTimer = ref<number | null>(null)
+const lastTickAt = ref<number | null>(null)
 
 // function officeViewerUrl(block: any) {
 //   return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
@@ -308,8 +310,129 @@ const dash = computed(() => progressPct.value)
 
 async function selectBlock(block: any) {
   activeBlock.value = block
-  await getBlockDetail(block.id)
+
+  // song song: block detail + resume
+  const [blockDetail, resume] = await Promise.all([
+    getBlockDetail(block.id),
+    api.get(`/progress/tracking/heartbeat/blocks/${block.id}`),
+  ])
+
+  const resumeData = resume.data
+
+  // === VIDEO / AUDIO ===
+  if (block.type === 'video' && resumeData?.interaction_data?.video_timestamp) {
+    // đợi video mount
+    requestAnimationFrame(() => {
+      if (videoRef.value) {
+        videoRef.value.currentTime = resumeData.interaction_data.video_timestamp
+      }
+    })
+  }
+
+  // === PDF / DOCX ===
+  if ((block.type === 'pdf' || block.type === 'docx') && resumeData?.interaction_data?.page) {
+    // lưu vào state để iframe dùng sau
+    block.__resume_page = resumeData.interaction_data.page
+  }
+
+  // === QUIZ ===
+  if (block.type === 'quiz') {
+    block.__resume_question = resumeData?.interaction_data?.current_question_index ?? 0
+  }
 }
+
+function startVideoHeartbeat(block: any) {
+  stopHeartbeat()
+
+  lastTickAt.value = Date.now()
+
+  heartbeatTimer.value = window.setInterval(async () => {
+    if (!videoRef.value) return
+
+    const now = Date.now()
+    const delta = Math.floor((now - (lastTickAt.value || now)) / 1000)
+    lastTickAt.value = now
+
+    if (delta <= 0) return
+
+    const res = await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+      time_spent_add: Math.min(delta, 30),
+      interaction_data: {
+        video_timestamp: videoRef.value.currentTime,
+        playback_rate: videoRef.value.playbackRate,
+      },
+    })
+
+    // ✅ auto complete từ server
+    if (res.data?.is_completed) {
+      markLessonCompleted(block)
+    }
+  }, 30000)
+}
+async function onVideoPause(block: any) {
+  if (!videoRef.value) return
+
+  await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+    time_spent_add: 0,
+    interaction_data: {
+      video_timestamp: videoRef.value.currentTime,
+      playback_rate: videoRef.value.playbackRate,
+    },
+  })
+}
+function stopHeartbeat() {
+  if (heartbeatTimer.value) {
+    clearInterval(heartbeatTimer.value)
+    heartbeatTimer.value = null
+  }
+}
+async function syncPdf(block: any, page: number, total: number) {
+  const res = await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+    time_spent_add: 30,
+    interaction_data: {
+      page,
+      total_pages: total,
+    },
+  })
+
+  if (res.data?.is_completed) {
+    markLessonCompleted(block)
+  }
+}
+async function syncQuiz(block: any, questionIndex: number) {
+  await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+    time_spent_add: 30,
+    interaction_data: {
+      current_question_index: questionIndex,
+      is_doing: true,
+    },
+  })
+}
+async function markLessonCompleted(block: any) {
+  // tick xanh ngay
+  doneSet.add(String(block.lesson_id))
+  buildUiSectionsFromCourse()
+
+  // refresh % khóa học
+  const res = await api.get(`/progress/courses/${course.value.id}/progress/`)
+  course.__progress = res.data.instance
+}
+window.addEventListener('beforeunload', () => {
+  if (!activeBlock.value || !videoRef.value) return
+
+  const payload = {
+    time_spent_add: 0,
+    interaction_data: {
+      video_timestamp: videoRef.value.currentTime,
+      playback_rate: videoRef.value.playbackRate,
+    },
+  }
+
+  navigator.sendBeacon(
+    `/tracking/heartbeat/blocks/${activeBlock.value.id}/`,
+    JSON.stringify(payload),
+  )
+})
 
 /* ======================
    UTILS (template cần)

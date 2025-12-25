@@ -241,11 +241,57 @@ def save_snapshots(self, course_id, df_result):
     StudentSnapshot.objects.bulk_create(snapshots, batch_size=500)
     print(f"✅ Saved history for {len(snapshots)} students in Course {course_id}")
 
+    # ---------------------------------------------------------
+    # 3. [NEW] UPDATE ENROLLMENT (SYNC STATE) - Dùng bulk_update
+    # ---------------------------------------------------------
+    print("⏳ Syncing to Enrollment table...")
+
+    # Bước A: Lấy tất cả enrollment cần update lên RAM (1 Query)
+    # df_result.index chính là list các user_id vừa được tính toán
+    enrollments_to_update = Enrollment.objects.filter(
+        course_id=course_id,
+        user_id__in=df_result.index
+    )
+
+    # Bước B: Map dữ liệu từ DataFrame vào Object (In-Memory)
+    update_list = []
+    
+    for enrollment in enrollments_to_update:
+        # Lấy row tương ứng từ DataFrame (O(1) lookup vì dùng index)
+        try:
+            row = df_result.loc[enrollment.user_id]
+            
+            # Gán giá trị mới vào object Enrollment
+            enrollment.current_engagement_score = float(row['eng_score'])
+            enrollment.current_performance_score = float(row['perf_score'])
+            enrollment.current_days_inactive = int(row['days_inactive'])
+            enrollment.current_risk_level = row['risk_level']
+            
+            update_list.append(enrollment)
+        except KeyError:
+            # Phòng trường hợp data bị lệch (hiếm khi xảy ra nếu logic chuẩn)
+            continue
+
+    # Bước C: Bắn 1 query UPDATE xuống DB
+    if update_list:
+        Enrollment.objects.bulk_update(
+            update_list,
+            fields=[
+                'current_engagement_score', 
+                'current_performance_score', 
+                'current_days_inactive', 
+                'current_risk_level'
+            ],
+            batch_size=500
+        )
+        print(f"✅ Synced current state for {len(update_list)} enrollments.")
+
     # [QUAN TRỌNG] INVALIDATE CACHE
     # Khi đã tính toán xong snapshot mới, dữ liệu trên Dashboard cũ đã bị lỗi thời.
     # Ta xóa key cache đi để lần tới Giảng viên F5, hệ thống sẽ tính lại dữ liệu mới nhất.
     cache_key = f"course_pulse_{course_id}"
-    cache.delete(cache_key)
+    cache_overview = f"instructor_overview_{self.request.user.id}" # Cache tổng quan giảng viên
+    cache.delete_many([cache_key, cache_overview])
     
     print(f"♻️ Cache invalidated for {cache_key}")
 

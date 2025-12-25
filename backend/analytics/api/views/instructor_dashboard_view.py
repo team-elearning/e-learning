@@ -1,23 +1,75 @@
 import logging
 from django.db.models import Q
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.api.permissions import IsInstructor
 from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin, PaginationMixin
 from content.models import Course
-from analytics.api.dtos.analytics_dto import CourseHealthOverviewOutput, CourseTrendOutput, StudentRiskInfoOutput
-from analytics.services import instructor_course_dashboard_service
+from analytics.api.dtos.analytics_dto import CourseHealthOverviewOutput, CourseTrendOutput, StudentRiskInfoOutput, InstructorOverviewOutput
+from analytics.services import instructor_course_dashboard_service, instructor_overall_dashboard_service
 from analytics.domains.student_risk_info_domain import StudentRiskInfoDomain
+from analytics.domains.instructor_overview_domain import InstructorOverviewDomain
 
 
 
 logger = logging.getLogger(__name__)
 
+class InstructorOverviewView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
+    """
+    GET /instructor/overview/
+    Endpoint lấy dữ liệu tổng quan Dashboard cho Giảng viên.
+    """
+    permission_classes = [IsAuthenticated, IsInstructor]
+
+    output_dto_public = InstructorOverviewOutput
+    output_dto_instructor = InstructorOverviewOutput
+    output_dto_admin = InstructorOverviewOutput
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.analytics_service = instructor_overall_dashboard_service
+
+    def get(self, request, *args, **kwargs):
+        """
+        Lấy thống kê tổng quan (Dashboard).
+        Flow: Service -> Domain -> Output DTO/Dict -> Response
+        """
+        try:
+            # 1. Input: Xác định Instructor ID từ User đang đăng nhập
+            # Không lấy từ URL để tránh việc user A xem trộm data của user B
+            instructor_id = str(request.user.id)
+
+            # 2. Service Call: Gọi logic nghiệp vụ
+            # Hàm này trả về InstructorOverviewDomain (Pydantic Model)
+            domain_result = self.analytics_service.get_instructor_overview(instructor_id)
+
+            # 4. Return Response
+            # RoleBasedOutputMixin sẽ can thiệp vào đây (nếu có logic finalize_response)
+            return Response(domain_result, status=status.HTTP_200_OK)
+
+        except ValueError as e:
+            # Lỗi logic nghiệp vụ (ví dụ: ID không hợp lệ, User chưa kích hoạt...)
+            logger.warning(f"Business Error in InstructorOverviewView: {e}")
+            return Response(
+                {"detail": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as e:
+            # Lỗi kỹ thuật không mong muốn (DB connection, Code bug...)
+            logger.error(f"System Error in InstructorOverviewView: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Lỗi hệ thống khi tải dashboard - {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
 class CourseHealthOverviewView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    GET /api/courses/<course_id>/analytics/overview/
+    GET /api/courses/<course_id>/overview/
     Lấy số liệu sức khỏe tổng quan của khóa học (Dashboard Cards).
     """
     # 1. Permission & Security
@@ -70,7 +122,7 @@ class CourseHealthOverviewView(RoleBasedOutputMixin, AutoPermissionCheckMixin, A
 
 class CourseAnalyticsTrendsView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    GET /api/courses/<course_id>/analytics/trends/
+    GET /api/courses/<course_id>/trends/
     Lấy dữ liệu biểu đồ (Line Chart) và phân tích xu hướng (7 ngày qua).
     """
     # 1. Permission & Security

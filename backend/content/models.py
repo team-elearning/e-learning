@@ -141,7 +141,14 @@ class Lesson(models.Model):
 
 #     def __str__(self):
 #         return f"{self.lesson} v{self.version}"
-    
+
+
+RISK_LEVELS = [
+        ('low', 'An toàn'),
+        ('medium', 'Cần chú ý'),
+        ('high', 'Rủi ro cao'),
+        ('critical', 'Bỏ học')
+    ]
 
 class Enrollment(models.Model):
     """
@@ -169,11 +176,24 @@ class Enrollment(models.Model):
         related_name='current_enrollments'
     )
 
+    current_engagement_score = models.FloatField(default=0.0, db_index=True) # Index để sort Top Course nhanh
+    current_performance_score = models.FloatField(default=0.0)
+    current_days_inactive = models.IntegerField(default=0)
+
+    current_risk_level = models.CharField(
+        max_length=20, 
+        choices=RISK_LEVELS, 
+        default='low', 
+        db_index=True 
+    )
+
     class Meta:
         unique_together = ('user', 'course')
         indexes = [
             models.Index(fields=['user', 'course']), # Query check quyền học
-            models.Index(fields=['user', '-last_accessed_at']) # Query dashboard
+            models.Index(fields=['user', '-last_accessed_at']), # Query dashboard
+            models.Index(fields=['course', 'current_risk_level']),
+            models.Index(fields=['course', 'current_engagement_score']),
         ]
       
 
