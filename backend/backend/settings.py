@@ -214,6 +214,12 @@ CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 # Đảm bảo timezone trùng với Django
 CELERY_TIMEZONE = 'Asia/Ho_Chi_Minh'
 
+# # Khi bật cái này lên = True:
+# # Code chạy .delay() sẽ chạy ngay lập tức (như hàm thường).
+# # Breakpoint của VS Code / PyCharm sẽ DỪNG LẠI ĐƯỢC bên trong task.
+# CELERY_TASK_ALWAYS_EAGER = True
+# CELERY_TASK_EAGER_PROPAGATES = True  # Lỗi trong task sẽ văng ra mặt luôn để thấy traceback
+
 
 # # -------------------------------
 # # Cache (Redis)

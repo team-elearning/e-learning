@@ -411,12 +411,16 @@ def mark_quiz_as_completed(user_id: str, quiz_id: str, enrollment_id: str, score
     if not progress.is_completed:
         progress.is_completed = True
         progress.completed_at = timezone.now()
-        progress.score = score
-        # Chỉ update các field cần thiết
-        progress.save(update_fields=['is_completed', 'completed_at', 'score'])
-        return True # Đánh dấu là MỚI hoàn thành
+        
+        interaction = progress.interaction_data or {}
+        interaction['score'] = score
+        progress.interaction_data = interaction
 
-    return False
+        # Chỉ update các field cần thiết
+        progress.save(update_fields=['is_completed', 'completed_at', 'interaction_data'])
+        return str(block.lesson_id)
+
+    return None
 
 
 # ==========================================
