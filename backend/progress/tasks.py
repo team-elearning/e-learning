@@ -101,12 +101,13 @@ def async_update_course_progress_and_analytics(attempt_id, user_id, course_id):
             'id', 'quiz_id', 'enrollment_id', 'score', 'is_passed'
         ).first()
         
-        if not attempt: return
+        if not attempt: 
+            return
 
         # 1. Update Block Progress (Chỉ nếu PASS)
-        is_newly_completed = False
+        completed_lesson_id = None
         if attempt.is_passed:
-            is_newly_completed = mark_quiz_as_completed(
+            completed_lesson_id = mark_quiz_as_completed(
                 user_id=user_id,
                 quiz_id=attempt.quiz_id,
                 enrollment_id=attempt.enrollment_id,
@@ -115,11 +116,14 @@ def async_update_course_progress_and_analytics(attempt_id, user_id, course_id):
 
         # 2. Aggregation (Chỉ tính lại % nếu có tiến độ mới)
         # Điều này giúp giảm tải DB cực lớn, không tính lại nếu user làm lại bài thi cũ
-        if is_newly_completed:
-             # Logic tìm lesson_id có thể lấy từ BlockCompletionService hoặc query nhẹ
-             # Giả sử ta biết lesson_id từ block (trong thực tế nên return từ mark_quiz_as_completed)
-             # Ở đây gọi hàm aggregation của bạn
-             calculate_aggregation(str(attempt.enrollment_id))
+        if completed_lesson_id:
+            # Logic tìm lesson_id có thể lấy từ BlockCompletionService hoặc query nhẹ
+            # Giả sử ta biết lesson_id từ block (trong thực tế nên return từ mark_quiz_as_completed)
+            # Ở đây gọi hàm aggregation của bạn
+            calculate_aggregation(
+                enrollment_id=str(attempt.enrollment_id), 
+                lesson_id=completed_lesson_id
+            )
        
         # # 3. Notification (Optional)
         # # Nếu pass -> Gửi mail chúc mừng / Cấp chứng chỉ

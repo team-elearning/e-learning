@@ -175,9 +175,22 @@ def update_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDom
     except Question.DoesNotExist:
         raise DomainError(f"Question {question_id} không tìm thấy để cập nhật.")
 
-    # 1. Update các trường cơ bản (Primitive fields)
-    # if 'type' in data: 
-    #     q_to_update.type = data['type']
+    # 1. Validate Type: CẤM ĐỔI TYPE
+    if 'type' in data:
+        requested_type = data['type']
+        current_type = q_to_update.type
+        
+        # Nếu gửi type khác type hiện tại -> Chặn luôn
+        if requested_type != current_type:
+            raise DomainError(
+                f"Không được phép thay đổi loại câu hỏi. "
+                f"Hiện tại: '{current_type}', Yêu cầu: '{requested_type}'. "
+                f"Hãy xóa và tạo mới nếu muốn đổi loại."
+            )
+        
+        # Nếu type giống nhau thì không cần làm gì cả (pass), 
+        # vì type không được phép thay đổi.
+
     if 'score' in data:
         q_to_update.score = data['score']
 
@@ -197,9 +210,6 @@ def update_question(question_id: uuid.UUID, data: Dict[str, Any]) -> QuestionDom
     # --- Xử lý Hint ---
     if 'hint' in data: 
         q_to_update.hint = _recursive_process_json(data['hint'], q_to_update)
-
-    print("?????????????????????????????????", data['prompt'])
-    print("saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", q_to_update.prompt)
     
     # 3. Save
     q_to_update.save()
