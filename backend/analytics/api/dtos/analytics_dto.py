@@ -46,11 +46,16 @@ class CourseHealthOverviewOutput(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     course_id: str
+    title: str
+    status: str
     total_students: int
     
-    avg_engagement_score: float
-    avg_performance_score: float
+    avg_engagement: float
+    avg_performance: float
     avg_inactive_days: int
+
+    trend_engagement: Optional[str] = "stable"
+    trend_performance: Optional[str] = "stable"
     
     risk_distribution: RiskDistributionOutput
     
@@ -104,3 +109,31 @@ class StudentRiskInfoOutput(BaseModel):
     
     real_percent_completed: float
     last_login_at: Optional[datetime]
+
+
+class InstructorOverviewOutput(BaseModel):
+    """
+    Output JSON cuối cùng trả về cho Frontend.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    instructor_id: str
+
+    # --- Section 1: Headline Stats ---
+    # Chuyển Decimal sang float để JSON friendly hơn (hoặc giữ Decimal nếu cần độ chính xác tiền tệ tuyệt đối)
+    total_revenue: float = Field(..., description="Tổng doanh thu (VNĐ)")
+    total_students: int
+    total_enrollments: int
+    active_courses_count: int
+
+    # --- Section 2: Global Health ---
+    global_engagement: float
+    global_performance: float
+    critical_students_total: int
+
+    # --- Section 3: Charts ---
+    chart_data: List[DailyMetricOutput]
+
+    # --- Section 4: Lists ---
+    top_performing_courses: List[CourseHealthOverviewOutput]
+    courses_needing_attention: List[CourseHealthOverviewOutput]

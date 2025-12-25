@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class CourseHealthAnalyzeView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
-    POST /instructor/courses/<course_id>/analytics/analyze/
+    POST /instructor/courses/<course_id>/analyze/
     Endpoint để Instructor kích hoạt phân tích rủi ro thủ công (On-demand).
     """
     permission_classes = [IsInstructor] 
