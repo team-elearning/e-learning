@@ -230,6 +230,7 @@ def finish_quiz_attempt(attempt_id: uuid.UUID, user) -> QuizAttemptDomain:
 
     pass_threshold = attempt.quiz.pass_score or (max_score * 0.5)
     attempt.is_passed = (total_score >= pass_threshold)
+    print("hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", attempt.is_passed)
 
     attempt.status = 'submitted'
     attempt.time_submitted = timezone.now()
