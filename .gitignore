@@ -54,3 +54,6 @@ backend/staticfiles/
 # ---- Cloudfront / Secrets ----
 *.pem
 cloudfront-private-key.pem
+
+
+*.rdb

@@ -27,4 +27,5 @@ jobs:
             python backend/manage.py migrate --noinput
             python backend/manage.py collectstatic --noinput
             sudo systemctl restart gunicorn
+            sudo systemctl restart celery
             sudo systemctl restart nginx
