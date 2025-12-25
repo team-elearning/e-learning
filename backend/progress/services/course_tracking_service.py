@@ -384,39 +384,39 @@ def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
 # ==========================================
 
 def mark_quiz_as_completed(user_id: str, quiz_id: str, enrollment_id: str, score: float) -> bool:
-        """
-        Đánh dấu ContentBlock Quiz là hoàn thành.
-        Trả về True nếu trạng thái thay đổi từ (Chưa xong -> Xong).
-        """
-        # 1. Tìm ContentBlock tương ứng với Quiz (Tối ưu query)
-        # Dùng .only('id', 'lesson_id') để tiết kiệm RAM
-        block = ContentBlock.objects.filter(
-            type='quiz', 
-            payload__quiz_id=str(quiz_id)
-        ).only('id', 'lesson_id').first()
+    """
+    Đánh dấu ContentBlock Quiz là hoàn thành.
+    Trả về True nếu trạng thái thay đổi từ (Chưa xong -> Xong).
+    """
+    # 1. Tìm ContentBlock tương ứng với Quiz (Tối ưu query)
+    # Dùng .only('id', 'lesson_id') để tiết kiệm RAM
+    block = ContentBlock.objects.filter(
+        type='quiz', 
+        payload__quiz_id=str(quiz_id)
+    ).only('id', 'lesson_id').first()
 
-        if not block:
-            return False
-
-        # 2. Update hoặc Create UserBlockProgress
-        # Sử dụng update_or_create để atomic hơn get_or_create + save
-        # Tuy nhiên cần check trạng thái cũ để biết có cần trigger aggregation không
-        
-        progress, created = UserBlockProgress.objects.get_or_create(
-            user_id=user_id,
-            block_id=block.id,
-            defaults={'enrollment_id': enrollment_id}
-        )
-
-        if not progress.is_completed:
-            progress.is_completed = True
-            progress.completed_at = timezone.now()
-            progress.score = score
-            # Chỉ update các field cần thiết
-            progress.save(update_fields=['is_completed', 'completed_at', 'score'])
-            return True # Đánh dấu là MỚI hoàn thành
-
+    if not block:
         return False
+
+    # 2. Update hoặc Create UserBlockProgress
+    # Sử dụng update_or_create để atomic hơn get_or_create + save
+    # Tuy nhiên cần check trạng thái cũ để biết có cần trigger aggregation không
+    
+    progress, created = UserBlockProgress.objects.get_or_create(
+        user_id=user_id,
+        block_id=block.id,
+        defaults={'enrollment_id': enrollment_id}
+    )
+
+    if not progress.is_completed:
+        progress.is_completed = True
+        progress.completed_at = timezone.now()
+        progress.score = score
+        # Chỉ update các field cần thiết
+        progress.save(update_fields=['is_completed', 'completed_at', 'score'])
+        return True # Đánh dấu là MỚI hoàn thành
+
+    return False
 
 
 # ==========================================
