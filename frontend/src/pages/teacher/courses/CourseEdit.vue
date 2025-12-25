@@ -899,15 +899,13 @@
                     </p>
 
                     <textarea
-                      v-model="q.prompt.text"
+                      v-model="q.prompt.content"
                       rows="3"
-                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                      class="input-field"
                       placeholder="Nhập nội dung câu hỏi..."
                       @input="onQuestionInput(q)"
                     />
                   </div>
-
-                  <!-- ===== ANSWERS ===== -->
                   <!-- ===== ANSWERS ===== -->
                   <div class="border-t px-4 py-4 space-y-4">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1302,51 +1300,58 @@ async function openQuizEditor(block: any) {
 }
 
 function normalizeQuestion(q: any) {
+  // ===== ENSURE BASE =====
   q.prompt = q.prompt || {}
   q.answer_payload = q.answer_payload || {}
 
-  /* ========== MULTIPLE CHOICE (SINGLE + MULTI) ========== */
-  if (q.type === 'multiple_choice_single' || q.type === 'multiple_choice_multi') {
-    q.prompt.text = q.prompt.text || ''
-    q.prompt.options = Array.isArray(q.prompt.options) ? q.prompt.options : []
+  // Luôn dùng content (HTML)
+  q.prompt.content = q.prompt.content ?? ''
 
-    const correctMap = new Map(
-      (q.answer_payload.choices || []).map((c: any) => [c.id, !!c.is_correct]),
-    )
+  /* ========= MULTIPLE CHOICE SINGLE ========= */
+  if (q.type === 'multiple_choice_single') {
+    const correctId = q.answer_payload.correct_id ?? null
 
-    // UI dùng answer_payload.choices = {id, text, is_correct}
-    q.answer_payload.choices = q.prompt.options.map((opt: any) => ({
+    q.answer_payload.choices = (q.prompt.options || []).map((opt: any) => ({
       id: opt.id,
       text: opt.text || '',
-      is_correct: correctMap.get(opt.id) || false,
+      is_correct: opt.id === correctId,
     }))
   }
 
-  /* ========== TRUE / FALSE ========== */
+  /* ========= MULTIPLE CHOICE MULTI ========= */
+  if (q.type === 'multiple_choice_multi') {
+    const correctIds = new Set(q.answer_payload.correct_ids || [])
+
+    q.answer_payload.choices = (q.prompt.options || []).map((opt: any) => ({
+      id: opt.id,
+      text: opt.text || '',
+      is_correct: correctIds.has(opt.id),
+    }))
+  }
+
+  /* ========= TRUE / FALSE ========= */
   if (q.type === 'true_false') {
-    q.prompt.text = q.prompt.text || ''
-    if (typeof q.answer_payload.answer !== 'boolean') {
-      q.answer_payload.answer = true
-    }
+    q.answer_payload.answer = q.answer_payload.correct_value === true
   }
 
-  /* ========== SHORT ANSWER ========== */
+  /* ========= SHORT ANSWER ========= */
   if (q.type === 'short_answer') {
-    q.prompt.text = q.prompt.text || ''
-    q.answer_payload.valid_answers = Array.isArray(q.answer_payload.valid_answers)
-      ? q.answer_payload.valid_answers
-      : []
+    q.answer_payload.valid_answers = (q.answer_payload.accepted_texts || []).map((t: string) => ({
+      answer: t,
+      case_sensitive: false,
+    }))
   }
 
-  /* ========== MATCHING ========== */
+  /* ========= MATCHING ========= */
   if (q.type === 'matching') {
-    q.prompt.pairs = Array.isArray(q.prompt.pairs) ? q.prompt.pairs : []
-    q.prompt.options = Array.isArray(q.prompt.options) ? q.prompt.options : []
+    q.prompt.options = q.prompt.options || []
     q.answer_payload.matches = q.answer_payload.matches || {}
-    q.answer_payload.explanation = q.answer_payload.explanation || ''
   }
 
+  // UI flags
   q._dirty = false
+  q._saving = false
+
   return q
 }
 
@@ -1387,8 +1392,10 @@ async function addQuestionToQuiz() {
     { headers: getAuthHeaders() },
   )
 
-  resetQuestionPayload(data)
-  quizEditor.questions.push(data)
+  // resetQuestionPayload(data)
+  // quizEditor.questions.push(data)
+  const q = normalizeQuestion(data)
+  quizEditor.questions.push(q)
 }
 
 function setCorrectChoice(q: any, i: number) {
@@ -1417,86 +1424,143 @@ async function saveAllQuestions() {
   showNotification('success', 'Thành công', 'Đã lưu tất cả thay đổi')
 }
 
+function hasQuestionContentOrMedia(q: any): boolean {
+  const content = (q.prompt?.content || '').trim()
+  if (content.length > 0) return true
+
+  const media = q.prompt?.media || []
+  return Array.isArray(media) && media.some((m: any) => m?.file_id || m?.file_path || m?.url)
+}
+
 function buildPrompt(question: any) {
-  /* MULTIPLE CHOICE */
+  const content = (question.prompt?.content || '').trim()
+
   if (question.type === 'multiple_choice_single' || question.type === 'multiple_choice_multi') {
     return {
-      text: question.prompt?.text || '',
-      options: (question.answer_payload?.choices || []).map((c: any) => ({
+      content: content || null,
+      options: question.answer_payload.choices.map((c: any) => ({
         id: c.id,
-        text: c.text || '',
+        text: c.text,
       })),
+      media: question.prompt.media || [],
     }
   }
 
-  /* MATCHING */
   if (question.type === 'matching') {
     return {
-      text: question.prompt?.text || '',
-      pairs: question.prompt?.pairs || [],
-      options: question.prompt?.options || [],
+      content: content || null,
+      options: question.prompt.options || [],
+      media: question.prompt.media || [],
     }
   }
 
-  /* TRUE/FALSE + SHORT ANSWER */
+  // true_false, short_answer, essay
   return {
-    text: question.prompt?.text || '',
+    content: content || null,
+    media: question.prompt.media || [],
   }
 }
 
 function buildAnswerPayload(question: any) {
-  /* MULTIPLE CHOICE */
-  if (question.type === 'multiple_choice_single' || question.type === 'multiple_choice_multi') {
-    return {
-      choices: (question.answer_payload?.choices || []).map((c: any) => ({
-        id: c.id,
-        is_correct: !!c.is_correct,
-      })),
+  switch (question.type) {
+    case 'multiple_choice_single': {
+      const correct = question.answer_payload.choices.find((c: any) => c.is_correct)
+      return {
+        correct_id: correct?.id || null,
+        explanation: question.answer_payload.explanation || '',
+      }
     }
-  }
 
-  /* TRUE / FALSE */
-  if (question.type === 'true_false') {
-    return {
-      answer: !!question.answer_payload?.answer,
+    case 'multiple_choice_multi': {
+      return {
+        correct_ids: question.answer_payload.choices
+          .filter((c: any) => c.is_correct)
+          .map((c: any) => c.id),
+        allow_partial: !!question.answer_payload.allow_partial,
+        explanation: question.answer_payload.explanation || '',
+      }
     }
-  }
 
-  /* SHORT ANSWER */
-  if (question.type === 'short_answer') {
-    return {
-      valid_answers: (question.answer_payload?.valid_answers || []).map((a: any) => ({
-        answer: a.answer || '',
-        case_sensitive: !!a.case_sensitive,
-      })),
-    }
-  }
+    case 'true_false':
+      return {
+        correct_value: question.answer_payload.answer === true,
+        explanation: question.answer_payload.explanation || '',
+      }
 
-  /* MATCHING */
-  if (question.type === 'matching') {
-    return {
-      matches: question.answer_payload?.matches || {},
-      explanation: question.answer_payload?.explanation || '',
-    }
-  }
+    case 'short_answer':
+      return {
+        accepted_texts: (question.answer_payload.valid_answers || [])
+          .map((a: any) => a.answer.trim())
+          .filter(Boolean),
+        case_sensitive: false,
+        explanation: question.answer_payload.explanation || '',
+      }
 
-  return {}
+    case 'matching':
+      return {
+        matches: question.answer_payload.matches || {},
+        explanation: question.answer_payload.explanation || '',
+      }
+
+    case 'essay':
+      return {
+        grading_rubric: question.answer_payload.grading_rubric || '',
+        model_answer: question.answer_payload.model_answer || '',
+      }
+
+    default:
+      return {}
+  }
+}
+
+function hasQuestionContent(q: any): boolean {
+  const text = q.prompt?.text?.trim()
+  const hasText = !!text
+
+  const hasMedia =
+    !!q.prompt?.banner_staging_id ||
+    !!q.prompt?.image_id ||
+    !!q.prompt?.audio_id ||
+    !!q.prompt?.video_id
+
+  return hasText || hasMedia
 }
 
 async function saveQuestion(question: any) {
-  const payload = {
-    type: question.type,
-    prompt: buildPrompt(question),
-    answer_payload: buildAnswerPayload(question),
-    hint: question.hint,
+  if (question._saving) return
+
+  // ===== VALIDATE =====
+  if (!hasQuestionContentOrMedia(question)) {
+    alert('Câu hỏi phải có nội dung (content) HOẶC đính kèm (media).')
+    return
   }
 
-  const { data } = await axios.patch(`/api/quiz/instructor/questions/${question.id}/`, payload, {
-    headers: getAuthHeaders(),
-  })
+  question._saving = true
 
-  Object.assign(question, normalizeQuestion({ ...question, ...data }))
-  question._dirty = false
+  try {
+    const payload: any = {
+      prompt: buildPrompt(question),
+      answer_payload: buildAnswerPayload(question),
+    }
+
+    // nếu đổi type → bắt buộc gửi type
+    if (question._typeChanged) {
+      payload.type = question.type
+    }
+
+    const { data } = await axios.patch(`/api/quiz/instructor/questions/${question.id}/`, payload, {
+      headers: getAuthHeaders(),
+    })
+
+    Object.assign(question, normalizeQuestion(data))
+    question._dirty = false
+    question._typeChanged = false
+  } catch (e: any) {
+    console.error('❌ SAVE QUESTION FAILED:', e?.response?.data || e)
+    alert(e?.response?.data?.detail || e?.response?.data?.[0] || 'Không lưu được câu hỏi')
+  } finally {
+    question._saving = false
+  }
 }
 
 async function deleteQuestion(questionId: string, index: number) {
@@ -2257,34 +2321,41 @@ function ensureQuizPayload(block: any) {
 }
 
 function resetQuestionPayload(question: any) {
-  switch (question.type) {
-    case 'multiple_choice_single':
-    case 'multiple_choice_multi':
-      question.answer_payload = {
-        choices: [
-          { id: 'A', text: '', is_correct: false },
-          { id: 'B', text: '', is_correct: false },
-        ],
-      }
-      break
-    case 'true_false':
-      question.answer_payload = { answer: true }
-      break
-    case 'short_answer':
-      question.answer_payload = { valid_answers: [] }
-      break
-    case 'matching':
-      question.prompt = question.prompt || {
-        pairs: [],
-        options: [],
-      }
-      question.answer_payload = question.answer_payload || {
-        matches: {},
-        explanation: '',
-      }
-      break
-    default:
-      question.answer_payload = {}
+  if (question.type === 'multiple_choice_single') {
+    question.answer_payload = {
+      correct_id: null,
+      explanation: '',
+    }
+  }
+
+  if (question.type === 'multiple_choice_multi') {
+    question.answer_payload = {
+      correct_ids: [],
+      allow_partial: false,
+      explanation: '',
+    }
+  }
+
+  if (question.type === 'true_false') {
+    question.answer_payload = {
+      correct_value: true,
+      explanation: '',
+    }
+  }
+
+  if (question.type === 'short_answer') {
+    question.answer_payload = {
+      accepted_texts: [],
+      case_sensitive: false,
+      explanation: '',
+    }
+  }
+
+  if (question.type === 'matching') {
+    question.answer_payload = {
+      matches: {},
+      explanation: '',
+    }
   }
 }
 
