@@ -56,6 +56,9 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
         enrollment=enrollment, is_completed=True
     ).count()
 
+    enrollment.cached_total_lessons = total_lessons
+    enrollment.cached_completed_lessons = completed_lessons_count
+
     if total_lessons > 0:
         new_percent = round((completed_lessons_count / total_lessons) * 100, 2)
         new_percent = min(100.0, new_percent)
@@ -67,7 +70,13 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
                 enrollment.is_completed = True
                 enrollment.completed_at = timezone.now()
             
-            enrollment.save(update_fields=['percent_completed', 'is_completed', 'completed_at'])
+            enrollment.save(update_fields=[
+                'percent_completed', 
+                'cached_total_lessons', 
+                'cached_completed_lessons',
+                'is_completed', 
+                'completed_at'
+            ])
 
 
 def _safe_trigger_async_task(attempt_id, user_id, course_id):

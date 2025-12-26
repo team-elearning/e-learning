@@ -187,6 +187,9 @@ class Enrollment(models.Model):
         db_index=True 
     )
 
+    cached_completed_lessons = models.IntegerField(default=0)
+    cached_total_lessons = models.IntegerField(default=0)
+
     class Meta:
         unique_together = ('user', 'course')
         indexes = [
