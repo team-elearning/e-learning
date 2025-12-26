@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal
@@ -8,7 +9,8 @@ from analytics.domains.course_health_overview_domain import CourseHealthOverview
 
 
 
-class InstructorOverviewDomain(BaseModel):
+@dataclass
+class InstructorOverviewDomain:
     """
     Domain object tổng hợp Dashboard cho Instructor.
     """
@@ -37,6 +39,3 @@ class InstructorOverviewDomain(BaseModel):
         default_factory=list, 
         description="Các khóa học cần lưu ý (có nhiều học viên rủi ro)"
     )
-
-    class Config:
-        from_attributes = True # Cho phép map từ ORM nếu cần sau này

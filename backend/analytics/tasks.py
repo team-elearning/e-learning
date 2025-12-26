@@ -5,7 +5,7 @@ from django.utils import timezone
 from typing import Dict, Any, Optional
 
 from custom_account.models import UserModel
-from analytics.services.analytics_service import analyze_course_health_bulk
+from analytics.services.course_analyze_service import analyze_course_health_bulk
 from analytics.models import UserActivityLog, CourseAnalyticsLog
 from gamification.models import UserGamification
 

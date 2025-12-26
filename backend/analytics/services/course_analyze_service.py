@@ -107,7 +107,7 @@ def _calculate_performance_metrics(course_id: str, student_ids: list) -> pd.Data
     return quiz_avg.to_frame(name='avg_quiz_score')
 
 
-def _assess_risk_matrix(self, df: pd.DataFrame) -> pd.DataFrame:
+def _assess_risk_matrix(df: pd.DataFrame) -> pd.DataFrame:
     """Áp dụng logic phân loại rủi ro (Risk Matrix)"""
     # 1. Tính Performance Score tổng hợp
     df['perf_score'] = (
@@ -199,7 +199,7 @@ def analyze_course_health_bulk(course_id: str) -> AnalyticsJobResultDomain:
 # ==========================================
 
 @transaction.atomic
-def save_snapshots(self, course_id, df_result):
+def save_snapshots(course_id, df_result):
     """
     Lưu kết quả phân tích.
     LOGIC MỚI: Giữ lại lịch sử (Append-only), không xóa cái cũ.
@@ -285,18 +285,16 @@ def save_snapshots(self, course_id, df_result):
             batch_size=500
         )
         print(f"✅ Synced current state for {len(update_list)} enrollments.")
-
-    # [QUAN TRỌNG] INVALIDATE CACHE
-    # Khi đã tính toán xong snapshot mới, dữ liệu trên Dashboard cũ đã bị lỗi thời.
-    # Ta xóa key cache đi để lần tới Giảng viên F5, hệ thống sẽ tính lại dữ liệu mới nhất.
-    cache_key = f"course_pulse_{course_id}"
-    cache_overview = f"instructor_overview_{self.request.user.id}" # Cache tổng quan giảng viên
-    cache.delete_many([cache_key, cache_overview])
     
-    print(f"♻️ Cache invalidated for {cache_key}")
+    instructor_id = Course.objects.filter(id=course_id).values_list('owner_id', flat=True).first()
 
+    if instructor_id:
+        cache_key = f"course_pulse_{course_id}"
+        cache_overview = f"instructor_overview_{instructor_id}" 
+        
+        cache.delete_many([cache_key, cache_overview])
+        print(f"♻️ Cache invalidated for Course {course_id} & Instructor {instructor_id}")
+    else:
+        print("⚠️ Warning: Could not find instructor to clear cache.")
 
-# ==========================================
-# GET 
-# ==========================================
 
