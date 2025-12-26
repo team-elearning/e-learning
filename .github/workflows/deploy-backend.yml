@@ -19,7 +19,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/e-learning
+            cd ~/e-learning/backend
 
             git pull origin main
             source venv/bin/activate
