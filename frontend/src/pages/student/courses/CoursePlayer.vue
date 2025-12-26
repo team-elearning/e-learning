@@ -1,4 +1,4 @@
-<!-- src/pages/student/learn/LessonPlayer.vue -->
+<!-- src/pages/student/learn/coursePlayer.vue -->
 <template>
   <div class="lesson-player" v-if="course">
     <div class="container">
@@ -15,9 +15,22 @@
             <!-- <p>👈 Chọn một nội dung để bắt đầu học</p> -->
           </div>
 
+          <!-- RICH TEXT -->
+          <div v-else-if="activeBlock.type === 'rich_text'" class="rich-text-viewer">
+            <div class="rich-text-card" ref="richTextRef">
+              <h2 class="title">{{ activeBlock.title }}</h2>
+
+              <div
+                class="content"
+                v-html="blockCache.get(String(activeBlock.id))?.payload?.html_content"
+              />
+            </div>
+          </div>
+
           <!-- VIDEO -->
           <video
             v-else-if="activeBlock.type === 'video'"
+            ref="videoRef"
             class="video"
             controls
             :src="blockCache.get(String(activeBlock.id))?.payload?.video_url"
@@ -28,69 +41,26 @@
             <h2>{{ activeBlock.title }}</h2>
             <button class="btn" @click="startQuiz(activeBlock)">Bắt đầu làm bài</button>
           </div>
-
-          <!-- FILE -->
-          <!-- <div v-else class="file-shell">
-            <h2>{{ activeBlock.title }}</h2>
-            <a
-              :href="blockCache.get(String(activeBlock.id))?.payload?.file_url"
-              target="_blank"
-              class="btn"
-            >
-              Tải tài liệu
-            </a>
-          </div> -->
-
-          <!-- <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
+          <!-- PDF / DOCX -->
+          <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
             <iframe
+              class="pdf-frame"
               :src="blockCache.get(String(activeBlock.id))?.payload?.file_url"
               frameborder="0"
-            />
-          </div> -->
-          <!-- <div v-else-if="activeBlock.type === 'docx'" class="file-shell">
-            <div class="file-card">
-              <div class="file-icon">📄</div>
-
-              <h2 class="file-title">
-                {{ activeBlock.title || 'Tài liệu Word' }}
-              </h2>
-
-              <p class="file-desc">Tải về để xem trên máy tính hoặc điện thoại</p>
-
-              <button class="btn" @click="downloadFile(activeBlock)">
-                ⬇️ Tải file Word (.docx)
-              </button>
-            </div>
-          </div> -->
-          <!-- <div v-else-if="activeBlock.type === 'docx'" class="doc-viewer">
-            <iframe
-              :src="officeViewerUrl(activeBlock)"
-              frameborder="0"
               width="100%"
               height="100%"
             />
-            <div class="download-btn-wrapper">
-              <button class="btn" @click="downloadFile(activeBlock)">
-                ⬇️ Tải file Word (.docx)
+          </div>
+          <div v-else-if="activeBlock.type === 'docx'" class="docx-viewer">
+            <div class="docx-card">
+              <div class="icon">📄</div>
+              <h3>{{ activeBlock.title }}</h3>
+              <p>Tài liệu Word (.docx)</p>
+
+              <button class="btn" @click="downloadAndMark(activeBlock)">
+                ⬇️ Tải & đánh dấu đã đọc
               </button>
             </div>
-          </div> -->
-
-          <div
-            v-else-if="activeBlock.type === 'pdf' || activeBlock.type === 'docx'"
-            class="doc-viewer"
-          >
-            <iframe
-              :src="googleViewerUrl(activeBlock)"
-              frameborder="0"
-              width="100%"
-              height="100%"
-            />
-            <!-- <div class="download-btn-wrapper">
-              <button class="btn" @click="downloadFile(activeBlock)">
-                ⬇️ Tải file {{ activeBlock.type.toUpperCase() }}
-              </button>
-            </div> -->
           </div>
         </div>
 
@@ -104,7 +74,8 @@
                   <path class="bg" d="M18 2a16 16 0 1 1 0 32a16 16 0 1 1 0-32" />
                   <path
                     class="fg"
-                    :style="{ strokeDasharray: dash + ', 100' }"
+                    pathLength="100"
+                    :style="{ strokeDasharray: `${progressPct} 100` }"
                     d="M18 2a16 16 0 1 1 0 32a16 16 0 1 1 0-32"
                   />
                 </svg>
@@ -112,7 +83,7 @@
               </div>
               <div class="meta">
                 <h4>Nội dung khóa học</h4>
-                <div class="sub">{{ doneCount }}/{{ totalCount }} bài học</div>
+                <!-- <div class="sub">{{ doneCount }}/{{ totalCount }} bài học</div> -->
               </div>
             </div>
 
@@ -172,190 +143,166 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, computed, reactive, onMounted, watch, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/config/axios'
 
-/* ======================
-   ROUTER
-====================== */
+/* ================= ROUTER ================= */
 const router = useRouter()
 const route = useRoute()
 
-/* ======================
-   REFS (template cần)
-====================== */
-const videoRef = ref<HTMLVideoElement | null>(null)
-const outlineRef = ref<HTMLElement | null>(null)
-
-/* ======================
-   STATE
-====================== */
+/* ================= STATE ================= */
 const course = ref<any>(null)
-const courseLoading = ref(true)
-const courseError = ref('')
+const loading = ref(true)
+const error = ref('')
 
-const openIndex = ref<number>(0)
-const cur = ref<{ si: number; li: number }>({ si: 0, li: 0 })
-// const activeTab = ref<'video' | 'materials'>('video')
 const activeBlock = ref<any | null>(null)
+const openIndex = ref(0)
 
+/* progress */
 const doneSet = reactive(new Set<string>())
 
-/* Block detail cache */
+/* block cache */
 const blockCache = reactive(new Map<string, any>())
-const blockLoading = ref(false)
-const blockError = ref('')
-const docSrc = computed(() => {
-  const url = blockCache.get(String(activeBlock.id))?.payload?.file_url
-  if (activeBlock.type === 'pdf') return url
-  return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+
+/* refs */
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+/* heartbeat */
+let heartbeatTimer: number | null = null
+let lastTickAt = Date.now()
+
+const progressPct = computed(() => {
+  return Math.round(courseProgress.value?.percent_completed || 0)
 })
-const docxViewerOk = ref(true)
-const heartbeatTimer = ref<number | null>(null)
-const lastTickAt = ref<number | null>(null)
-
-// function officeViewerUrl(block: any) {
-//   return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
-//     block.payload.file_url,
-//   )}`
-// }
-
-// function officeViewerUrl(block: any) {
-//   const directUrl = block?.payload?.file_url
-//   if (!directUrl) return ''
-//   // Encode để tránh lỗi ký tự đặc biệt trong signed URL
-//   return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(directUrl)}`
-// }
-function googleViewerUrl(block: any) {
-  const directUrl = blockCache.get(String(block.id))?.payload?.file_url
-  if (!directUrl) return ''
-
-  // Encode kỹ để tránh lỗi ký tự
-  const encodedUrl = encodeURIComponent(directUrl)
-  return `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`
-}
-function downloadFile(block: any) {
-  const url = block?.payload?.file_url
-  if (!url) return
-  window.open(url, '_blank', 'noopener')
-}
-
-/* ======================
-   API HELPERS (fallback endpoint)
-====================== */
-async function getCourseStructure(courseId: string) {
-  return api.get(`/content/courses/${courseId}/`)
-}
-
-async function getBlockDetail(blockId: any) {
-  const key = String(blockId)
-  if (blockCache.has(key)) return blockCache.get(key)
-
-  // ưu tiên contract: /blocks/{id}/
-  try {
-    const { data } = await api.get(`/content/blocks/${blockId}/`)
-
-    blockCache.set(key, data)
-    return data
-  } catch (e) {
-    // fallback: /blocks/detail/{id}/
-    const { data } = await api.get(`/content/blocks/${blockId}/`)
-
-    blockCache.set(key, data)
-    return data
+const totalCount = computed(() => {
+  let count = 0
+  for (const sec of uiSections.value) {
+    count += sec.items.length
   }
+  return count
+})
+const doneCount = computed(() => doneSet.size)
+// const progressPct = computed(() => {
+//   return Math.round(courseProgress.value?.percent_completed || 0)
+// })
+async function refreshCourseProgress() {
+  const res = await getCourseProgress(course.value.id)
+  console.log('🔥 course progress API:', res)
+  courseProgress.value = res
 }
 
-/* ======================
-   BUILD UI SECTIONS (modules -> lessons)
-====================== */
-type UiLesson = {
-  id: string | number
-  title: string
-  durationMinutes?: number
-  contentBlocks: any[]
-  done?: boolean
+/* ================= API ================= */
+async function getCourse(courseId: string) {
+  const { data } = await api.get(`/content/courses/${courseId}/`)
+  return data
 }
-type UiSection = { id: string | number; title: string; items: UiLesson[] }
+
+async function getBlockDetail(blockId: string) {
+  if (blockCache.has(blockId)) return blockCache.get(blockId)
+  const { data } = await api.get(`/content/blocks/${blockId}/`)
+  blockCache.set(blockId, data)
+  return data
+}
+
+async function getBlockResume(blockId: string) {
+  const { data } = await api.get(`/progress/tracking/heartbeat/blocks/${blockId}/`)
+  return data?.instance || null
+}
+
+async function postHeartbeat(blockId: string, payload: any) {
+  return api.post(`/progress/tracking/heartbeat/blocks/${blockId}/`, payload)
+}
+
+// async function getCourseProgress(courseId: string) {
+//   const { data } = await api.get(`/progress/courses/${courseId}/progress/`)
+//   return data.instance
+// }
+async function getCourseProgress(courseId: string) {
+  const { data } = await api.get(`/progress/courses/${courseId}/progress/`)
+  return data // ❌ KHÔNG phải data.instance
+}
+
+/* ================= UI BUILD ================= */
+type UiSection = {
+  id: string
+  title: string
+  items: any[]
+}
+
 const uiSections = ref<UiSection[]>([])
 
-function buildUiSectionsFromCourse() {
-  const mods = course.value?.modules || course.value?.sections || []
-  uiSections.value = (mods || []).map((m: any, mi: number) => ({
+function buildUiSections() {
+  const modules = course.value?.modules || course.value?.sections || []
+  uiSections.value = modules.map((m: any, mi: number) => ({
     id: m.id ?? `m-${mi}`,
     title: m.title ?? `Chương ${mi + 1}`,
     items: (m.lessons || []).map((l: any) => ({
       id: l.id,
       title: l.title,
-      durationMinutes: l.durationMinutes,
-      done: doneSet.has(String(l.id)),
-      hasVideo: (l.content_blocks || []).some((b: any) => b.type === 'video'),
-      hasQuiz: (l.content_blocks || []).some((b: any) => b.type === 'quiz'),
       contentBlocks: l.content_blocks || [],
+      done: doneSet.has(String(l.id)),
     })),
   }))
 }
 
-/* ======================
-   DERIVED
-====================== */
-const flat = computed<UiLesson[]>(() => uiSections.value.flatMap((s) => s.items))
-const totalCount = computed(() => flat.value.length)
-const doneCount = computed(() => flat.value.filter((l) => l.done).length)
-const progressPct = computed(() =>
-  Math.round((doneCount.value / Math.max(1, totalCount.value)) * 100),
-)
-const dash = computed(() => progressPct.value)
-
+/* ================= SELECT BLOCK ================= */
 async function selectBlock(block: any) {
+  stopHeartbeat()
   activeBlock.value = block
 
-  // song song: block detail + resume
   const [blockDetail, resume] = await Promise.all([
-    getBlockDetail(block.id),
-    api.get(`/progress/tracking/heartbeat/blocks/${block.id}`),
+    getBlockDetail(String(block.id)),
+    getBlockResume(String(block.id)),
   ])
 
-  const resumeData = resume.data
+  // gán detail vào block
+  if (block.type === 'rich_text') {
+    startRichTextHeartbeat(block)
+  }
 
-  // === VIDEO / AUDIO ===
-  if (block.type === 'video' && resumeData?.interaction_data?.video_timestamp) {
-    // đợi video mount
+  /* ===== VIDEO ===== */
+  if (block.type === 'video') {
+    const ts = resume?.interaction_data?.video_timestamp ?? 0
     requestAnimationFrame(() => {
       if (videoRef.value) {
-        videoRef.value.currentTime = resumeData.interaction_data.video_timestamp
+        videoRef.value.currentTime = ts
+        videoRef.value.play()
+        startVideoHeartbeat(block)
       }
     })
   }
 
-  // === PDF / DOCX ===
-  if ((block.type === 'pdf' || block.type === 'docx') && resumeData?.interaction_data?.page) {
-    // lưu vào state để iframe dùng sau
-    block.__resume_page = resumeData.interaction_data.page
+  /* ===== PDF / DOCX ===== */
+  if (block.type === 'pdf' || block.type === 'docx') {
+    block.__resume_page = resume?.interaction_data?.page ?? 1
   }
 
-  // === QUIZ ===
+  /* ===== QUIZ ===== */
   if (block.type === 'quiz') {
-    block.__resume_question = resumeData?.interaction_data?.current_question_index ?? 0
+    block.__resume_question = resume?.interaction_data?.current_question_index ?? 0
+  }
+
+  if (resume?.is_completed) {
+    markLessonCompleted(block)
   }
 }
 
+/* ================= HEARTBEAT ================= */
 function startVideoHeartbeat(block: any) {
   stopHeartbeat()
+  lastTickAt = Date.now()
 
-  lastTickAt.value = Date.now()
-
-  heartbeatTimer.value = window.setInterval(async () => {
+  heartbeatTimer = window.setInterval(async () => {
     if (!videoRef.value) return
 
     const now = Date.now()
-    const delta = Math.floor((now - (lastTickAt.value || now)) / 1000)
-    lastTickAt.value = now
+    const delta = Math.floor((now - lastTickAt) / 1000)
+    lastTickAt = now
 
     if (delta <= 0) return
 
-    const res = await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+    const res = await postHeartbeat(block.id, {
       time_spent_add: Math.min(delta, 30),
       interaction_data: {
         video_timestamp: videoRef.value.currentTime,
@@ -363,204 +310,199 @@ function startVideoHeartbeat(block: any) {
       },
     })
 
-    // ✅ auto complete từ server
     if (res.data?.is_completed) {
       markLessonCompleted(block)
+      await refreshCourseProgress()
     }
   }, 30000)
 }
-async function onVideoPause(block: any) {
-  if (!videoRef.value) return
 
-  await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
-    time_spent_add: 0,
-    interaction_data: {
-      video_timestamp: videoRef.value.currentTime,
-      playback_rate: videoRef.value.playbackRate,
-    },
-  })
-}
 function stopHeartbeat() {
-  if (heartbeatTimer.value) {
-    clearInterval(heartbeatTimer.value)
-    heartbeatTimer.value = null
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
   }
 }
-async function syncPdf(block: any, page: number, total: number) {
-  const res = await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
-    time_spent_add: 30,
-    interaction_data: {
-      page,
-      total_pages: total,
-    },
-  })
 
-  if (res.data?.is_completed) {
-    markLessonCompleted(block)
-  }
-}
-async function syncQuiz(block: any, questionIndex: number) {
-  await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
-    time_spent_add: 30,
-    interaction_data: {
-      current_question_index: questionIndex,
-      is_doing: true,
-    },
-  })
-}
+/* ================= MARK DONE ================= */
 async function markLessonCompleted(block: any) {
-  // tick xanh ngay
+  if (!block?.lesson_id) return
   doneSet.add(String(block.lesson_id))
-  buildUiSectionsFromCourse()
-
-  // refresh % khóa học
-  const res = await api.get(`/progress/courses/${course.value.id}/progress/`)
-  course.__progress = res.data.instance
-}
-window.addEventListener('beforeunload', () => {
-  if (!activeBlock.value || !videoRef.value) return
-
-  const payload = {
-    time_spent_add: 0,
-    interaction_data: {
-      video_timestamp: videoRef.value.currentTime,
-      playback_rate: videoRef.value.playbackRate,
-    },
-  }
-
-  navigator.sendBeacon(
-    `/tracking/heartbeat/blocks/${activeBlock.value.id}/`,
-    JSON.stringify(payload),
-  )
-})
-
-/* ======================
-   UTILS (template cần)
-====================== */
-function formatDuration(min?: number) {
-  if (!min || min <= 0) return '—'
-  return `${min}m`
+  buildUiSections()
 }
 
-function findById(id: any) {
-  for (let si = 0; si < uiSections.value.length; si++) {
-    const li = uiSections.value[si].items.findIndex((x: any) => String(x.id) === String(id))
-    if (li >= 0) return { si, li }
-  }
-  return null
-}
+/* ================= COURSE PROGRESS ================= */
+const courseProgress = ref<any>(null)
 
-/* ======================
-   NAV / UI ACTIONS
-====================== */
-function goBack() {
-  window.history.length > 1 ? window.history.back() : router.push('/student/courses')
-}
+// async function refreshCourseProgress() {
+//   courseProgress.value = await getCourseProgress(course.value.id)
+// }
 
+/* ================= NAV ================= */
 function toggle(i: number) {
   openIndex.value = openIndex.value === i ? -1 : i
 }
 
-function goToLesson(si: number, li: number) {
-  cur.value = { si, li }
-  openIndex.value = si
-
-  const id = uiSections.value?.[si]?.items?.[li]?.id
-  if (id != null) router.replace({ params: { ...route.params, lessonId: String(id) } })
-
-  // tab mặc định sẽ được set trong watcher currentLesson
+function goBack() {
+  router.back()
 }
 
-function markDone(id?: string | number | null) {
-  if (!id) return
-  doneSet.add(String(id))
-  // cập nhật done flag trong uiSections
-  buildUiSectionsFromCourse()
-}
-
-// function startQuiz(block: any) {
-//   // TODO: sau này route quiz riêng
-//   alert(`Quiz: ${block?.title || block?.id}`)
-// }
 function startQuiz(block: any) {
-  if (!block?.id) {
-    alert('Không tìm thấy bài kiểm tra')
-    return
-  }
-
-  // course id đang học
-  const courseId = course.value?.id || route.params.id
-
   router.push({
     name: 'student-quiz',
     query: {
-      block_id: String(block.id), // dùng để gọi /content/blocks/{id}/ -> lấy quiz_id
-      course_id: String(courseId), // context khóa học (RẤT NÊN)
+      block_id: String(block.id),
+      course_id: String(course.value.id),
     },
   })
 }
 
-/* ======================
-   LAZY LOAD: blocks detail
-====================== */
-
-/* ======================
-   LOAD COURSE
-====================== */
+/* ================= LOAD COURSE ================= */
 async function loadCourse() {
-  courseLoading.value = true
-  courseError.value = ''
+  loading.value = true
   try {
-    const id = route.params.id
-    const res = await getCourseStructure(id)
-    course.value = res.data
+    const courseId = String(route.params.id)
+    course.value = await getCourse(courseId)
+    buildUiSections()
+    await refreshCourseProgress()
 
-    buildUiSectionsFromCourse()
+    /* resume block */
+    const resumeRes = await api.get(`/progress/courses/${courseId}/resume/`)
+    const resumeBlockId = resumeRes.data?.instance?.block_id
 
-    // nhảy theo lessonId nếu có
-    const lessonId = route.params.lessonId
-    if (lessonId) {
-      const found = findById(lessonId)
-      if (found) {
-        cur.value = found
-        openIndex.value = found.si
-      } else {
-        cur.value = { si: 0, li: 0 }
-        openIndex.value = 0
-      }
-    } else {
-      cur.value = { si: 0, li: 0 }
-      openIndex.value = 0
+    if (resumeBlockId) {
+      const found = findBlockById(resumeBlockId)
+      if (found) selectBlock(found)
     }
-
-    // load video detail cho bài đầu
   } catch (e: any) {
-    const status = e?.response?.status
-    if (status === 403) {
-      // chưa enrolled -> về trang giới thiệu khóa học
-      router.replace(`/student/courses/${route.params.id}`)
-      return
-    }
-    courseError.value = e?.message || 'Không thể tải khóa học.'
+    error.value = e?.message || 'Không thể tải khóa học'
   } finally {
-    courseLoading.value = false
+    loading.value = false
   }
 }
 
-watch(
-  () => activeBlock.value?.id,
-  async (id) => {
-    if (!id) return
-    await getBlockDetail(id)
-  },
-)
-/* ======================
-   MOUNT
-====================== */
+function findBlockById(blockId: string) {
+  for (const sec of uiSections.value) {
+    for (const lesson of sec.items) {
+      const block = lesson.contentBlocks.find((b: any) => String(b.id) === String(blockId))
+      if (block) return block
+    }
+  }
+  return null
+}
+
+/* ================= CLEANUP ================= */
+onBeforeUnmount(() => {
+  stopHeartbeat()
+  if (videoRef.value) {
+    navigator.sendBeacon(
+      `/progress/tracking/heartbeat/blocks/${activeBlock.value?.id}`,
+      JSON.stringify({
+        time_spent_add: 0,
+        interaction_data: {
+          video_timestamp: videoRef.value.currentTime,
+          playback_rate: videoRef.value.playbackRate,
+        },
+      }),
+    )
+  }
+})
+
+/* ================= MOUNT ================= */
 onMounted(loadCourse)
+function onVideoPause(block: any) {
+  if (!videoRef.value) return
+
+  postHeartbeat(block.id, {
+    time_spent_add: 0,
+    interaction_data: {
+      video_timestamp: videoRef.value.currentTime,
+      playback_rate: videoRef.value.playbackRate,
+    },
+  })
+}
+function onVideoSeek(block: any) {
+  if (!videoRef.value) return
+  postHeartbeat(block.id, {
+    time_spent_add: 0,
+    interaction_data: {
+      video_timestamp: videoRef.value.currentTime,
+    },
+  })
+}
+async function downloadAndMark(block: any) {
+  const url = blockCache.get(String(block.id))?.payload?.file_url
+  if (!url) return
+
+  window.open(url, '_blank', 'noopener')
+
+  // gửi heartbeat đánh dấu hoàn thành
+  await api.post(`/progress/tracking/heartbeat/blocks/${block.id}/`, {
+    time_spent_add: 60,
+    interaction_data: {
+      read_complete: true,
+    },
+  })
+
+  markLessonCompleted(block)
+}
+function startPdfHeartbeat(block: any) {
+  stopHeartbeat()
+
+  heartbeatTimer = window.setInterval(() => {
+    postHeartbeat(block.id, {
+      time_spent_add: 30,
+      interaction_data: {
+        scroll_position: getPdfScrollPercent(),
+      },
+    })
+  }, 30000)
+}
+
+function getPdfScrollPercent() {
+  const iframe = document.querySelector('.pdf-frame') as HTMLIFrameElement
+  if (!iframe?.contentWindow) return 0
+
+  const doc = iframe.contentWindow.document
+  const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop
+  const scrollHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight
+  const clientHeight = doc.documentElement.clientHeight
+
+  return Math.min(100, Math.round((scrollTop / (scrollHeight - clientHeight)) * 100))
+}
+const richTextRef = ref<HTMLElement | null>(null)
+
+function startRichTextHeartbeat(block: any) {
+  stopHeartbeat()
+
+  heartbeatTimer = window.setInterval(() => {
+    if (!richTextRef.value) return
+
+    const el = richTextRef.value
+    const scrollTop = el.scrollTop
+    const scrollHeight = el.scrollHeight - el.clientHeight
+
+    const percent = scrollHeight > 0 ? Math.round((scrollTop / scrollHeight) * 100) : 0
+
+    postHeartbeat(block.id, {
+      time_spent_add: 30,
+      interaction_data: {
+        scroll_position: percent,
+      },
+    })
+  }, 30000)
+}
 </script>
 
 <style scoped>
+.lesson-player {
+  --page-bg: #0b1220;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #16a34a;
+}
 :root {
   --page-bg: #0b1220;
   --panel: #ffffff;
@@ -571,7 +513,7 @@ onMounted(loadCourse)
 }
 
 .lesson-player {
-  background: var(--page-bg);
+  /* background: var(--page-bg); */
   min-height: 100vh;
 }
 .container {
@@ -867,7 +809,6 @@ onMounted(loadCourse)
   stroke: var(--accent);
   stroke-width: 4;
   stroke-linecap: round;
-  stroke-dasharray: 0 100;
   transition: stroke-dasharray 0.4s ease;
 }
 
@@ -1245,5 +1186,81 @@ onMounted(loadCourse)
   width: 100%;
   height: 100%;
   border: none;
+}
+.docx-viewer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center; /* dọc */
+  justify-content: center; /* ngang */
+}
+
+.docx-card {
+  background: #fff;
+  padding: 32px 40px;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+}
+
+.docx-card .icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.docx-card h3 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.docx-card p {
+  color: #64748b;
+  margin-bottom: 20px;
+}
+
+.docx-card .btn {
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.rich-text-viewer {
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+  width: 100%;
+}
+
+.rich-text-card {
+  width: 100%;
+  max-width: 760px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 32px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  line-height: 1.75;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.rich-text-card .title {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.rich-text-card .content p {
+  margin-bottom: 12px;
+}
+
+.rich-text-card .content ul {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+
+.rich-text-card .content li {
+  margin-bottom: 6px;
 }
 </style>

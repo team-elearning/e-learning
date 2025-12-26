@@ -616,11 +616,30 @@ async function confirmSubmit() {
 async function finishQuiz() {
   if (!attemptId.value || finishing.value) return
   finishing.value = true
+
   try {
     await flushDraft()
+
+    // 1️⃣ Finish quiz (chấm điểm)
     const res = await finishAttempt(attemptId.value)
+
     submitResult.value = res
     showResultPopup.value = true
+
+    // 2️⃣ 🔥 HEARTBEAT ĐÁNH DẤU QUIZ BLOCK ĐÃ XONG
+    const blockId = route.query.block_id as string
+
+    await api.post(`/progress/tracking/heartbeat/blocks/${blockId}/`, {
+      time_spent_add: 30,
+      interaction_data: {
+        is_doing: false,
+        is_completed: true,
+        finished_at: new Date().toISOString(),
+      },
+    })
+
+    // 3️⃣ (OPTIONAL nhưng nên) refresh tiến độ khóa học
+    // await api.get(`/progress/courses/${courseId}/progress/`)
   } catch (e) {
     alert('Nộp bài thất bại. Thử lại nhé.')
   } finally {
@@ -672,6 +691,14 @@ onMounted(async () => {
     const attempt = await startOrResumeAttempt(quizId.value, courseId)
     attemptId.value = attempt?.attempt_id || attempt?.id || null
     questionsOrder.value = attempt?.questions_order || []
+    // đánh dấu quiz đang được làm (tracking)
+    await api.post(`/progress/tracking/heartbeat/blocks/${blockId}/`, {
+      time_spent_add: 0,
+      interaction_data: {
+        is_doing: true,
+        current_question_index: 0,
+      },
+    })
     timeLimitSeconds.value = attempt?.time_limit_seconds || null
 
     const ts = attempt?.time_start ? new Date(attempt.time_start).getTime() : Date.now()

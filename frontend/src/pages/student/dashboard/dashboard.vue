@@ -149,14 +149,33 @@ const PLACEHOLDER =
 async function fetchCourses() {
   try {
     const enrolled = await courseService.listMyEnrolled()
-    const mapped: CourseCard[] = (enrolled || []).map((c) => {
-      const p = Math.max(0, Math.min(100, Number((c as any).progress ?? 0)))
-      const done = Boolean((c as any).done) || p >= 100
-      return { ...c, progress: done ? 100 : p, done }
+
+    const mapped: CourseCard[] = (enrolled || []).map((c: any) => {
+      const pct = Math.round(c.my_progress?.percent_completed ?? 0)
+      const done = Boolean(c.my_progress?.is_completed) || pct >= 100
+
+      return {
+        ...c,
+        grade: Number(c.grade), // ⚠️ QUAN TRỌNG
+        progress: done ? 100 : pct,
+        done,
+      }
     })
+
     await Promise.all(mapped.map((c) => ensureThumb(c.id, c.thumbnail)))
+
+    // Hiển thị list My Courses
     featured.value = mapped.slice(0, 6)
-    resumeCourse.value = mapped.find((c) => c.progress > 0 && c.progress < 100) || mapped[0] || null
+
+    // ✅ FIX 1: chọn course đang học GẦN NHẤT (75%)
+    resumeCourse.value =
+      mapped
+        .filter((c) => c.progress > 0 && c.progress < 100)
+        .sort(
+          (a, b) =>
+            new Date(b.my_progress?.last_accessed_at || 0).getTime() -
+            new Date(a.my_progress?.last_accessed_at || 0).getTime(),
+        )[0] || null
   } catch (e: any) {
     errMsg.value = `courseService.list lỗi: ${e?.message || String(e)}`
   }
