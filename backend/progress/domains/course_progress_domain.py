@@ -27,7 +27,7 @@ class CourseProgressDomain:
 
     # --- Status Label (Helper cho FE) ---
     # 'not_started', 'in_progress', 'completed'
-    status_label: str 
+    status_label: str = ''
 
     @classmethod
     def from_model(cls, enrollment) -> 'CourseProgressDomain':
