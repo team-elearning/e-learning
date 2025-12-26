@@ -67,7 +67,7 @@
             class="course-card"
             v-for="c in featured"
             :key="String(c.id)"
-            @click="openCourse(Number(c.id))"
+            @click="goToPlayer(c.id)"
           >
             <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
               <img
@@ -195,8 +195,9 @@ function openCourse(id: number) {
 }
 function onResume() {
   if (!resumeCourse.value) return
-  openCourse(Number(resumeCourse.value.id))
+  goToPlayer(resumeCourse.value.id)
 }
+
 function openExamsList() {
   if (hasRoute('student-practice')) router.push({ name: 'student-practice' })
   else router.push('/student/practice')
@@ -289,6 +290,31 @@ onMounted(async () => {
   await fetchCourses()
   await fetchAIRecommend()
 })
+async function goToPlayer(courseId: number | string) {
+  try {
+    const detail = await courseService.detail(courseId)
+
+    let firstLessonId: number | string | null = null
+
+    for (const section of detail.sections || []) {
+      if (section.lessons && section.lessons.length > 0) {
+        firstLessonId = section.lessons[0].id
+        break
+      }
+    }
+
+    if (!firstLessonId) {
+      // fallback: không có lesson thì vào detail
+      router.push(`/student/courses/${courseId}`)
+      return
+    }
+
+    router.push(`/student/courses/${courseId}/player/${firstLessonId}`)
+  } catch (e) {
+    console.error('goToPlayer error', e)
+    router.push(`/student/courses/${courseId}`)
+  }
+}
 </script>
 
 <style>
