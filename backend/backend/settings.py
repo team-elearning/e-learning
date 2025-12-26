@@ -214,6 +214,13 @@ CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 # Đảm bảo timezone trùng với Django
 CELERY_TIMEZONE = 'Asia/Ho_Chi_Minh'
 
+# Worker sẽ tự khởi động lại sau khi xử lý 100 task
+# Giúp giải phóng RAM bị kẹt (Memory Leak)
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+
+# (Tùy chọn) Giới hạn bộ nhớ cứng cho mỗi worker (ví dụ 200MB - đơn vị KiB)
+CELERY_WORKER_MAX_MEMORY_PER_CHILD = 200000
+
 # Khi bật cái này lên = True:
 # Code chạy .delay() sẽ chạy ngay lập tức (như hàm thường).
 # Breakpoint của VS Code / PyCharm sẽ DỪNG LẠI ĐƯỢC bên trong task.
