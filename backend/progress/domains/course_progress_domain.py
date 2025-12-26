@@ -22,8 +22,8 @@ class CourseProgressDomain:
     last_accessed_at: Optional[datetime]
     enrolled_at: datetime
 
-    completed_lessons_count: int
-    total_lessons_count: int
+    completed_lessons_count: int = 0
+    total_lessons_count: int = 0
 
     # --- Status Label (Helper cho FE) ---
     # 'not_started', 'in_progress', 'completed'

@@ -204,6 +204,7 @@ class CourseProgressView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView
 
     # Dùng DTO riêng của Course
     output_dto_public = CourseProgressPublicOutput
+    output_dto_instructor = CourseProgressPublicOutput
     output_dto_admin = CourseProgressPublicOutput
 
     def __init__(self, *args, **kwargs):
