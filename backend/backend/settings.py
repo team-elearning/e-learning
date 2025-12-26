@@ -216,19 +216,19 @@ CELERY_TIMEZONE = 'Asia/Ho_Chi_Minh'
 
 # Worker sẽ tự khởi động lại sau khi xử lý 100 task
 # Giúp giải phóng RAM bị kẹt (Memory Leak)
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 20
 
 # (Tùy chọn) Giới hạn bộ nhớ cứng cho mỗi worker (ví dụ 200MB - đơn vị KiB)
 CELERY_WORKER_MAX_MEMORY_PER_CHILD = 200000
 
-CELERY_TASK_SOFT_TIME_LIMIT = 600 
-CELERY_TASK_TIME_LIMIT = 630
+CELERY_TASK_SOFT_TIME_LIMIT = 120 
+CELERY_TASK_TIME_LIMIT = 150
 
-# Khi bật cái này lên = True:
-# Code chạy .delay() sẽ chạy ngay lập tức (như hàm thường).
-# Breakpoint của VS Code / PyCharm sẽ DỪNG LẠI ĐƯỢC bên trong task.
-CELERY_TASK_ALWAYS_EAGER = True
-CELERY_TASK_EAGER_PROPAGATES = True  # Lỗi trong task sẽ văng ra mặt luôn để thấy traceback
+# # Khi bật cái này lên = True:
+# # Code chạy .delay() sẽ chạy ngay lập tức (như hàm thường).
+# # Breakpoint của VS Code / PyCharm sẽ DỪNG LẠI ĐƯỢC bên trong task.
+# CELERY_TASK_ALWAYS_EAGER = True
+# CELERY_TASK_EAGER_PROPAGATES = True  # Lỗi trong task sẽ văng ra mặt luôn để thấy traceback
 
 
 # # -------------------------------
