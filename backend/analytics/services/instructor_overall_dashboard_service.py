@@ -180,11 +180,11 @@ def _get_course_rankings(instructor_id):
 # ==========================================
 
 def get_instructor_overview(instructor_id: str) -> InstructorOverviewDomain:
-    cache_key = f"instructor_overview_{instructor_id}"
-    cached_data = cache.get(cache_key)
+    # cache_key = f"instructor_overview_{instructor_id}"
+    # cached_data = cache.get(cache_key)
 
-    if cached_data:
-        return cached_data
+    # if cached_data:
+    #     return cached_data
     
     stats  = _calculate_headline_stats(instructor_id)
     

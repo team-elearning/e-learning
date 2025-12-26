@@ -213,13 +213,13 @@ def get_course_trends(course_id: str):
     Trả về dữ liệu vẽ biểu đồ (Line Chart) và Insight text.
         Tách riêng ra để Frontend lazy load.
     """
-    # Tạo Key định danh duy nhất
-    cache_key = f"course_pulse_{course_id}"
+    # # Tạo Key định danh duy nhất
+    # cache_key = f"course_pulse_{course_id}"
         
-    # Thử lấy từ Cache
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return cached_data
+    # # Thử lấy từ Cache
+    # cached_data = cache.get(cache_key)
+    # if cached_data:
+    #     return cached_data
         
     # 1. Lấy dữ liệu biểu đồ 7 ngày (Aggregation theo ngày)
     chart_data = _get_weekly_chart_data(course_id)
