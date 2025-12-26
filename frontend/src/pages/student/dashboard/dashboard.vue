@@ -2,96 +2,106 @@
 <template>
   <div class="student-dashboard">
     <div class="container">
+      <!-- ERROR -->
       <div v-if="errMsg" class="err">
         <div class="err-title">Đã xảy ra lỗi khi tải Dashboard</div>
         <pre class="err-pre">{{ errMsg }}</pre>
       </div>
 
-      <!-- Continue Learning -->
-      <section class="card hero">
-        <div class="hero-head">Continue Learning</div>
+      <!-- CONTINUE LEARNING -->
+      <section
+        class="hero hero-cover"
+        :style="
+          resumeCourse?.thumbnail
+            ? { backgroundImage: `url(${thumbSource(resumeCourse.id, resumeCourse.thumbnail)})` }
+            : {}
+        "
+      >
+        <div class="hero-inner">
+          <div class="hero-body" v-if="resumeCourse">
+            <div class="hero-title">{{ resumeCourse.title }}</div>
+            <div class="hero-sub">
+              {{ resumeCourse.done ? 'Đã hoàn thành' : `Đang học · ${resumeCourse.progress}%` }}
+            </div>
 
-        <div class="hero-body" v-if="resumeCourse">
-          <div class="hero-title">{{ resumeCourse.title }}</div>
-          <div class="hero-sub">
-            {{ resumeCourse.done ? 'Đã hoàn thành' : `Đang học · ${resumeCourse.progress}%` }}
-          </div>
-          <div class="hero-progress">
-            <span>Progress</span>
-            <div class="spacer" />
-            <button class="btn-primary" @click="onResume">Resume</button>
-          </div>
-        </div>
-
-        <div class="hero-body" v-else>
-          <div class="hero-title">Chưa có khóa học</div>
-          <div class="hero-sub">Bắt đầu từ trang Khóa học</div>
-          <div class="hero-progress">
-            <span></span>
-            <div class="spacer" />
-            <button class="btn-primary" @click="goToCourses">Xem khóa học</button>
+            <div class="hero-progress">
+              <span>Tiến độ</span>
+              <div class="spacer" />
+              <button class="btn-primary" @click="onResume">Vào học tiếp</button>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- AI Recommendation -->
-      <section class="card">
-        <div class="section-head">
-          <h2>🎯 Gợi ý cho bạn</h2>
+      <!-- MAIN GRID -->
+      <section class="dashboard-grid">
+        <!-- LEFT: MY COURSES -->
+        <div class="left-col">
+          <section class="card">
+            <div class="section-head">
+              <h2>Khóa học của tôi</h2>
+              <button class="ghost" @click="goToCourses">›</button>
+            </div>
+
+            <div class="courses" v-if="featured.length">
+              <div
+                class="course-card"
+                v-for="c in featured"
+                :key="String(c.id)"
+                @click="goToPlayer(c.id)"
+              >
+                <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
+                  <img
+                    :src="thumbSource(c.id, c.thumbnail)"
+                    :alt="c.title"
+                    loading="lazy"
+                    @load="markThumbLoaded(c.id)"
+                    @error="(e) => handleThumbError(e, c.id)"
+                  />
+                  <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
+                </div>
+
+                <div class="title">{{ c.title }}</div>
+
+                <div
+                  class="progress-line"
+                  :style="{ '--progress-target': ((c.done ? 100 : c.progress) || 0) + '%' }"
+                >
+                  <div class="bar"></div>
+                </div>
+
+                <div class="status muted">
+                  {{ c.done ? 'Đã hoàn thành' : `Đang học · ${c.progress}%` }}
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="muted">Bạn chưa đăng ký khóa học nào.</div>
+          </section>
         </div>
 
-        <div v-if="aiLoading" class="muted">🤖 Đang phân tích sở thích…</div>
-
-        <div v-else-if="aiRecommend.length" class="courses">
-          <div class="course-card" v-for="c in aiRecommend" :key="c.id" @click="openDetail(c.id)">
-            <div class="thumb loaded">
-              <img :src="c.thumbnail_url || PLACEHOLDER" :alt="c.title" />
+        <!-- RIGHT: AI RECOMMEND -->
+        <div class="right-col">
+          <section class="card">
+            <div class="section-head">
+              <h2>🎯 Gợi ý cho bạn</h2>
             </div>
-            <div class="title">{{ c.title }}</div>
-            <div class="status muted">{{ c.subject?.title }} · Lớp {{ c.grade }}</div>
-          </div>
+
+            <div v-if="aiLoading" class="muted">🤖 Đang phân tích sở thích học tập…</div>
+
+            <div v-else-if="aiRecommend.length" class="ai-list">
+              <div class="ai-course" v-for="c in aiRecommend" :key="c.id" @click="openDetail(c.id)">
+                <img :src="c.thumbnail_url || PLACEHOLDER" />
+                <div class="ai-info">
+                  <div class="title">{{ c.title }}</div>
+                  <div class="status muted">{{ c.subject?.title }} · Lớp {{ c.grade }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="muted">Học thêm vài khóa để nhận gợi ý phù hợp hơn nhé 🙂</div>
+          </section>
         </div>
-
-        <div v-else class="muted">Chưa đủ dữ liệu để gợi ý. Hãy học thêm 1 khóa nhé 🙂</div>
-      </section>
-
-      <!-- My Courses -->
-      <section class="card">
-        <div class="section-head">
-          <h2>My Courses</h2>
-          <button class="ghost" aria-label="view more" @click="goToCourses">›</button>
-        </div>
-
-        <div class="courses" v-if="featured.length">
-          <div
-            class="course-card"
-            v-for="c in featured"
-            :key="String(c.id)"
-            @click="goToPlayer(c.id)"
-          >
-            <div :class="['thumb', { loaded: isThumbLoaded(c.id) }]">
-              <img
-                :src="thumbSource(c.id, c.thumbnail)"
-                :alt="c.title"
-                loading="lazy"
-                @load="markThumbLoaded(c.id)"
-                @error="(e) => handleThumbError(e, c.id)"
-              />
-              <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
-            </div>
-            <div class="title">{{ c.title }}</div>
-            <div
-              class="progress-line"
-              :style="{ '--progress-target': ((c.done ? 100 : c.progress) || 0) + '%' }"
-            >
-              <div class="bar"></div>
-            </div>
-            <div class="status muted">
-              {{ c.done ? 'Đã hoàn thành' : `Đang học · ${c.progress}%` }}
-            </div>
-          </div>
-        </div>
-        <div v-else class="muted">Chưa có khóa học nào.</div>
       </section>
     </div>
   </div>
@@ -333,7 +343,7 @@ async function goToPlayer(courseId: number | string) {
 }
 .container {
   padding: 20px 16px 40px;
-  max-width: 980px;
+  width: 1600px;
   margin: 0 auto;
   display: grid;
   gap: 16px;
@@ -592,5 +602,124 @@ async function goToPlayer(courseId: number | string) {
   .courses {
     grid-template-columns: 1fr;
   }
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+}
+
+/* LEFT */
+.left-col .courses {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* RIGHT */
+.right-col {
+  position: sticky;
+  top: 16px;
+  height: fit-content;
+}
+
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-course {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.ai-course:hover {
+  background: #fafafa;
+}
+
+.ai-course img {
+  width: 72px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.ai-course .title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===== HERO CONTINUE LEARNING (VIP) ===== */
+.hero-cover {
+  position: relative;
+  padding: 28px;
+  border-radius: 18px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+
+/* blur nền ảnh */
+.hero-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(18px);
+  z-index: 0;
+}
+
+/* card nổi */
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+
+.hero-cover .hero-body {
+  /* background: linear-gradient(135deg, #0b2952, #0f3b73); */
+  /* background: linear-gradient(135deg, #51b3d8b8, #567191); */
+  background: linear-gradient(135deg, #19262bb8, #2d538300);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  color: #e6eefc;
+}
+
+/* chữ */
+.hero-cover .hero-title {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.hero-cover .hero-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* footer */
+.hero-cover .hero-progress {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+}
+
+/* nút */
+.hero-cover .btn-primary {
+  background: #fff !important;
+  color: #0b2952 !important;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-weight: 800;
 }
 </style>

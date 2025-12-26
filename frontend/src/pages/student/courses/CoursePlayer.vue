@@ -38,9 +38,20 @@
 
           <!-- QUIZ -->
           <div v-else-if="activeBlock.type === 'quiz'" class="quiz-shell">
-            <h2>{{ activeBlock.title }}</h2>
-            <button class="btn" @click="startQuiz(activeBlock)">Bắt đầu làm bài</button>
+            <div class="quiz-wrapper">
+              <div class="quiz-icon">📝</div>
+
+              <h1 class="quiz-title">{{ activeBlock.title }}</h1>
+
+              <p class="quiz-desc">
+                Bài kiểm tra giúp đánh giá mức độ hoàn thành nội dung học. Hãy đảm bảo bạn đã sẵn
+                sàng trước khi bắt đầu.
+              </p>
+
+              <button class="quiz-btn" @click="startQuiz(activeBlock)">Bắt đầu bài kiểm tra</button>
+            </div>
           </div>
+
           <!-- PDF / DOCX -->
           <div v-else-if="activeBlock.type === 'pdf'" class="doc-viewer">
             <iframe
@@ -1130,16 +1141,7 @@ function startRichTextHeartbeat(block: any) {
   overflow-y: auto;
   padding: 10px;
 }
-.quiz-shell {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
-  color: #e5e7eb;
-}
+
 .doc-viewer {
   height: 100%;
 }
@@ -1262,5 +1264,67 @@ function startRichTextHeartbeat(block: any) {
 
 .rich-text-card .content li {
   margin-bottom: 6px;
+}
+.quiz-shell {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top, #0f172a 0%, #000000 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quiz-wrapper {
+  max-width: 520px;
+  padding: 56px 48px;
+  text-align: center;
+}
+
+.quiz-icon {
+  font-size: 44px;
+  margin-bottom: 18px;
+}
+
+.quiz-title {
+  font-size: 30px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+}
+
+.quiz-desc {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #9ca3af;
+  margin-bottom: 36px;
+}
+
+.quiz-btn {
+  min-width: 260px;
+  height: 54px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #020617;
+  border: none;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow:
+    0 10px 30px rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.quiz-btn:hover {
+  background: #f1f5f9;
+  transform: translateY(-2px);
+}
+
+.quiz-btn:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 16px rgba(255, 255, 255, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.4);
 }
 </style>
