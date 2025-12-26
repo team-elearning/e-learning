@@ -104,12 +104,17 @@ class CourseProgressPublicOutput(BaseModel):
 
     enrollment_id: UUID
     course_id: UUID
+    user_id: UUID
+
     percent_completed: float
     is_completed: bool
-    status_label: str
     completed_at: Optional[datetime]
     last_accessed_at: Optional[datetime]
     enrolled_at: datetime
 
+    completed_lessons_count: int
+    total_lessons_count: int
+
+    status_label: str  # 'not_started', 'in_progress', 'completed'
 
 
