@@ -1,5 +1,7 @@
 import logging
 from celery import shared_task
+from django.db.models import F
+from django.db.models.functions import Round 
 from django.utils import timezone
 
 from custom_account.models import UserModel
@@ -142,3 +144,107 @@ def async_update_course_progress_and_analytics(attempt_id, user_id, course_id):
 
     except Exception as e:
         logger.error(f"Error async update quiz progress: {e}")
+
+
+@shared_task
+def process_content_addition_impact(lesson_id):
+    """
+    Hàm xử lý hậu quả khi thêm ContentBlock vào một Lesson.
+    Logic: 
+    1. Lesson đang 'Completed' -> Phải chuyển thành 'Incomplete'.
+    2. Enrollment đang '100%' -> Phải tụt % và mất trạng thái 'Completed'.
+    """
+    try:
+        lesson = Lesson.objects.get(id=lesson_id)
+        course = lesson.module.course
+    except Lesson.DoesNotExist:
+        return
+
+    # -------------------------------------------------------
+    # 1. TÌM CÁC HỌC VIÊN ĐÃ HỌC XONG LESSON NÀY
+    # -------------------------------------------------------
+    # Những người này trước đây completed_blocks == total_blocks (cũ).
+    # Giờ total_blocks (mới) tăng lên, nên họ trở thành chưa xong.
+    affected_lesson_completions = LessonCompletion.objects.filter(
+        lesson=lesson,
+        is_completed=True
+    )
+    
+    affected_enrollment_ids = list(affected_lesson_completions.values_list('enrollment_id', flat=True))
+
+    if not affected_enrollment_ids:
+        return # Không có ai bị ảnh hưởng
+
+    # -------------------------------------------------------
+    # 2. RESET TRẠNG THÁI LESSON (Bulk Update)
+    # -------------------------------------------------------
+    # Chuyển lesson về chưa hoàn thành
+    affected_lesson_completions.update(is_completed=False, completed_at=None)
+
+    # -------------------------------------------------------
+    # 3. CẬP NHẬT ENROLLMENT (Bulk Update - Rất quan trọng để tối ưu)
+    # -------------------------------------------------------
+    # Logic:
+    # - cached_completed_lessons: Giảm đi 1 (do lesson này vừa bị đánh dấu chưa xong)
+    # - is_completed: Chắc chắn False (vì ít nhất 1 lesson chưa xong)
+    # - percent_completed: Tính lại.
+    
+    # Lưu ý: Việc tính lại chính xác % cho hàng nghìn user bằng 1 câu lệnh SQL
+    # hơi phức tạp nếu số lesson khác nhau (dynamic). 
+    # Cách an toàn và nhanh nhất ở đây là dùng F expression để giảm count,
+    # sau đó tính tương đối hoặc trigger tính lại.
+    
+    # Ở đây tôi chọn cách update count và reset flag trước (nhanh nhất).
+    # Việc tính lại % chính xác tuyệt đối có thể để User tự trigger khi họ vào học tiếp,
+    # HOẶC tính toán ngay tại đây nếu cần hiển thị đúng ngay lập tức.
+    
+    # Lấy tổng số lesson hiện tại của Course
+    total_lessons = Lesson.objects.filter(module__course=course).count()
+    
+    if total_lessons > 0:
+        # Giảm số lesson đã hoàn thành đi 1 cho tất cả user bị ảnh hưởng
+        Enrollment.objects.filter(id__in=affected_enrollment_ids).update(
+            cached_completed_lessons=F('cached_completed_lessons') - 1,
+            is_completed=False,
+            completed_at=None
+            # percent_completed: Tạm thời chưa update ngay để tránh lock bảng quá lâu
+            # hoặc update bằng công thức SQL bên dưới
+        )
+
+        # (Optional) Update Percent ngay lập tức bằng SQL Expression
+        # percent = (cached_completed_lessons / total_lessons) * 100
+        Enrollment.objects.filter(id__in=affected_enrollment_ids).update(
+            percent_completed=Round(
+                (F('cached_completed_lessons') * 100.0) / total_lessons, 
+                2
+            )
+        )
+
+
+@shared_task
+def process_lesson_addition_impact(course_id):
+    """
+    Chạy ngầm khi giáo viên tạo Lesson mới.
+    Logic:
+    1. Update lại cached_total_lessons cho toàn bộ Enrollment.
+    2. Reset trạng thái is_completed = False (vì vừa mọc ra bài mới chưa học).
+    3. Tính lại % hoàn thành dựa trên mẫu số mới.
+    """
+    # Lấy chính xác tổng số lesson hiện tại trong DB
+    # Lưu ý: Lúc này transaction bên ngoài đã commit, nên count sẽ bao gồm bài vừa tạo.
+    new_total_lessons = Lesson.objects.filter(module__course_id=course_id).count()
+
+    if new_total_lessons == 0:
+        return
+
+    # BULK UPDATE: Cực nhanh, xử lý hàng nghìn user trong tích tắc
+    # Công thức: percent = (đã_học / tổng_mới) * 100
+    Enrollment.objects.filter(course_id=course_id).update(
+        cached_total_lessons=new_total_lessons,
+        is_completed=False,  # Chắc chắn chưa xong vì có bài mới
+        completed_at=None,   # Reset ngày hoàn thành
+        percent_completed=Round(
+            (F('cached_completed_lessons') * 100.0) / new_total_lessons, 
+            2
+        )
+    )
