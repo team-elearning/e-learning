@@ -101,12 +101,16 @@
             <!-- Outline -->
             <div class="outline" ref="outlineRef">
               <div v-for="(sec, si) in uiSections" :key="sec.id" class="sec">
-                <button class="sec-head" @click="toggle(si)">
-                  <span class="name">{{ si + 1 }}. {{ sec.title }}</span>
+                <button
+                  class="sec-head"
+                  :class="{ done: isModuleCompleted(sec.id) }"
+                  @click="toggle(si)"
+                >
+                  <span class="name">
+                    <span v-if="isModuleCompleted(sec.id)" class="check">✔</span>
+                    {{ si + 1 }}. {{ sec.title }}
+                  </span>
                   <span class="len">{{ sec.items.length }}</span>
-                  <svg class="chev" viewBox="0 0 24 24" :class="{ open: openIndex === si }">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
                 </button>
 
                 <transition name="acc">
@@ -116,7 +120,12 @@
                       <div class="row lesson-row">
                         <div class="leftcell">
                           <!-- <span class="idx">{{ li + 1 }}</span>   -->
-                          <div class="lesson-title" :data-index="li + 1">
+                          <div
+                            class="lesson-title"
+                            :class="{ done: isLessonCompleted(it.id) }"
+                            :data-index="li + 1"
+                          >
+                            <span v-if="isLessonCompleted(it.id)" class="check">✔</span>
                             {{ it.title }}
                           </div>
                         </div>
@@ -128,11 +137,15 @@
                           v-for="block in it.contentBlocks"
                           :key="block.id"
                           class="block-row"
-                          :class="{ active: activeBlock?.id === block.id }"
+                          :class="{
+                            active: activeBlock?.id === block.id,
+                            done: isBlockCompleted(String(block.id)),
+                          }"
                           @click="selectBlock(block)"
                         >
                           <span class="icon">
-                            <span v-if="block.type === 'video'">📹</span>
+                            <span v-if="isBlockCompleted(String(block.id))">✔</span>
+                            <span v-else-if="block.type === 'video'">📹</span>
                             <span v-else-if="block.type === 'quiz'">📝</span>
                             <span v-else>📄</span>
                           </span>
@@ -376,6 +389,8 @@ async function loadCourse() {
     course.value = await getCourse(courseId)
     buildUiSections()
     await refreshCourseProgress()
+    syncDoneFromProgress(courseProgress.value)
+    buildUiSections()
 
     /* resume block */
     const resumeRes = await api.get(`/progress/courses/${courseId}/resume/`)
@@ -503,6 +518,63 @@ function startRichTextHeartbeat(block: any) {
     })
   }, 30000)
 }
+
+// bổ sung
+function syncDoneFromProgress(progress: any) {
+  doneSet.clear()
+
+  if (!progress?.modules) return
+
+  for (const module of progress.modules) {
+    for (const lesson of module.lessons || []) {
+      if (lesson.is_completed) {
+        doneSet.add(String(lesson.id))
+      }
+    }
+  }
+}
+function isBlockCompleted(blockId: string) {
+  if (!courseProgress.value?.modules) return false
+
+  for (const m of courseProgress.value.modules) {
+    for (const l of m.lessons || []) {
+      for (const b of l.blocks || []) {
+        if (String(b.id) === blockId) {
+          return b.is_completed
+        }
+      }
+    }
+  }
+  return false
+}
+
+function isModuleCompleted(moduleId: string) {
+  return courseProgress.value?.modules?.some(
+    (m: any) => String(m.id) === moduleId && m.is_completed,
+  )
+}
+
+function isLessonCompleted(lessonId: string) {
+  if (!courseProgress.value?.modules) return false
+  for (const m of courseProgress.value.modules) {
+    for (const l of m.lessons || []) {
+      if (String(l.id) === lessonId) return l.is_completed
+    }
+  }
+  return false
+}
+
+// function isBlockCompleted(blockId: string) {
+//   if (!courseProgress.value?.modules) return false
+//   for (const m of courseProgress.value.modules) {
+//     for (const l of m.lessons || []) {
+//       for (const b of l.blocks || []) {
+//         if (String(b.id) === blockId) return b.is_completed
+//       }
+//     }
+//   }
+//   return false
+// }
 </script>
 
 <style scoped>
@@ -562,7 +634,13 @@ function startRichTextHeartbeat(block: any) {
   background: #000;
   border-radius: 12px;
   overflow: hidden;
-  border: 6px solid #000;
+}
+
+/* CHỈ video mới bị giới hạn */
+.left.video-mode {
+  position: sticky;
+  top: 12px;
+  height: calc(80vh - 24px);
 }
 
 /* TABS */
@@ -1326,5 +1404,51 @@ function startRichTextHeartbeat(block: any) {
   box-shadow:
     0 6px 16px rgba(255, 255, 255, 0.1),
     0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.block-row.done {
+  color: #16a34a;
+  font-weight: 700;
+}
+.block-row.done {
+  background: #ecfdf5;
+  color: #16a34a;
+  font-weight: 700;
+}
+.block-row.done .icon {
+  color: #16a34a;
+}
+.lesson-title.done {
+  color: #16a34a;
+}
+.lesson-title.done::before {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.sec-head.done {
+  background: #ecfdf5;
+  color: #16a34a;
+}
+.sec-head .check {
+  margin-right: 6px;
+  font-weight: 900;
+}
+/* ACTIVE luôn ưu tiên cao nhất */
+.block-row.active {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 700;
+}
+
+/* DONE nhưng KHÔNG active */
+.block-row.done:not(.active) {
+  background: #ecfdf5;
+  color: #16a34a;
+  font-weight: 700;
+}
+
+/* DONE + ACTIVE (đang chọn bài đã làm) */
+.block-row.active.done {
+  background: #dbeafe; /* xanh nhạt */
+  color: #1d4ed8; /* xanh đậm */
 }
 </style>
