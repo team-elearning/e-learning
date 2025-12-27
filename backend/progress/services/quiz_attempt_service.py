@@ -36,9 +36,9 @@ def calculate_grades(attempt, all_questions_map, saved_answers_map):
     answers_to_create = []
     final_processed_list = []
 
-    logger.error(f"====== DEBUG QUIZ {attempt.id} ======")
-    logger.error(f"Order Length: {len(attempt.questions_order)}")
-    logger.error(f"Processed Items: {len(final_processed_list)}")
+    # logger.error(f"====== DEBUG QUIZ {attempt.id} ======")
+    # logger.error(f"Order Length: {len(attempt.questions_order)}")
+    # logger.error(f"Processed Items: {len(final_processed_list)}")
 
     # Duyệt theo thứ tự đề thi (questions_order)
     for q_id_str in attempt.questions_order:
@@ -88,7 +88,7 @@ def calculate_grades(attempt, all_questions_map, saved_answers_map):
                 answers_to_create.append(new_ans)
                 final_processed_list.append(new_ans)
 
-            logger.error(f" - Q: {question.id} | Score: {score}")
+            # logger.error(f" - Q: {question.id} | Score: {score}")
             total_score += score
 
     return total_score, total_max_score, answers_to_update, answers_to_create, final_processed_list
@@ -131,6 +131,7 @@ def _build_return_domain(attempt) -> QuizAttemptDomain:
         sorted_items.append(item_domain)
     
     return QuizAttemptDomain.from_model(attempt, items=sorted_items)
+
 
 # ==========================================
 # PUBLIC INTERFACE (START)

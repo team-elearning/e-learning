@@ -10,6 +10,7 @@ from content.models import Lesson, Module, ContentBlock
 from content.domains.lesson_domain import LessonDomain
 from core.exceptions import DomainError, ModuleNotFoundError, LessonNotFoundError, NotEnrolledError, NoPublishedContentError, VersionNotFoundError
 from content.services.content_block_service import create_content_block, update_content_block
+from progress.tasks import process_lesson_addition_impact
 
 
 
@@ -70,6 +71,10 @@ def create_lesson(
         module=module,
         title=data.get('title') or "Untitled Lesson",
         position=position
+    )
+
+    transaction.on_commit(
+        lambda: process_lesson_addition_impact.delay(str(module.course_id))
     )
     
     return LessonDomain.from_model_summary(lesson)

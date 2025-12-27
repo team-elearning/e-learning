@@ -7,14 +7,15 @@ from django.db import transaction
 from django.db.models import F, Max
 from typing import List, Dict, Any, Tuple
 
+from core.exceptions import DomainError
 from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson
 from content.domains.content_block_domain import ContentBlockDomain 
 from quiz.services.quiz_course_service import create_quiz, update_quiz
-from core.exceptions import LessonVersionNotFoundError, ContentBlockNotFoundError, DomainError, BlockMismatchError, NotEnrolledError, VersionNotPublishedError
 from quiz.models import Quiz
 from media.services.cloud_service import s3_copy_object
 from media.models import UploadedFile, FileStatus
+from progress.tasks import process_content_addition_impact
 
 
 
@@ -256,6 +257,10 @@ def create_content_block(
         payload=initial_payload,
         position=position,
         quiz_ref=quiz_ref_model
+    )
+
+    transaction.on_commit(
+        lambda: process_content_addition_impact.delay(str(lesson.id))
     )
     
     return ContentBlockDomain.from_model_detail(new_block)
