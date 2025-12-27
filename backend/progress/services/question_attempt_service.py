@@ -43,6 +43,9 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         # Payload: { "correct_id": "A" } -> Validator đảm bảo có key này
         correct_val = str(payload.get('correct_id', ''))
 
+        if not correct_val:
+            return 0.0, False, "Câu hỏi lỗi (chưa có đáp án)."
+
         if user_val == correct_val:
             score = max_score
             is_correct = True
@@ -58,6 +61,9 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         # Payload: { "correct_ids": ["A", "B"] }
         correct_ids = set(str(x) for x in payload.get('correct_ids', []))
         
+        if not correct_ids:
+            return 0.0, False, "Câu hỏi lỗi (chưa có đáp án)."
+
         if user_ids == correct_ids:
             score = max_score
             is_correct = True
@@ -89,6 +95,9 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         # Payload: { "correct_value": true }
         c_val = payload.get('correct_value')
 
+        if c_val is None:
+            return 0.0, False, "Câu hỏi lỗi (Chưa có đáp án)."
+
         # Convert to string to compare safely ('True' vs True)
         if str(u_val).lower() == str(c_val).lower():
             score = max_score
@@ -102,6 +111,9 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
         user_text = str(user_answer_data.get('text', '')).strip()
         accepted_texts = payload.get('accepted_texts', [])
         
+        if not accepted_texts:
+            return 0.0, False, "Câu hỏi chưa cấu hình đáp án."
+
         # Moodle logic: Case sensitivity settings
         case_sensitive = payload.get('case_sensitive', False)
         if not case_sensitive:
@@ -134,7 +146,7 @@ def evaluate_answer(question: Question, user_answer_data: Dict[str, Any]) -> tup
             is_correct = (correct_count == total_pairs)
             feedback = f"Bạn ghép đúng {correct_count}/{total_pairs} cặp."
 
-    # --- CASE 5: Essay (Tự luận) ---
+    # --- CASE 6: Essay (Tự luận) ---
     elif question.type == 'essay':
         # Logic: Có chữ là có điểm
         user_text = str(user_answer_data.get('text', '')).strip()
