@@ -87,6 +87,8 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
         students_count=Count('enrollments', distinct=True),
     )
 
+    ordering = '-created_at'
+
     if strategy in [
         CourseFetchStrategy.BASIC,
         CourseFetchStrategy.CATALOG_LIST,
@@ -119,22 +121,12 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
             total_seconds=Coalesce(Sum('modules__lessons__content_blocks__duration'), 0)
         )
 
-    # 3. Chiến lược riêng biệt
-    if strategy == CourseFetchStrategy.BASIC:
-        pass
+        if strategy == CourseFetchStrategy.MY_ENROLLED:
+            # Bắt buộc phải có user để join
+            if not filters.enrolled_user:
+                raise ValueError("Strategy MY_ENROLLED yêu cầu filter.enrolled_user")
 
-    elif strategy in [CourseFetchStrategy.CATALOG_LIST, CourseFetchStrategy.INSTRUCTOR_DASHBOARD]:
-        query_set = query_set.order_by('-created_at')
-
-    elif strategy == CourseFetchStrategy.ADMIN_LIST:
-        pass
-
-    elif strategy == CourseFetchStrategy.MY_ENROLLED:
-        # Bắt buộc phải có user để join
-        if not filters.enrolled_user:
-            raise ValueError("Strategy MY_ENROLLED yêu cầu filter.enrolled_user")
-
-        query_set = query_set.order_by('-enrollments__last_accessed_at')
+            ordering = '-enrollments__last_accessed_at'
 
     # 2. STRUCTURE / DETAIL (Màn hình học/xem chi tiết)
     elif strategy in [CourseFetchStrategy.STRUCTURE, CourseFetchStrategy.INSTRUCTOR_DETAIL, CourseFetchStrategy.ADMIN_DETAIL]:
@@ -157,7 +149,7 @@ def _build_queryset(filters: CourseFilter, strategy: CourseFetchStrategy):
         )
         
     # Sort mặc định
-    return query_set.order_by('-created_at')
+    return query_set.order_by(ordering)
 
 
 def _get_or_create_tags(tag_names: list[str]) -> list[Tag]:

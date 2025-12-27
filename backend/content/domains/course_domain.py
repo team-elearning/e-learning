@@ -369,9 +369,12 @@ class CourseDomain:
         elif strategy == CourseFetchStrategy.MY_ENROLLED:
             from content.domains.my_course_domain import MyCourseDomain
 
-            logger.error("Bắt đầu xử lý tính toán tiến độ...")
-            logger.error("user_cached_completed_lessons", getattr(model, 'user_cached_completed_lessons', "tại sao chứ"))
-            logger.error("user_cached_total_lessons", getattr(model, 'user_cached_total_lessons', "no wayyyyyyyyyyyyyyyyyyy"))
+            logger.info("Bắt đầu xử lý tính toán tiến độ...")
+            # Dùng f-string cho an toàn và dễ đọc
+            val_completed = getattr(model, 'user_cached_completed_lessons', 'Not Found')
+            val_total = getattr(model, 'user_cached_total_lessons', 'Not Found')
+            
+            logger.info(f"DEBUG DATA -> ID: {model.id} | Completed: {val_completed} | Total: {val_total}")
             
             progress_obj = CourseProgressDomain(
                 enrollment_id=model.user_enrollment_id,
