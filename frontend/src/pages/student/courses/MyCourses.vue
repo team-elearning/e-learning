@@ -114,14 +114,12 @@
                     <span class="state" :class="{ ok: c.done }">
                       <span class="dot"></span>
                       {{ c.done ? 'Đã hoàn thành' : 'Đang học'
-                      }}<template v-if="!c.done">
-                        · {{ getAnimatedProgress(c.id, c.progress) }}%
-                      </template>
+                      }}<template v-if="!c.done"> · {{ c.progress }}% </template>
                     </span>
-                    <span class="score"
+                    <!-- <span class="score"
                       ><span class="emoji">🏆</span>
                       {{ getAnimatedCourseTrophy(c.id, c.scoreEarned) }}/{{ c.scoreTotal }}</span
-                    >
+                    > -->
                   </div>
                 </div>
               </article>
@@ -180,10 +178,10 @@
                         · {{ getAnimatedProgress(c.id, c.progress) }}%
                       </template>
                     </span>
-                    <span class="score"
+                    <!-- <span class="score"
                       ><span class="emoji">🏆</span>
                       {{ getAnimatedCourseTrophy(c.id, c.scoreEarned) }}/{{ c.scoreTotal }}</span
-                    >
+                    > -->
                   </div>
                 </div>
               </article>
@@ -269,135 +267,6 @@
       </div>
 
       <!-- ============ SIDEBAR TIẾN ĐỘ ============ -->
-      <aside class="progress-sidebar" :key="activeTab">
-        <!-- Tổng quan -->
-        <div class="widget overview">
-          <div class="widget-header">
-            <h4>Tiến độ học tập</h4>
-            <span class="period">Tháng này</span>
-          </div>
-
-          <!-- Overall progress -->
-          <div class="overall-progress">
-            <div class="circle-progress">
-              <svg viewBox="0 0 120 120" class="progress-ring">
-                <circle class="ring-bg" cx="60" cy="60" r="52" />
-                <circle
-                  class="ring-fill"
-                  cx="60"
-                  cy="60"
-                  r="52"
-                  :style="{ '--progress-offset': `${overallDashOffset}` }"
-                />
-              </svg>
-              <div class="progress-text">
-                <span class="pct">{{ overallProgress }}%</span>
-                <span class="label">Hoàn thành</span>
-              </div>
-            </div>
-
-            <div class="stats-row">
-              <div class="stat-item">
-                <span class="num">{{ totalCoursesEnrolled }}</span>
-                <span class="lbl">Khóa học</span>
-              </div>
-              <div class="stat-item">
-                <span class="num">{{ totalLessonsCompleted }}</span>
-                <span class="lbl">Bài học</span>
-              </div>
-              <div class="stat-item">
-                <span class="num">{{ totalHoursLearned }}</span>
-                <span class="lbl">Giờ học</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Mục tiêu tuần -->
-        <div class="widget goals">
-          <div class="widget-header">
-            <h4>Mục tiêu tuần</h4>
-            <button class="icon-btn" title="Chỉnh sửa">
-              <svg viewBox="0 0 24 24">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </button>
-          </div>
-
-          <div class="goal-list">
-            <div class="goal-item">
-              <div class="goal-info">
-                <span class="goal-label">Học 5 bài/tuần</span>
-                <span class="goal-progress">{{ weeklyLessons }}/5</span>
-              </div>
-              <div class="goal-bar">
-                <div
-                  class="goal-fill"
-                  :style="{
-                    '--progress-target': Math.min(100, (weeklyLessons / 5) * 100) + '%',
-                  }"
-                ></div>
-              </div>
-            </div>
-
-            <div class="goal-item">
-              <div class="goal-info">
-                <span class="goal-label">60 phút/ngày</span>
-                <span class="goal-progress">{{ dailyMinutes }}/60</span>
-              </div>
-              <div class="goal-bar">
-                <div
-                  class="goal-fill"
-                  :style="{
-                    '--progress-target': Math.min(100, (dailyMinutes / 60) * 100) + '%',
-                  }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Đang học gần đây -->
-        <div class="widget recent">
-          <div class="widget-header">
-            <h4>Đang học</h4>
-            <router-link class="link-sm" :to="{ name: 'student-catalog' }">Xem thêm ›</router-link>
-          </div>
-
-          <div class="recent-list">
-            <article
-              v-for="c in recentCourses"
-              :key="c.id"
-              class="recent-item"
-              @click="playFirst(c.id)"
-            >
-              <div :class="['recent-thumb', { loaded: isThumbLoaded(c.id) }]">
-                <img
-                  :src="thumbSource(c.id, c.thumbnail)"
-                  :alt="c.title"
-                  loading="lazy"
-                  @load="markThumbLoaded(c.id)"
-                  @error="(e) => handleThumbError(e, c.id)"
-                />
-                <div v-if="isThumbMissing(c.id)" class="thumb-empty">Không có ảnh</div>
-              </div>
-              <div class="recent-info">
-                <div class="recent-title">{{ c.title }}</div>
-                <div class="recent-meta">
-                  <span class="recent-progress">{{ getAnimatedProgress(c.id, c.progress) }}%</span>
-                  <div class="mini-bar">
-                    <div
-                      class="mini-fill"
-                      :style="{ '--progress-target': Math.min(100, c.progress) + '%' }"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 </template>
@@ -497,7 +366,9 @@ async function fetchAISuggest(keyword: string) {
 
   aiLoading.value = true
   try {
-    const res = await fetch(`/api/personalization/ai/suggest/?q=${encodeURIComponent(keyword)}&top_n=5`)
+    const res = await fetch(
+      `/api/personalization/ai/suggest/?q=${encodeURIComponent(keyword)}&top_n=5`,
+    )
     if (!res.ok) throw new Error('AI suggest failed')
 
     const data = await res.json()
@@ -556,9 +427,13 @@ function thumbSource(id: ID, fallback?: string | null) {
   return thumbSrc.value[String(id)] || fallback || PLACEHOLDER
 }
 
+// function getAnimatedProgress(id: number | string, fallback: number) {
+//   const val = animatedProgressMap[String(id)]
+//   return val == null ? fallback : val
+// }
 function getAnimatedProgress(id: number | string, fallback: number) {
   const val = animatedProgressMap[String(id)]
-  return val == null ? fallback : val
+  return typeof val === 'number' ? val : fallback
 }
 
 function animateCourseProgress(id: number | string, target: number) {
@@ -649,12 +524,11 @@ function calcProgressFromDetail(d: CourseDetail, id: number | string) {
 async function hydrateCourses(items: CourseSummary[]) {
   all.value = (items || []).map((i) => {
     const pct = i.my_progress?.percent_completed ?? 0
-
     const scoreInfo = calcScore(pct)
 
     return {
       ...i,
-      progress: Math.round(pct), // ✅ SOURCE OF TRUTH
+      progress: Math.round(pct),
       done: Boolean(i.my_progress?.is_completed),
       scoreEarned: scoreInfo.earned,
       scoreTotal: scoreInfo.total,
@@ -662,6 +536,27 @@ async function hydrateCourses(items: CourseSummary[]) {
   })
 
   await Promise.all(all.value.map((i) => ensureThumb(i.id, i.thumbnail)))
+
+  // ✅ animate đúng 1 lần
+  all.value.forEach((course) => {
+    const key = String(course.id)
+
+    // ✅ SET BASE VALUE (QUAN TRỌNG)
+    animatedProgressMap[key] = course.progress
+
+    // optional: nếu vẫn muốn animate khi update sau này
+    // animateCourseProgress(course.id, course.progress)
+  })
+  console.log(
+    '🟢 [hydrateCourses] all:',
+    all.value.map((c) => ({
+      id: c.id,
+      title: c.title,
+      progress: c.progress,
+      done: c.done,
+      my_progress: c.my_progress,
+    })),
+  )
 }
 
 async function load(fetchAll = false) {
@@ -673,6 +568,7 @@ async function load(fetchAll = false) {
     let enrolledItems: CourseSummary[] = []
     try {
       enrolledItems = await courseService.listMyEnrolled()
+      console.log('🟢 [API] listMyEnrolled:', enrolledItems)
     } catch (error) {
       console.warn('Không tải được danh sách khoá học đã đăng ký, fallback list()', error)
       const fallback = await courseService.list({
@@ -728,16 +624,17 @@ async function viewAllCourses() {
   await load(true)
 }
 
-watch(
-  all,
-  (list) => {
-    list.forEach((course) => {
-      animateCourseProgress(course.id, course.progress)
-      animateCourseTrophy(course.id, course.scoreEarned)
-    })
-  },
-  { deep: true },
-)
+// watch(
+//   all,
+//   (list) => {
+//     list.forEach((course) => {
+//       animateCourseProgress(course.id, course.progress)
+//       animateCourseTrophy(course.id, course.scoreEarned)
+//     })
+//   },
+//   { deep: true },
+// )
+
 watch(q, (val) => {
   if (aiTimer) window.clearTimeout(aiTimer)
 
@@ -748,6 +645,10 @@ watch(q, (val) => {
 
 /* ====== FILTERING ====== */
 const filteredMain = computed(() => {
+  console.log(
+    '🟡 [filteredMain]',
+    all.value.map((c) => ({ id: c.id, grade: c.grade, progress: c.progress })),
+  )
   let arr = all.value.slice()
   if (q.value) {
     const key = q.value.toLowerCase()
@@ -990,7 +891,8 @@ onMounted(load)
 }
 .layout {
   display: flex;
-  max-width: 1600px;
+  max-width: 100%;
+  width: 1600px;
   margin: 0 auto;
   gap: clamp(16px, 2vw, 28px);
   align-items: flex-start;

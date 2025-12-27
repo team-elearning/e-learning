@@ -29,6 +29,8 @@ export interface CourseSummary {
   thumbnail?: string
   price?: number
   categories?: { name: string }[]
+  my_progress?: MyProgress
+
 }
 
 export interface Lesson {
@@ -407,10 +409,7 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     grade: normalizeGrade(payload.grade),
     subject: normalizeSubjectSlug(subjectSlug) ?? '',
     subjectName: subjectTitle,
-
-    // 🔥 THÊM DÒNG NÀY (QUAN TRỌNG NHẤT)
     categories: payload.categories ?? [],
-
     teacherId,
     teacherName,
     lessonsCount,
@@ -421,7 +420,11 @@ function normalizeCourseSummary(payload: any): CourseSummary {
     updatedAt,
     thumbnail,
     price,
+
+    // 🔥 GIỮ NGUYÊN DATA TỪ API
+    my_progress: payload.my_progress ?? undefined,
   }
+
 }
 
 function normalizeCourseDetail(payload: any): CourseDetail {
