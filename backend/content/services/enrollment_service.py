@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from custom_account.models import UserModel
 from content.domains.enrollment_domain import EnrollmentDomain, EnrollmentCollectionDomain
 from core.exceptions import DomainError
-from content.models import Course, Enrollment
+from content.models import Course, Enrollment, Lesson
 
 
 
@@ -39,12 +39,25 @@ def enroll_user_in_course(course_id: uuid.UUID, user: UserModel, force_enroll: b
              # Có thể raise lỗi khác để Frontend biết đường redirect sang trang thanh toán
             raise DomainError("Khóa học này có phí. Vui lòng thực hiện thanh toán.")
 
+    # Đếm tổng số lesson đang có trong course này
+    # Lưu ý: Nếu hệ thống có check lesson published, hãy thêm filter(is_published=True)
+    initial_total_lessons = Lesson.objects.filter(module__course=course).count()
+
     # 4. Tạo enrollment
     try:
         # get_or_create là chuẩn, giữ nguyên
         enrollment, created = Enrollment.objects.get_or_create(
             user=user,
-            course=course
+            course=course,
+            defaults={
+                # Gán giá trị tính được vào đây
+                'cached_total_lessons': initial_total_lessons,
+                
+                # Các giá trị mặc định khác (đã có default ở model nhưng khai báo rõ cũng tốt)
+                'cached_completed_lessons': 0,
+                'percent_completed': 0.0,
+                'is_completed': False
+            }
         )
         
         if not created:

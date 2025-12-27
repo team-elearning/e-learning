@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from custom_account.models import UserModel
 from content.models import ContentBlock, Enrollment, Lesson
-from progress.models import QuizAttempt, UserBlockProgress, LessonCompletion
+from progress.models import QuizAttempt, UserBlockProgress, LessonCompletion, ModuleCompletion
 from analytics.services.log_service import record_activity
 
 
@@ -22,6 +22,8 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
     try:
         enrollment = Enrollment.objects.get(id=enrollment_id)
         lesson = Lesson.objects.get(id=lesson_id)
+        module = lesson.module
+        course = module.course
     except (Enrollment.DoesNotExist, Lesson.DoesNotExist):
         return
 
@@ -34,7 +36,7 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
         is_completed=True
     ).count()
 
-    is_lesson_completed = False
+    is_lesson_just_finished = False
     
     if total_blocks > 0 and completed_blocks >= total_blocks:
         # Upsert LessonCompletion
@@ -44,25 +46,44 @@ def calculate_aggregation(enrollment_id: str, lesson_id: str):
             defaults={'is_completed': True, 'completed_at': timezone.now()}
         )
         if created or not obj.is_completed:
-            is_lesson_completed = True
+            is_lesson_just_finished = True
+
+    if not is_lesson_just_finished:
+        return
 
     # --- 2. DOMINO CẤP COURSE (Chỉ chạy nếu lesson vừa xong hoặc định kỳ) ---
     # Để tối ưu, chỉ tính lại % course nếu lesson có sự thay đổi, 
     # hoặc bạn có thể chọn luôn tính lại để đảm bảo chính xác.
+    total_lessons_in_module = Lesson.objects.filter(module=module).count()
+
+    completed_lessons_in_module = LessonCompletion.objects.filter(
+        enrollment=enrollment,
+        lesson__module=module,
+        is_completed=True
+    ).count()
+
+    if total_lessons_in_module > 0 and completed_lessons_in_module == total_lessons_in_module:
+        # Đánh dấu Module đã xong
+        ModuleCompletion.objects.get_or_create(
+            enrollment=enrollment,
+            module=module,
+            defaults={'is_completed': True, 'completed_at': timezone.now()}
+        )
+        # TODO: Tại đây có thể trigger sự kiện "Unlock Module Tiếp Theo" nếu có logic đó.
     
     # Query tổng lesson
-    total_lessons = Lesson.objects.filter(module__course=enrollment.course).count()
+    total_lessons_course = Lesson.objects.filter(module__course=course).count()
     
     # Query lesson đã xong
-    completed_lessons_count = LessonCompletion.objects.filter(
+    completed_lessons_course = LessonCompletion.objects.filter(
         enrollment=enrollment, is_completed=True
     ).count()
 
-    enrollment.cached_total_lessons = total_lessons
-    enrollment.cached_completed_lessons = completed_lessons_count
+    enrollment.cached_total_lessons = total_lessons_course
+    enrollment.cached_completed_lessons = completed_lessons_course
 
-    if total_lessons > 0:
-        new_percent = round((completed_lessons_count / total_lessons) * 100, 2)
+    if total_lessons_course > 0:
+        new_percent = round((completed_lessons_course / total_lessons_course) * 100, 2)
         new_percent = min(100.0, new_percent)
 
         # Update Enrollment (Dùng update_fields cho nhẹ)
@@ -171,6 +192,7 @@ def process_content_addition_impact(lesson_id):
     )
     
     affected_enrollment_ids = list(affected_lesson_completions.values_list('enrollment_id', flat=True))
+    logger.info(f"helooooooooooooooooooooooooooo {len(affected_enrollment_ids)}")
 
     if not affected_enrollment_ids:
         return # Không có ai bị ảnh hưởng
@@ -200,6 +222,7 @@ def process_content_addition_impact(lesson_id):
     
     # Lấy tổng số lesson hiện tại của Course
     total_lessons = Lesson.objects.filter(module__course=course).count()
+    logger.info(f"tổng số lesson hiện tại của Course {total_lessons}")
     
     if total_lessons > 0:
         # Giảm số lesson đã hoàn thành đi 1 cho tất cả user bị ảnh hưởng

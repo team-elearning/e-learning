@@ -259,6 +259,7 @@ def create_content_block(
         quiz_ref=quiz_ref_model
     )
 
+    logger.info(f"Start processing impact for lesson {lesson_id}")
     transaction.on_commit(
         lambda: process_content_addition_impact.delay(str(lesson.id))
     )

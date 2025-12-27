@@ -324,8 +324,6 @@ class CourseDomain:
     def _load_structure(domain, model):
         """
         Helper: Load cây Modules -> Lessons.
-        lite_mode = True  -> Chỉ lấy khung xương (Syllabus), KHÔNG lấy payload/content.
-        lite_mode = False -> Lấy full (Dùng cho người đã mua, hoặc xuất Excel).
         """
         if hasattr(model, 'modules'):
             # Sort module bằng Python (tận dụng prefetch)
@@ -380,6 +378,9 @@ class CourseDomain:
                 enrolled_at=model.user_enrolled_at,
                 completed_at=model.user_completed_at,
                 last_accessed_at=model.user_last_accessed,
+
+                completed_lessons_count=getattr(model, 'user_cached_completed_lessons', 0),
+                total_lessons_count=getattr(model, 'user_cached_total_lessons', 0),
                 
                 # Logic tính status
                 status_label='completed' if model.user_is_completed else ('not_started' if model.user_percent == 0 else 'in_progress')
