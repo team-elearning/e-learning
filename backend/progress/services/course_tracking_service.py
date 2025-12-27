@@ -119,7 +119,7 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
     # Lấy Modules -> Lessons -> Blocks chỉ trong 1-2 query
     modules = Module.objects.filter(course_id=course_uuid).prefetch_related(
         'lessons', 
-        'lessons__blocks' # ContentBlock
+        'lessons__content_blocks' # ContentBlock
     ).order_by('position')
 
     # 3. QUERY TIẾN ĐỘ (Bulk Fetching - Chỉ lấy ID)
@@ -141,7 +141,7 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
     # Logic Locked: Giả sử bài sau chỉ mở khi bài trước xong.
     
     syllabus_modules = []
-    previous_lesson_completed = True # Bài đầu tiên luôn mở
+    # previous_lesson_completed = True # Bài đầu tiên luôn mở
 
     for module in modules:
         syllabus_lessons = []
@@ -160,7 +160,7 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
             
             # Xử lý Blocks
             syllabus_blocks = []
-            blocks = sorted(lesson.blocks.all(), key=lambda x: x.position)
+            blocks = sorted(lesson.content_blocks.all(), key=lambda x: x.position)
             
             for block in blocks:
                 is_block_done = block.id in completed_block_ids
@@ -170,7 +170,7 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
                     type=block.type,
                     is_completed=is_block_done,
                     is_locked=False, 
-                    duration=block.payload.get('duration', 0) if block.payload else 0
+                    duration=block.duration or 0
                 ))
 
             # Tạo Lesson Domain
@@ -178,18 +178,18 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
                 id=lesson.id,
                 title=lesson.title,
                 is_completed=is_lesson_done,
-                is_locked=not previous_lesson_completed,
+                is_locked= False,
                 blocks=syllabus_blocks
             ))
 
-            # Update cờ cho vòng lặp sau (Sequential Locking)
-            # Nếu lesson này xong -> lesson sau được mở
-            if is_lesson_done:
-                previous_lesson_completed = True
-            else:
-                # Nếu lesson này chưa xong -> lesson sau sẽ bị khóa
-                # Tuy nhiên, lesson hiện tại vẫn phải mở để học
-                previous_lesson_completed = False 
+            # # Update cờ cho vòng lặp sau (Sequential Locking)
+            # # Nếu lesson này xong -> lesson sau được mở
+            # if is_lesson_done:
+            #     previous_lesson_completed = True
+            # else:
+            #     # Nếu lesson này chưa xong -> lesson sau sẽ bị khóa
+            #     # Tuy nhiên, lesson hiện tại vẫn phải mở để học
+            #     previous_lesson_completed = False 
 
         # Tạo Module Domain
         syllabus_modules.append(ModuleSyllabusDomain(

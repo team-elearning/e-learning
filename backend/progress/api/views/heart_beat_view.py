@@ -11,6 +11,7 @@ from core.api.mixins import RoleBasedOutputMixin, AutoPermissionCheckMixin
 from core.api.permissions import CanViewCourseContent
 from progress.services import course_tracking_service
 from progress.api.dtos.heart_beat_dto import BlockHeartbeatInput, BlockProgressPublicOutput, BlockProgressAdminOutput, ResetProgressOutput, CourseProgressPublicOutput
+from progress.api.dtos.syllabus_dto import CourseSyllabusOutput
 from progress.serializers import BlockHeartbeatSerializer, BlockCompletionInputSerializer
 from content.models import ContentBlock, Course, Enrollment
 
@@ -198,15 +199,15 @@ class EnrollmentResetView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIVie
 class CourseProgressView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
     """
     GET /courses/<course_id>/progress/
-    Output: CourseProgressPublicOutput (Chỉ thông tin khóa học)
+    Output: CourseSyllabusOutput (Cấu trúc khóa học kèm tiến độ)
     """
     permission_classes = [IsAuthenticated, CanViewCourseContent]
     permission_lookup = {'course_id': Course}
 
     # Dùng DTO riêng của Course
-    output_dto_public = CourseProgressPublicOutput
-    output_dto_instructor = CourseProgressPublicOutput
-    output_dto_admin = CourseProgressPublicOutput
+    output_dto_public = CourseSyllabusOutput
+    output_dto_instructor = CourseSyllabusOutput
+    output_dto_admin = CourseSyllabusOutput
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
