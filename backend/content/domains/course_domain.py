@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime
 from django.db.models import Q, Case, When, IntegerField, Count
 from typing import Optional, List, Dict, Any
@@ -15,6 +16,8 @@ from media.services.cloud_service import get_signed_url_by_id
 from progress.domains.course_progress_domain import CourseProgressDomain
 
 
+
+logger = logging.getLogger(__name__)
 
 class CourseDomain:
     """
@@ -365,6 +368,10 @@ class CourseDomain:
         
         elif strategy == CourseFetchStrategy.MY_ENROLLED:
             from content.domains.my_course_domain import MyCourseDomain
+
+            logger.info("Bắt đầu xử lý tính toán tiến độ...")
+            logger.info("user_cached_completed_lessons", getattr(model, 'user_cached_completed_lessons', "tại sao chứ"))
+            logger.info("user_cached_total_lessons", getattr(model, 'user_cached_total_lessons', "no wayyyyyyyyyyyyyyyyyyy"))
             
             progress_obj = CourseProgressDomain(
                 enrollment_id=model.user_enrollment_id,
