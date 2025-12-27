@@ -125,6 +125,7 @@ class CourseResumeView(RoleBasedOutputMixin, AutoPermissionCheckMixin, APIView):
 
     # Reuse Serializer của Heartbeat vì cấu trúc output giống hệt nhau
     output_dto_public = BlockProgressPublicOutput 
+    output_dto_instructor = BlockProgressAdminOutput
     output_dto_admin = BlockProgressAdminOutput
 
     def __init__(self, *args, **kwargs):

@@ -13,6 +13,7 @@ from progress.domains.reset_progress_result_domain import ResetProgressResultDom
 from progress.domains.course_progress_domain import CourseProgressDomain
 from progress.domains.course_card_domain import CourseCardDomain
 from progress.domains.resume_point_domain import ResumePointDomain
+from progress.domains.syllabus_domain import CourseSyllabusDomain, ModuleSyllabusDomain, LessonSyllabusDomain, BlockSyllabusDomain
 from progress.tasks import calculate_aggregation
 from analytics.services.log_service import record_activity
 
@@ -70,7 +71,7 @@ def evaluate(block: ContentBlock, interaction_data: dict, current_progress_secon
 
 
 # ==========================================
-# PUBLIC INTERFACE (GET BLOCK INTERACTION)
+# PUBLIC INTERFACE (GET BLOCK INTERACTION) - Lấy tiến độ hiện tại của 1 block
 # ==========================================
 
 def get_interaction_status(user, block_id: str) -> UserBlockProgressDomain:
@@ -99,7 +100,7 @@ def get_interaction_status(user, block_id: str) -> UserBlockProgressDomain:
 
 
 # ==========================================
-# PUBLIC INTERFACE (GET COURSE PROGRESS)
+# PUBLIC INTERFACE (GET COURSE PROGRESS) - Lấy tiến độ khóa học
 # ==========================================
 
 def get_course_progress(user, course_id: str) -> CourseProgressDomain:
@@ -108,26 +109,106 @@ def get_course_progress(user, course_id: str) -> CourseProgressDomain:
     """
     try:
         course_uuid = uuid.UUID(str(course_id))
+        enrollment = Enrollment.objects.get(user=user, course_id=course_uuid)
     except ValueError:
         raise ValueError("course_id không hợp lệ.")
-
-    # 1. Tìm Enrollment
-    try:
-        # select_related không cần thiết lắm nếu chỉ lấy field của enrollment, 
-        # nhưng nếu domain cần title khóa học thì nên thêm.
-        enrollment = Enrollment.objects.get(user=user, course_id=course_uuid)
     except Enrollment.DoesNotExist:
-        # Tùy nghiệp vụ: 
-        # - Nếu chưa enroll thì trả về lỗi 404 (Không tìm thấy tiến độ)
-        # - Hoặc trả về object rỗng 0% (nếu cho phép xem trước)
         raise PermissionError("User chưa ghi danh khóa học này.")
+    
+    # 2. QUERY CẤU TRÚC (Eager Loading cực mạnh)
+    # Lấy Modules -> Lessons -> Blocks chỉ trong 1-2 query
+    modules = Module.objects.filter(course_id=course_uuid).prefetch_related(
+        'lessons', 
+        'lessons__blocks' # ContentBlock
+    ).order_by('position')
 
-    # 2. Return Domain
-    return CourseProgressDomain.from_model(enrollment)
+    # 3. QUERY TIẾN ĐỘ (Bulk Fetching - Chỉ lấy ID)
+    # Thay vì query từng cái, ta lấy 1 list ID đã xong. Set trong Python lookup O(1).
+    
+    # Set các Lesson đã xong
+    completed_lesson_ids = set(
+        LessonCompletion.objects.filter(enrollment=enrollment, is_completed=True)
+        .values_list('lesson_id', flat=True)
+    )
+    
+    # Set các Block đã xong (Lấy từ UserBlockProgress)
+    completed_block_ids = set(
+        UserBlockProgress.objects.filter(enrollment=enrollment, is_completed=True)
+        .values_list('block_id', flat=True)
+    )
+
+    # 4. DATA MASHUP (Ghép data trong RAM)
+    # Logic Locked: Giả sử bài sau chỉ mở khi bài trước xong.
+    
+    syllabus_modules = []
+    previous_lesson_completed = True # Bài đầu tiên luôn mở
+
+    for module in modules:
+        syllabus_lessons = []
+        
+        # Sắp xếp lesson (nếu chưa order trong model meta)
+        lessons = sorted(module.lessons.all(), key=lambda x: x.position)
+        
+        # Check module completed (Optional: có thể dùng bảng ModuleCompletion nếu muốn chính xác)
+        # Ở đây mình tính dynamic dựa trên lesson cho đơn giản
+        module_fully_completed = True 
+
+        for lesson in lessons:
+            is_lesson_done = lesson.id in completed_lesson_ids
+            if not is_lesson_done:
+                module_fully_completed = False
+            
+            # Xử lý Blocks
+            syllabus_blocks = []
+            blocks = sorted(lesson.blocks.all(), key=lambda x: x.position)
+            
+            for block in blocks:
+                is_block_done = block.id in completed_block_ids
+                syllabus_blocks.append(BlockSyllabusDomain(
+                    id=block.id,
+                    title=block.title,
+                    type=block.type,
+                    is_completed=is_block_done,
+                    is_locked=False, 
+                    duration=block.payload.get('duration', 0) if block.payload else 0
+                ))
+
+            # Tạo Lesson Domain
+            syllabus_lessons.append(LessonSyllabusDomain(
+                id=lesson.id,
+                title=lesson.title,
+                is_completed=is_lesson_done,
+                is_locked=not previous_lesson_completed,
+                blocks=syllabus_blocks
+            ))
+
+            # Update cờ cho vòng lặp sau (Sequential Locking)
+            # Nếu lesson này xong -> lesson sau được mở
+            if is_lesson_done:
+                previous_lesson_completed = True
+            else:
+                # Nếu lesson này chưa xong -> lesson sau sẽ bị khóa
+                # Tuy nhiên, lesson hiện tại vẫn phải mở để học
+                previous_lesson_completed = False 
+
+        # Tạo Module Domain
+        syllabus_modules.append(ModuleSyllabusDomain(
+            id=module.id,
+            title=module.title,
+            is_completed=module_fully_completed, 
+            lessons=syllabus_lessons
+        ))
+
+    # 5. Return Result
+    return CourseSyllabusDomain(
+        course_id=course_uuid,
+        percent_completed=enrollment.percent_completed,
+        modules=syllabus_modules
+    )
 
 
 # ==========================================
-# PUBLIC INTERFACE (GET LEARNING COURSE)
+# PUBLIC INTERFACE (GET LEARNING COURSE) - Lấy danh sách khóa học của người dùng
 # ==========================================
 
 def get_my_learning_hub(user_id: str) -> List[CourseCardDomain]:
@@ -186,7 +267,7 @@ def get_my_learning_hub(user_id: str) -> List[CourseCardDomain]:
 
 
 # ==========================================
-# GET RESUME LEARNING
+# GET RESUME LEARNING - Lấy block đang học dở của khóa học
 # ==========================================
 
 def get_resume_state(user, course_id: str) -> UserBlockProgressDomain:
@@ -242,7 +323,7 @@ def get_resume_state(user, course_id: str) -> UserBlockProgressDomain:
 
 
 # ==========================================
-# PUBLIC INTERFACE (TRACK)
+# PUBLIC INTERFACE (TRACK) - Ghi nhận tiến độ block
 # ==========================================
 
 def sync_heartbeat(user, block_id: str, data: dict) -> UserBlockProgressDomain :
