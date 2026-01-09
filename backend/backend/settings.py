@@ -122,10 +122,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -320,6 +321,7 @@ REST_AUTH = {
     'JWT_AUTH_REFRESH_COOKIE': 'refresh_token_cookie',
     'USER_DETAILS_SERIALIZER': 'custom_account.serializers.UserPublicOutputSerializer',
     'LOGIN_SERIALIZER': 'custom_account.serializers.CustomLoginSerializer',
+    'PASSWORD_RESET_SERIALIZER': 'custom_account.serializers.CustomPasswordResetSerializer',
 }
 
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
