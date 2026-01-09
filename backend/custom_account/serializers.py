@@ -1,10 +1,12 @@
+from allauth.account.models import EmailAddress
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from dj_rest_auth.serializers import LoginSerializer
-from allauth.account.models import EmailAddress
+from dj_rest_auth.serializers import PasswordResetSerializer
+from django.conf import settings
 
 from custom_account.models import UserModel, Profile
 from custom_account.domains.user_domain import UserDomain
@@ -13,6 +15,8 @@ from custom_account.domains.profile_domain import ProfileDomain
 from custom_account.domains.change_password_domain import ChangePasswordDomain
 from custom_account.domains.reset_password_domain import ResetPasswordDomain
 from custom_account.services import auth_service, profile_service
+
+
 
 """Serializer for sending user data in responses."""
 class UserSerializer(serializers.ModelSerializer):
@@ -260,3 +264,24 @@ class UserPublicOutputSerializer(serializers.ModelSerializer):
             return user_obj.username
         except Exception:
             return user_obj.username
+        
+
+class CustomPasswordResetSerializer(PasswordResetSerializer):
+    def save(self):
+        request = self.context.get('request')
+        
+        # Cấu hình các tùy chọn gửi mail
+        opts = {
+            'use_https': request.is_secure(),
+            'from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@eduriot.fit'),
+            'request': request,
+            
+            # Trỏ tới template HTML bạn vừa tạo ở Bước 1
+            'email_template_name': 'account/email/password_reset_email.html', 
+            # (Tùy chọn) Nếu bạn có template html riêng
+            # 'html_email_template_name': 'account/email/password_reset_email.html',
+        }
+        
+        # Gọi hàm save của form cha để thực hiện gửi mail
+        # self.reset_form là instance của Django PasswordResetForm
+        self.reset_form.save(**opts)
