@@ -322,6 +322,8 @@ REST_AUTH = {
     'LOGIN_SERIALIZER': 'custom_account.serializers.CustomLoginSerializer',
 }
 
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+
 # ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
 ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 
