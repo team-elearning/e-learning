@@ -16,10 +16,6 @@ urlpatterns = [
     path("password/change/", ChangePasswordView.as_view(), name="account-change-password"),
     path('password/reset/', PasswordResetView.as_view(), name='password_reset_request'),
     re_path(r'^password/reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$', AdvancedPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
-    
-    # path("consents/", ParentalConsentListView.as_view(), name="account-consents-list"),
-    # path("consents/grant/", ParentalConsentCreateView.as_view(), name="account-consents-grant"),
-    # path("consents/revoke/", ParentalConsentRevokeView.as_view(), name="account-consents-revoke"),
 
     path("admin/login/<uuid:user_id>/", AdminLoginAsUserView.as_view(), name="admin-login-as-user"),
     path('admin/refresh-access/<uuid:user_id>/', AdminRefreshUserAccessView.as_view(), name='admin_refresh_access'),
