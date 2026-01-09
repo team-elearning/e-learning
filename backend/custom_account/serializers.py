@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from dj_rest_auth.serializers import LoginSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer
 from django.conf import settings
+from django.contrib.auth.forms import PasswordResetForm
 
 from custom_account.models import UserModel, Profile
 from custom_account.domains.user_domain import UserDomain
@@ -267,7 +268,10 @@ class UserPublicOutputSerializer(serializers.ModelSerializer):
         
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
+    password_reset_form_class = PasswordResetForm
+
     def save(self):
+        print("DEBUG: Đang chạy Custom Serializer")
         request = self.context.get('request')
         
         # Cấu hình các tùy chọn gửi mail
@@ -279,7 +283,7 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
             # Trỏ tới template HTML bạn vừa tạo ở Bước 1
             'email_template_name': 'account/email/password_reset_email.html', 
             # (Tùy chọn) Nếu bạn có template html riêng
-            # 'html_email_template_name': 'account/email/password_reset_email.html',
+            'html_email_template_name': 'account/email/password_reset_email.html',
         }
         
         # Gọi hàm save của form cha để thực hiện gửi mail
