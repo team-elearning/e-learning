@@ -439,35 +439,50 @@ class ContentBlockCreateSerializer(serializers.Serializer):
 
 class ContentBlockUpdateSerializer(serializers.Serializer):
     """
-    Serializer con, KHÔNG PHẢI ModelSerializer.
-    Dùng để validate từng block trong danh sách 'content_blocks'
+    Serializer dùng cho UPDATE (PATCH/PUT).
+    Validate payload dựa trên 'type' của block hiện tại trong DB.
     """
-    # 'id' là Optional. 
-    # - Nếu có (UUID), service sẽ hiểu là CẬP NHẬT.
-    # - Nếu không có (None), service sẽ hiểu là TẠO MỚI.
-    id = serializers.UUIDField(required=False, allow_null=True)
     title = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    type = serializers.ChoiceField(choices=[c[0] for c in ContentBlock._meta.get_field('type').choices])
     payload = serializers.DictField(default=dict, required=False)
 
     def validate(self, attrs):
-        block_type = attrs.get('type')
-        payload = attrs.get('payload', {})
+        """
+        Validate payload dựa trên type thực tế của Block (self.instance).
+        """
+        # Lấy instance được truyền từ View (quan trọng)
+        instance = self.instance 
+        
+        # Nếu không có instance (trường hợp dùng serializer này để create), logic sẽ sai.
+        if not instance:
+            raise serializers.ValidationError("Serializer này chỉ dùng để Update (cần instance).")
+        
+        # Lấy payload user gửi lên. Nếu không gửi payload, lấy dict rỗng để check (hoặc bỏ qua tùy logic)
+        incoming_payload = attrs.get('payload')
+
+        # Nếu user không gửi payload (chỉ sửa title), thì không cần validate sâu bên trong
+        if incoming_payload is None:
+            return attrs
+        
+        block_type = instance.type # Lấy type thật từ DB
 
         # --- VALIDATE RICH TEXT ---
         if block_type == 'rich_text':
-            # SỬA: Dùng 'html_content' để khớp với Service
-            if not payload.get('html_content'):
-                raise serializers.ValidationError({
-                    "payload": "Loại 'rich_text' yêu cầu field 'html_content' trong payload."
+            # Yêu cầu html_content nếu có update payload
+            if 'html_content' not in incoming_payload:
+                 raise serializers.ValidationError({
+                    "payload": "Block 'rich_text' yêu cầu field 'html_content'."
                 })
+            # # (Optional) Validate rỗng nếu cần
+            # if not incoming_payload['html_content'].strip():
+            #     raise serializers.ValidationError({"payload": "Nội dung rich_text không được để trống."})
 
         # --- VALIDATE QUIZ ---
         elif block_type == 'quiz':
             # Giả định QuizCourseSerializer đã được import
             # Validate cấu trúc đề thi/cài đặt quiz
-            quiz_serializer = QuizUpdateMetadataSerializer(data=payload)
-            quiz_serializer.is_valid(raise_exception=True)
+            quiz_serializer = QuizUpdateMetadataSerializer(data=incoming_payload)
+            if not quiz_serializer.is_valid():
+                raise serializers.ValidationError({"payload": quiz_serializer.errors})
             
             # Gán lại data sạch đã validate vào attrs
             attrs['payload'] = quiz_serializer.validated_data
@@ -476,18 +491,31 @@ class ContentBlockUpdateSerializer(serializers.Serializer):
         else:
             # Map này PHẢI khớp với 'single_file_map' trong Service
             file_key_map = {
-                'video': 'video_id',
-                'pdf':   'file_id',
-                'docx':  'file_id',
-                'file':  'file_id',
+                'video': 'staging_video_id',
+                'pdf':   'staging_file_id',
+                'docx':  'staging_file_id',
+                'file':  'staging_file_id',
+                'audio': 'staging_audio_id',
                 # 'image': 'image_id' (Nếu model thêm image thì mở comment này)
             }
 
             if block_type in file_key_map:
                 required_key = file_key_map[block_type]
-                if not payload.get(required_key):
-                    raise serializers.ValidationError({
-                        "payload": f"Loại '{block_type}' yêu cầu field '{required_key}' trong payload."
+                
+                # Logic quan trọng:
+                # Nếu user update block video, họ CÓ THỂ gửi 'video_id' mới (để thay video)
+                # HOẶC chỉ gửi 'duration' (sửa thời lượng) mà không gửi 'video_id'.
+                # => Tùy nghiệp vụ của bạn:
+                #    A. Nếu bắt buộc gửi lại ID file cũ: check required.
+                #    B. Nếu cho phép partial update payload: chỉ check nếu key đó tồn tại.
+                
+                # Ở đây tôi giả định logic: Nếu đã đụng vào payload của file block,
+                # và muốn thay file thì phải có key. Còn nếu payload chỉ chứa 'duration', service vẫn chấp nhận.
+                
+                # Tuy nhiên, để an toàn cho Service hàm promote, nếu key có xuất hiện thì không được null/blank
+                if required_key in incoming_payload and not incoming_payload[required_key]:
+                     raise serializers.ValidationError({
+                        "payload": f"Field '{required_key}' không được để trống."
                     })
 
         return attrs

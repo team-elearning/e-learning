@@ -605,8 +605,16 @@ class InstructorContentBlockDetailView(RoleBasedOutputMixin, AutoPermissionCheck
         Update Block.
         Hỗ trợ partial update (gửi field nào update field đó).
         """
+        try:
+            block_instance = ContentBlock.objects.select_related(
+                'lesson__module__course'
+            ).get(id=block_id)
+            
+        except ContentBlock.DoesNotExist:
+             return Response({"detail": "Block not found"}, status=status.HTTP_404_NOT_FOUND)
+        
         # 1. Validate Input (Dùng partial=True vì có thể chỉ update title hoặc payload)
-        serializer = ContentBlockUpdateSerializer(data=request.data, partial=True)
+        serializer = ContentBlockUpdateSerializer(instance=block_instance, data=request.data, partial=True)
         try:
             serializer.is_valid(raise_exception=True)
             validated_data = serializer.validated_data
@@ -616,7 +624,7 @@ class InstructorContentBlockDetailView(RoleBasedOutputMixin, AutoPermissionCheck
         # 2. Gọi Service
         try:
             updated_block = self.content_block_service.update_content_block(
-                block_id=block_id,
+                block=block_instance,
                 data=validated_data,
                 actor=request.user # Cần actor để commit file nếu có
             )

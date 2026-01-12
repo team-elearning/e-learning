@@ -175,19 +175,19 @@ def get_content_blocks(lesson_id: uuid.UUID) -> list[ContentBlockDomain]:
 
 
 def get_content_block_detail(block_id: uuid.UUID) -> ContentBlockDomain:
-        """
-        Lấy chi tiết 1 block (Dạng Detail - Nặng).
-        Dùng khi bấm vào nút 'Edit' của 1 block.
-        """
-        try:
-            # Cần lấy cả quiz_ref để fill dữ liệu nếu là quiz block
-            block = ContentBlock.objects.select_related('quiz_ref').get(id=block_id)
-            
-            # Map sang Detail Domain
-            return ContentBlockDomain.from_model_detail(block)
-            
-        except ContentBlock.DoesNotExist:
-            raise DomainError(f"Content Block với ID '{block_id}' không tồn tại.")
+    """
+    Lấy chi tiết 1 block (Dạng Detail - Nặng).
+    Dùng khi bấm vào nút 'Edit' của 1 block.
+    """
+    try:
+        # Cần lấy cả quiz_ref để fill dữ liệu nếu là quiz block
+        block = ContentBlock.objects.select_related('quiz_ref').get(id=block_id)
+        
+        # Map sang Detail Domain
+        return ContentBlockDomain.from_model_detail(block)
+        
+    except ContentBlock.DoesNotExist:
+        raise DomainError(f"Content Block với ID '{block_id}' không tồn tại.")
 
 
 # ==========================================
@@ -272,25 +272,24 @@ def create_content_block(
 # ==========================================
 
 @transaction.atomic
-def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> ContentBlockDomain:
+def update_content_block(block: ContentBlock, data: dict, actor: UserModel) -> ContentBlockDomain:
     """
     Update content block.
     Quan trọng: Nếu payload thay đổi (vd: sửa bài viết, đổi video), 
     cần quét lại file ID để commit (chuyển trạng thái file thành permanent).
     """
-    try:
-        block = ContentBlock.objects.get(id=block_id)
-    except ContentBlock.DoesNotExist:
-        raise DomainError(f"Block {block_id} not found.")
+    fields_to_update = []
 
     # Update basic info
     if 'title' in data:
-        block.title = data['title']
+        if block.title != data['title']:
+            block.title = data['title']
+            fields_to_update.append('title')
 
     # Update Payload & Promote File
     if 'payload' in data:
         incoming_payload = data['payload']
-        current_payload = block.payload or {}
+        current_payload = block.payload if isinstance(block.payload, dict) else {}
         
         # Merge data mới vào data cũ
         updated_payload = current_payload.copy()
@@ -301,11 +300,14 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
             try:
                 new_duration = int(incoming_payload['duration'])
                 
-                # 1. Lưu vào Model Field (để query/sort nhanh)
-                block.duration = new_duration
+                if block.duration != new_duration:
+                    # 1. Lưu vào Model Field (để query/sort nhanh)
+                    block.duration = new_duration
+                    fields_to_update.append('duration')
                 
                 # 2. Lưu vào Payload (để đồng bộ với logic cũ)
                 updated_payload['duration'] = new_duration
+
             except (ValueError, TypeError):
                 pass # Bỏ qua nếu dữ liệu rác
 
@@ -324,30 +326,42 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
                 # Dùng update() để query nhanh, không cần load object Quiz lên
                 Quiz.objects.filter(id=quiz_id).update(title=new_quiz_title)
 
-        # === TRƯỜNG HỢP 1: RICH TEXT (Xử lý N ảnh) ===
+        # ====================================================
+        # CASE B: RICH TEXT
+        # ====================================================
         elif block.type == 'rich_text':
+            course_id = str(block.lesson.module.course.id)
+            lesson_id = str(block.lesson.id)
+
             raw_html = updated_payload.get('html_content', '')
             
             # Gọi Helper xử lý ảnh
             clean_html = _process_rich_text_images(
                 html_content=raw_html,
-                course_id=str(block.lesson.module.course.id),
-                lesson_id=str(block.lesson.id)
+                course_id=course_id,
+                lesson_id=lesson_id
             )
             
             updated_payload['html_content'] = clean_html
 
+        # ====================================================
+        # CASE C: MEDIA FILES (Video, PDF, Docx...)
+        # ====================================================
         else:
-        
             # KIỂM TRA XEM CÓ FILE STAGING CẦN PROMOTE KHÔNG
             staging_key = FILE_FIELD_MAP.get(block_type)
             staging_id = incoming_payload.get(staging_key) # Ví dụ: lấy ra UUID
 
             if staging_id:
                 try:
-                    # 1. Tìm file tạm
                     uploaded_file = UploadedFile.objects.get(id=staging_id, status=FileStatus.STAGING)
-                    
+                except UploadedFile.DoesNotExist:
+                    # FIX: Nếu user gửi ID mà không tìm thấy file -> Báo lỗi ngay
+                    raise DomainError(f"File ID {staging_id} không tồn tại hoặc không hợp lệ.")
+                
+                try:
+                    course_id = block.lesson.module.course.id
+
                     # 2. Định nghĩa đường dẫn đích (Private)
                     # Cấu trúc: private/courses/{id}/lessons/{id}/blocks/{id}.ext
                     ext = uploaded_file.file.name.split('.')[-1]
@@ -377,15 +391,16 @@ def update_content_block(block_id: uuid.UUID, data: dict, actor: UserModel) -> C
                     # 5. Dọn dẹp bảng tạm
                     uploaded_file.delete()
 
-                except UploadedFile.DoesNotExist:
-                    pass # Bỏ qua hoặc báo lỗi
                 except Exception as e:
                     logger.error(f"Promote file failed: {e}")
                     raise DomainError(f"Lỗi khi xử lý file media - {str(e)}")
 
         # Lưu payload mới
         block.payload = updated_payload
-        block.save()
+        fields_to_update.append('payload')
+
+        if fields_to_update:
+            block.save(update_fields=fields_to_update)
 
     return ContentBlockDomain.from_model_detail(block)
 
