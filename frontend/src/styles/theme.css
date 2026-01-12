@@ -1,0 +1,71 @@
+:root {
+  /* ===== Modern Edu Palette ===== */
+  /* Primary: Indigo - Trust, Intelligence */
+  --primary: 79 70 229; /* #4F46E5 */
+
+  /* Secondary: Emerald - Growth, Success */
+  --secondary: 16 185 129; /* #10B981 */
+
+  /* Accent: Amber - Energy, Attention */
+  --accent: 245 158 11; /* #F59E0B */
+
+  /* Backgrounds */
+  --bg: 248 250 252; /* #F8FAFC (Slate-50) */
+  --bg-soft: 255 255 255; /* White */
+
+  /* Text */
+  --text: 15 23 42; /* #0F172A (Slate-900) */
+  --text-light: 100 116 139; /* #64748B (Slate-500) */
+
+  /* Borders */
+  --border: 226 232 240; /* #E2E8F0 (Slate-200) */
+
+  /* Radius */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-highlight: 0 0 0 1px rgba(0, 0, 0, 0.03), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* Element Plus Overrides to match theme */
+  --el-color-primary: rgb(var(--primary));
+  --el-color-success: rgb(var(--secondary));
+  --el-color-warning: rgb(var(--accent));
+  --el-border-radius-base: 8px;
+  --el-bg-color: #ffffff;
+}
+
+html,
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glassmorphism helpers */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-panel {
+  background: white;
+  border: 1px solid rgb(var(--border));
+  box-shadow: var(--shadow-highlight);
+  border-radius: var(--radius-xl);
+}
+
+/* Gradient text */
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--secondary)));
+}
