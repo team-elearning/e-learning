@@ -133,7 +133,7 @@ onMounted(() => {
           <div
             class="px-2 py-1.5 font-bold text-slate-700 text-sm bg-slate-100 rounded-lg mb-2 truncate"
           >
-            {{ mod.title }}
+            Chương {{ mIdx + 1 }}: {{ mod.title }}
           </div>
 
           <!-- Lessons List -->
@@ -142,11 +142,13 @@ onMounted(() => {
             :key="lesson.id"
             class="ml-2 pl-2 border-l-2 border-slate-200 mb-2"
           >
-            <div class="text-xs font-semibold text-slate-500 mb-1 px-2">{{ lesson.title }}</div>
+            <div class="text-xs font-semibold text-slate-500 mb-1 px-2">
+              Bài {{ lIdx + 1 }}: {{ lesson.title }}
+            </div>
 
             <!-- Blocks List -->
             <button
-              v-for="block in lesson.content_blocks"
+              v-for="(block, bIdx) in lesson.content_blocks"
               :key="block.id"
               @click="selectBlock(block)"
               class="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all"
@@ -159,7 +161,7 @@ onMounted(() => {
               <span class="text-base" :class="activeBlockId === block.id ? '' : 'text-slate-400'">{{
                 getIcon(block.type)
               }}</span>
-              <span class="truncate">{{ block.title }}</span>
+              <span class="truncate"> {{ bIdx + 1 }}: {{ block.title }}</span>
             </button>
           </div>
         </div>

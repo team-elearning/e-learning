@@ -83,13 +83,22 @@ def initiate_file_upload(user, data: dict) -> dict:
         file=s3_key # Django S3 Storage sẽ hiểu đây là path
     )
 
-    # 3. Gọi AWS S3 SDK để tạo Presigned URL
+    # # 3. Gọi AWS S3 SDK để tạo Presigned URL
+    # s3_client = boto3.client(
+    #     's3',
+    #     aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    #     aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    #     region_name=settings.AWS_S3_REGION_NAME,
+    #     config=Config(signature_version='s3v4')
+    # )
+
     s3_client = boto3.client(
-        's3',
+        "s3",
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         region_name=settings.AWS_S3_REGION_NAME,
-        config=Config(signature_version='s3v4')
+        endpoint_url=f"https://s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
     )
 
     # Cấu hình params cho URL
