@@ -10,6 +10,7 @@ const auth = useAuthStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+const isGoogleReady = ref(false)
 
 const form = reactive({
   identifier: '',
@@ -18,32 +19,55 @@ const form = reactive({
 })
 
 onMounted(() => {
+  // Check if script is already loaded
+  if ((window as any).google?.accounts?.oauth2) {
+    isGoogleReady.value = true
+    return
+  }
+
   // Load Google Identity Services script
   const script = document.createElement('script')
   script.src = 'https://accounts.google.com/gsi/client'
   script.async = true
   script.defer = true
+  script.onload = () => {
+    isGoogleReady.value = true
+  }
   document.head.appendChild(script)
 })
 
 function triggerGoogleLogin() {
+  if (!isGoogleReady.value) {
+    ElMessage.warning('Dịch vụ Google Sign-In đang khởi động. Vui lòng thử lại sau giây lát.')
+    return
+  }
+
   // @ts-ignore
   if (typeof google === 'undefined') {
     ElMessage.error('Google Sign-In chưa sẵn sàng. Vui lòng tải lại trang.')
     return
   }
 
-  // @ts-ignore
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-    scope: 'email profile openid',
-    callback: async (response: any) => {
-      if (response.access_token) {
-        performGoogleLogin(response.access_token)
-      }
-    },
-  })
-  client.requestAccessToken()
+  try {
+    // @ts-ignore
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      scope: 'email profile openid',
+      callback: async (response: any) => {
+        if (response.error) {
+          console.error('Google Auth Error:', response)
+          return
+        }
+        if (response.access_token) {
+          performGoogleLogin(response.access_token)
+        }
+      },
+    })
+    client.requestAccessToken()
+  } catch (err) {
+    console.error('Failed to trigger Google Login:', err)
+    ElMessage.error('Không thể khởi tạo đăng nhập Google.')
+  }
 }
 
 async function performGoogleLogin(token: string) {
