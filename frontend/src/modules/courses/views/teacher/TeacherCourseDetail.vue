@@ -62,6 +62,12 @@ async function selectBlock(block: ContentBlock) {
   }
 }
 
+function goToQuizEditor() {
+  if (blockDetail.value?.payload?.quiz_id && courseId) {
+    router.push(`/teacher/courses/${courseId}/quizzes/${blockDetail.value.payload.quiz_id}`)
+  }
+}
+
 function getIcon(type: string) {
   switch (type) {
     case 'video':
@@ -185,7 +191,22 @@ onMounted(() => {
             <h1 class="text-2xl font-bold text-gray-900" v-if="blockDetail">
               {{ blockDetail.title }}
             </h1>
+            <p
+              v-if="blockDetail?.type === 'quiz' && quizDetail"
+              class="text-slate-500 text-sm mt-1"
+            >
+              {{ quizDetail.description || 'Bài kiểm tra' }}
+            </p>
             <div v-if="isLoadingBlock" class="h-8 w-64 bg-slate-200 rounded animate-pulse"></div>
+          </div>
+
+          <div v-if="blockDetail?.type === 'quiz' && blockDetail.payload?.quiz_id">
+            <button
+              @click="goToQuizEditor"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition shadow-sm"
+            >
+              Chỉnh sửa Quiz
+            </button>
           </div>
         </div>
 
@@ -243,7 +264,10 @@ onMounted(() => {
             </div>
 
             <!-- Quiz Placeholder -->
-            <div v-else-if="blockDetail.type === 'quiz'" class="w-full">
+            <div
+              v-else-if="blockDetail.type === 'quiz'"
+              class="w-full h-full max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar pr-2"
+            >
               <TeacherQuizPreview v-if="quizDetail" :quiz="quizDetail" />
               <div v-else class="flex flex-col items-center justify-center py-20">
                 <div v-if="isLoadingBlock" class="animate-pulse flex flex-col items-center">
