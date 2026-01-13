@@ -48,6 +48,8 @@ Thumbs.db
 .env
 *.env.local
 .env.*
+!.env.production
+
 # Ignore Django collected staticfiles
 backend/staticfiles/
 
