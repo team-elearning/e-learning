@@ -127,7 +127,7 @@ function setTrueFalse(val: boolean) {
   <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
     <div class="flex items-start justify-between gap-4">
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-wide text-slate-400">Câu hỏi #{{ question.order }}</p>
+        <p class="text-xs uppercase tracking-wide text-slate-400">Câu hỏi #{{ question.position }}</p>
         <h3 class="text-lg font-semibold text-slate-900">Chỉnh sửa câu hỏi</h3>
       </div>
       <div class="flex items-center gap-3">

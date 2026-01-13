@@ -138,6 +138,7 @@ export interface Question {
 export interface Quiz {
     id: string
     title: string
+    description?: string
     questions: Question[]
     owner_id: string
     owner_name: string
@@ -274,5 +275,4 @@ export interface QuizResultItem {
     max_score: number
     feedback?: string
 }
-
 
