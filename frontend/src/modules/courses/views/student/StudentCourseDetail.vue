@@ -25,6 +25,7 @@ const activeBlock = ref<BlockDetail | null>(null)
 const isLoadingCourse = ref(false)
 const isLoadingBlock = ref(false)
 const expandedModules = ref<Set<string>>(new Set())
+const videoUrl = ref<string>('')
 
 // Tracking state
 let heartbeatInterval: any = null
@@ -67,10 +68,39 @@ async function handleBlockClick(blockId: string) {
   // Stop tracking previous block before switching
   await stopHeartbeat()
 
+  // Revoke previous blob URL if it exists
+  if (videoUrl.value && videoUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoUrl.value)
+  }
+  videoUrl.value = ''
+
   isLoadingBlock.value = true
   try {
     const res = await studentCoursesApi.getBlockDetail(blockId)
     activeBlock.value = res.data
+
+    if (activeBlock.value?.type === 'video') {
+      const vidSource = activeBlock.value.payload.url || activeBlock.value.payload.video_url
+      if (vidSource) {
+        try {
+          const videoRes = await fetch(vidSource, {
+            method: 'GET',
+            credentials: 'include',
+          })
+          if (videoRes.ok) {
+            // Retrieve as blob to ensure cookies were used for content
+            const blob = await videoRes.blob()
+            videoUrl.value = URL.createObjectURL(blob)
+          } else {
+            // Fallback
+            videoUrl.value = vidSource
+          }
+        } catch (e) {
+          console.error('Failed to fetch video with cookies', e)
+          videoUrl.value = vidSource
+        }
+      }
+    }
 
     // Start tracking new block
     await initBlockTracking(blockId)
@@ -245,7 +275,7 @@ onMounted(() => {
 
         <div v-else-if="course?.modules" class="space-y-2">
           <div
-            v-for="mod in course.modules"
+            v-for="(mod, moduleIndex) in course.modules"
             :key="mod.id"
             class="rounded-lg overflow-hidden border border-slate-200 bg-white"
           >
@@ -254,7 +284,9 @@ onMounted(() => {
               @click="toggleModule(mod.id)"
               class="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
             >
-              <span class="font-semibold text-sm text-gray-800">{{ mod.title }}</span>
+              <span class="font-semibold text-sm text-gray-800">
+                Chương {{ moduleIndex + 1 }}: {{ mod.title }}
+              </span>
               <component
                 :is="expandedModules.has(mod.id) ? ChevronDown : ChevronRight"
                 class="w-4 h-4 text-slate-500"
@@ -263,15 +295,19 @@ onMounted(() => {
 
             <!-- Lessons List -->
             <div v-show="expandedModules.has(mod.id)" class="bg-white">
-              <div v-for="lesson in mod.lessons" :key="lesson.id" class="border-t border-slate-100">
+              <div
+                v-for="(lesson, lessonIndex) in mod.lessons"
+                :key="lesson.id"
+                class="border-t border-slate-100"
+              >
                 <div
                   class="px-4 py-2 bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wider"
                 >
-                  {{ lesson.title }}
+                  Bài {{ lessonIndex + 1 }}: {{ lesson.title }}
                 </div>
                 <div>
                   <button
-                    v-for="block in lesson.content_blocks"
+                    v-for="(block, blockIndex) in lesson.content_blocks"
                     :key="block.id"
                     @click="handleBlockClick(block.id)"
                     :class="[
@@ -282,7 +318,7 @@ onMounted(() => {
                     ]"
                   >
                     <component :is="getIcon(block.type)" class="w-4 h-4 flex-shrink-0" />
-                    <span class="truncate">{{ block.title }}</span>
+                    <span class="truncate"> {{ blockIndex + 1 }}: {{ block.title }}</span>
                   </button>
                 </div>
               </div>
@@ -370,14 +406,29 @@ onMounted(() => {
               class="aspect-video bg-black rounded-xl overflow-hidden shadow-lg"
             >
               <video
-                v-if="activeBlock.payload.url || activeBlock.payload.video_url"
-                :src="activeBlock.payload.url || activeBlock.payload.video_url"
+                v-if="videoUrl"
+                :src="videoUrl"
                 class="w-full h-full"
                 controls
                 playsinline
                 preload="metadata"
                 controlsList="nodownload"
               ></video>
+              <!-- <iframe
+                v-if="activeBlock.payload.video_url"
+                :src="activeBlock.payload.video_url"
+                class="w-full h-full"
+                frameborder="0"
+                allow="
+                  accelerometer;
+                  autoplay;
+                  clipboard-write;
+                  encrypted-media;
+                  gyroscope;
+                  picture-in-picture;
+                "
+                allowfullscreen
+              ></iframe> -->
               <div v-else class="w-full h-full flex items-center justify-center text-white/50">
                 Video chưa sẵn sàng
               </div>
