@@ -39,6 +39,12 @@ export const teacherRoutes: RouteRecordRaw[] = [
                 component: () => import('@/modules/courses/views/teacher/TeacherCourseDetail.vue'),
             },
             {
+                meta: { title: 'Quiz Editor' },
+                path: 'courses/:courseId/quizzes/:quizId',
+                name: 'teacher-quiz-editor',
+                component: () => import('@/modules/courses/views/teacher/quiz/QuizEditor.vue'),
+            },
+            {
                 meta: { title: 'Hồ sơ cá nhân' },
                 path: 'profile',
                 name: 'teacher-profile',
