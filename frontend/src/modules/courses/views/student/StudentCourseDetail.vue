@@ -81,25 +81,7 @@ async function handleBlockClick(blockId: string) {
 
     if (activeBlock.value?.type === 'video') {
       const vidSource = activeBlock.value.payload.url || activeBlock.value.payload.video_url
-      if (vidSource) {
-        try {
-          const videoRes = await fetch(vidSource, {
-            method: 'GET',
-            credentials: 'include',
-          })
-          if (videoRes.ok) {
-            // Retrieve as blob to ensure cookies were used for content
-            const blob = await videoRes.blob()
-            videoUrl.value = URL.createObjectURL(blob)
-          } else {
-            // Fallback
-            videoUrl.value = vidSource
-          }
-        } catch (e) {
-          console.error('Failed to fetch video with cookies', e)
-          videoUrl.value = vidSource
-        }
-      }
+      if (vidSource) videoUrl.value = vidSource
     }
 
     // Start tracking new block
@@ -405,6 +387,15 @@ onMounted(() => {
               v-else-if="activeBlock.type === 'video'"
               class="aspect-video bg-black rounded-xl overflow-hidden shadow-lg"
             >
+              <video
+                v-if="videoUrl"
+                :src="videoUrl"
+                class="w-full h-full"
+                controls
+                playsinline
+                preload="metadata"
+                controlsList="nodownload"
+              ></video>
               <!-- <video
                 v-if="videoUrl"
                 :src="videoUrl"
@@ -415,7 +406,7 @@ onMounted(() => {
                 controlsList="nodownload"
                 crossorigin="use-credentials"
               ></video> -->
-              <iframe
+              <!-- <iframe
                 v-if="activeBlock.payload.video_url"
                 :src="activeBlock.payload.video_url"
                 class="w-full h-full"
@@ -429,7 +420,7 @@ onMounted(() => {
                   picture-in-picture;
                 "
                 allowfullscreen
-              ></iframe>
+              ></iframe> -->
               <div v-else class="w-full h-full flex items-center justify-center text-white/50">
                 Video chưa sẵn sàng
               </div>
