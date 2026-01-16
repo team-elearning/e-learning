@@ -405,7 +405,7 @@ onMounted(() => {
               v-else-if="activeBlock.type === 'video'"
               class="aspect-video bg-black rounded-xl overflow-hidden shadow-lg"
             >
-              <video
+              <!-- <video
                 v-if="videoUrl"
                 :src="videoUrl"
                 class="w-full h-full"
@@ -413,8 +413,9 @@ onMounted(() => {
                 playsinline
                 preload="metadata"
                 controlsList="nodownload"
-              ></video>
-              <!-- <iframe
+                crossorigin="use-credentials"
+              ></video> -->
+              <iframe
                 v-if="activeBlock.payload.video_url"
                 :src="activeBlock.payload.video_url"
                 class="w-full h-full"
@@ -428,7 +429,7 @@ onMounted(() => {
                   picture-in-picture;
                 "
                 allowfullscreen
-              ></iframe> -->
+              ></iframe>
               <div v-else class="w-full h-full flex items-center justify-center text-white/50">
                 Video chưa sẵn sàng
               </div>
