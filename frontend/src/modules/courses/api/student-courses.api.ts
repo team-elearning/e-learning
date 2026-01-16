@@ -13,7 +13,7 @@ import type {
 } from '../types/course.types'
 
 export const studentCoursesApi = {
-    getMediaCookies: () => http.post('/api/media/cookies/'),
+    getMediaCookies: () => http.post('/api/media/cookies/', undefined, { withCredentials: true }),
     getMyCourses: () => http.get<StudentCourse[]>('/api/content/my-courses/'),
     getAllCourses: () => http.get<Course[]>('/api/content/courses/'),
     enrollCourse: (id: string) => http.post(`/api/content/courses/${id}/enroll/`),
@@ -35,4 +35,3 @@ export const studentCoursesApi = {
     submitQuestion: (attemptId: string, questionId: string) => http.post(`/api/progress/attempts/${attemptId}/questions/${questionId}/submit/`),
     finishQuizAttempt: (attemptId: string) => http.post<QuizAttemptResult>(`/api/progress/quizzes/attempts/${attemptId}/finish/`),
 }
-

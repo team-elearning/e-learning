@@ -130,9 +130,14 @@ async function handleFileUpload(event: Event) {
     })
     formData.append('file', file)
 
-    await axios.post(upload_url, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    // await axios.post(upload_url, formData, {
+    //   headers: { 'Content-Type': 'multipart/form-data' },
+    // })
+
+    const s3Res = await axios.post(upload_url, formData, {
+      validateStatus: (s) => (s >= 200 && s < 300) || s === 204,
     })
+    console.log('S3 upload status:', s3Res.status)
 
     // 3. Confirm
     await teacherCourseApi.uploadConfirm(file_id)

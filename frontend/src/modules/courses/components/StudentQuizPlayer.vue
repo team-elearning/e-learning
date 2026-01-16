@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { studentCoursesApi } from '../api/student-courses.api'
 import type { QuizAttempt, StudentQuizQuestion, QuizAttemptResult } from '../types/course.types'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -26,6 +26,53 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const currentQuestionIndex = ref(0)
 const quizResult = ref<QuizAttemptResult | null>(null)
+const nowMs = ref(Date.now())
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+const timeLimitMinutes = computed(() => {
+  const minutes = attempt.value?.time_limit_seconds
+  if (!minutes || minutes <= 0) return null
+  return minutes
+})
+
+const quizEndTimeMs = computed(() => {
+  if (!attempt.value?.time_start || !timeLimitMinutes.value) return null
+  const startMs = Date.parse(attempt.value.time_start)
+  if (Number.isNaN(startMs)) return null
+  return startMs + timeLimitMinutes.value * 60 * 1000
+})
+
+const remainingSeconds = computed(() => {
+  if (!quizEndTimeMs.value) return null
+  return Math.max(0, Math.floor((quizEndTimeMs.value - nowMs.value) / 1000))
+})
+
+const remainingLabel = computed(() => {
+  if (remainingSeconds.value === null) return '--'
+  const total = remainingSeconds.value
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
+})
+
+watch(
+  quizEndTimeMs,
+  (endMs) => {
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+    if (endMs) {
+      nowMs.value = Date.now()
+      countdownTimer = setInterval(() => {
+        nowMs.value = Date.now()
+      }, 1000)
+    }
+  },
+  { immediate: true },
+)
 
 const questionOptions = computed(() => {
   if (!currentQuestion.value) return []
@@ -226,6 +273,10 @@ const handleSubmitQuiz = async () => {
 onMounted(() => {
   initQuiz()
 })
+
+onBeforeUnmount(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+})
 </script>
 
 <template>
@@ -362,7 +413,11 @@ onMounted(() => {
           <h2 class="font-bold text-gray-900 text-lg">{{ title }}</h2>
           <div class="flex items-center gap-2 text-sm text-slate-500">
             <Clock class="w-4 h-4" />
-            <span>Thời gian còn lại: --:--</span>
+            <span
+              >Thời gian làm bài:
+              {{ timeLimitMinutes ? `${timeLimitMinutes} phút` : '--' }} • Còn lại:
+              {{ remainingLabel }}</span
+            >
           </div>
         </div>
         <button
