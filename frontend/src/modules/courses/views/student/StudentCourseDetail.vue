@@ -82,6 +82,7 @@ async function handleBlockClick(blockId: string) {
     if (activeBlock.value?.type === 'video') {
       const vidSource = activeBlock.value.payload.url || activeBlock.value.payload.video_url
       if (vidSource) videoUrl.value = vidSource
+      console.log('Video URL:', videoUrl.value)
     }
 
     // Start tracking new block
